@@ -17,5 +17,5 @@ spring:
       port: 6379
 
 DB_PASSWORD: test-password
-REDIS_PASSWORD:
+REDIS_PASSWORD: ""
 

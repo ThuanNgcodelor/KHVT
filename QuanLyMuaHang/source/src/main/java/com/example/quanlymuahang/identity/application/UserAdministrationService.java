@@ -5,6 +5,10 @@ import com.example.quanlymuahang.identity.infrastructure.persistence.RoleEntity;
 import com.example.quanlymuahang.identity.infrastructure.persistence.RoleJpaRepository;
 import com.example.quanlymuahang.identity.infrastructure.persistence.UserAccountEntity;
 import com.example.quanlymuahang.identity.infrastructure.persistence.UserAccountJpaRepository;
+import com.example.quanlymuahang.personnel.infrastructure.persistence.EmployeeJpaRepository;
+import com.example.quanlymuahang.personnel.infrastructure.persistence.EmployeeStatus;
+import com.example.quanlymuahang.identity.infrastructure.security.SessionRevocationService;
+import com.example.quanlymuahang.sharedkernel.application.AuditRecorder;
 import com.example.quanlymuahang.sharedkernel.web.ApiException;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
@@ -22,24 +26,33 @@ public class UserAdministrationService {
     private final UserAccountJpaRepository accounts;
     private final RoleJpaRepository roles;
     private final PasswordEncoder encoder;
+    private final EmployeeJpaRepository employees;
+    private final SessionRevocationService sessions;
+    private final AuditRecorder audit;
 
-    public UserAdministrationService(UserAccountJpaRepository accounts, RoleJpaRepository roles, PasswordEncoder encoder) {
-        this.accounts = accounts; this.roles = roles; this.encoder = encoder;
+    public UserAdministrationService(UserAccountJpaRepository accounts, RoleJpaRepository roles, PasswordEncoder encoder,
+                                     EmployeeJpaRepository employees, SessionRevocationService sessions, AuditRecorder audit) {
+        this.accounts = accounts; this.roles = roles; this.encoder = encoder; this.employees = employees;
+        this.sessions = sessions; this.audit = audit;
     }
 
     @Transactional(readOnly = true)
     public Page<UserView> list(Pageable pageable) { return accounts.findAllByOrderByCreatedAtDesc(pageable).map(UserView::from); }
 
     @Transactional
-    public UserView create(CreateUser command) {
+    public UserView create(CreateUser command, long actorId) {
         String email = UserAccountEntity.canonicalEmail(command.email());
         if (accounts.existsByEmail(email)) throw ApiException.conflict("EMAIL_EXISTS", "Email đã được sử dụng");
         if (command.initialPassword().length() < 12) throw ApiException.badRequest("WEAK_PASSWORD", "Mật khẩu tạm phải có ít nhất 12 ký tự");
-        UserAccountEntity account = new UserAccountEntity(email, command.displayName(), encoder.encode(command.initialPassword()));
+        UserAccountEntity account = new UserAccountEntity(email, command.displayName(), command.initialPassword());
         account.changePassword(encoder.encode(command.initialPassword()), true);
         account.setEmployeeId(command.employeeId());
+        validateEmployee(command.employeeId());
         account.replaceRoles(resolveRoles(command.roleCodes()));
-        return UserView.from(accounts.save(account));
+        UserAccountEntity saved = accounts.save(account);
+        UserView view = UserView.from(saved);
+        audit.record(actorId, "USER_CREATED", "USER_ACCOUNT", saved.getId(), view);
+        return view;
     }
 
     @Transactional
@@ -48,6 +61,7 @@ public class UserAdministrationService {
         if (id == actorId && command.status() != AccountStatus.ACTIVE)
             throw ApiException.badRequest("CANNOT_DISABLE_SELF", "Bạn không thể tự khóa hoặc vô hiệu hóa tài khoản của mình");
         Set<RoleEntity> nextRoles = resolveRoles(command.roleCodes());
+        validateEmployee(command.employeeId());
         boolean removesAdmin = account.getRoles().stream().anyMatch(role -> role.getCode().equals("ADMIN"))
                 && nextRoles.stream().noneMatch(role -> role.getCode().equals("ADMIN"));
         boolean willBeInactive = command.status() != AccountStatus.ACTIVE;
@@ -58,15 +72,26 @@ public class UserAdministrationService {
         account.setStatus(command.status());
         account.setEmployeeId(command.employeeId());
         account.replaceRoles(nextRoles);
-        return UserView.from(account);
+        UserView view = UserView.from(account);
+        audit.record(actorId, "USER_UPDATED", "USER_ACCOUNT", account.getId(), view);
+        sessions.revokeAll(account.getEmail());
+        return view;
     }
 
     @Transactional
-    public void resetPassword(long id, String temporaryPassword) {
+    public void resetPassword(long id, String temporaryPassword, long actorId) {
         if (temporaryPassword == null || temporaryPassword.length() < 12)
             throw ApiException.badRequest("WEAK_PASSWORD", "Mật khẩu tạm phải có ít nhất 12 ký tự");
         UserAccountEntity account = accounts.findById(id).orElseThrow(() -> ApiException.notFound("Không tìm thấy tài khoản"));
         account.changePassword(encoder.encode(temporaryPassword), true);
+        audit.record(actorId, "USER_PASSWORD_RESET", "USER_ACCOUNT", account.getId(), java.util.Map.of("mustChangePassword", true));
+        sessions.revokeAll(account.getEmail());
+    }
+
+    private void validateEmployee(Long employeeId) {
+        if (employeeId == null) return;
+        boolean active = employees.findById(employeeId).map(employee -> employee.getStatus() == EmployeeStatus.ACTIVE).orElse(false);
+        if (!active) throw ApiException.badRequest("EMPLOYEE_NOT_ACTIVE", "Chỉ có thể liên kết account với nhân viên đang hoạt động");
     }
 
     private Set<RoleEntity> resolveRoles(Set<String> roleCodes) {

@@ -15,7 +15,9 @@ import jakarta.persistence.JoinColumn;
 import jakarta.persistence.ManyToOne;
 import jakarta.persistence.OneToMany;
 import jakarta.persistence.OrderBy;
+import jakarta.persistence.PreUpdate;
 import jakarta.persistence.Table;
+import jakarta.persistence.Version;
 
 import java.math.BigDecimal;
 import java.time.Instant;
@@ -34,7 +36,7 @@ public class PurchaseOrder {
     @Column(name = "po_number", nullable = false, unique = true, length = 40)
     private String poNumber;
 
-    @Column(name = "order_date", nullable = false)
+    @Column(name = "order_date")
     private LocalDate orderDate;
 
     @ManyToOne(fetch = FetchType.LAZY)
@@ -73,6 +75,28 @@ public class PurchaseOrder {
     @Column(name = "updated_at", nullable = false)
     private Instant updatedAt;
 
+    @Column(name = "created_by")
+    private Long createdBy;
+
+    @Column(name = "updated_by")
+    private Long updatedBy;
+
+    @Column(name = "cancelled_at")
+    private Instant cancelledAt;
+
+    @Column(name = "cancel_reason", length = 500)
+    private String cancelReason;
+
+    @Column(name = "source_po_number", length = 40)
+    private String sourcePoNumber;
+
+    @Column(name = "source_import_batch_id")
+    private Long sourceImportBatchId;
+
+    @Version
+    @Column(nullable = false)
+    private long version;
+
     @OneToMany(mappedBy = "purchaseOrder", cascade = CascadeType.ALL, orphanRemoval = true)
     @OrderBy("lineNo ASC")
     private List<PurchaseOrderItem> items = new ArrayList<>();
@@ -93,6 +117,25 @@ public class PurchaseOrder {
         item.setLineNo(items.size() + 1);
         items.add(item);
     }
+
+    @PreUpdate
+    void onUpdate() { this.updatedAt = Instant.now(); }
+
+    public void replaceItems(List<PurchaseOrderItem> replacement) {
+        items.clear();
+        replacement.forEach(this::addItem);
+    }
+
+    public void cancel(String reason) {
+        this.status = PurchaseOrderStatus.CANCELLED;
+        this.cancelledAt = Instant.now();
+        this.cancelReason = reason;
+    }
+
+    public void setCreatedBy(Long value) { this.createdBy = value; }
+    public void setUpdatedBy(Long value) { this.updatedBy = value; }
+    public void setSourcePoNumber(String value) { this.sourcePoNumber = value; }
+    public void setSourceImportBatchId(Long value) { this.sourceImportBatchId = value; }
 
     public Long getId() { return id; }
     public String getPoNumber() { return poNumber; }
@@ -120,4 +163,11 @@ public class PurchaseOrder {
     public Instant getCreatedAt() { return createdAt; }
     public Instant getUpdatedAt() { return updatedAt; }
     public List<PurchaseOrderItem> getItems() { return items; }
+    public Long getCreatedBy() { return createdBy; }
+    public Long getUpdatedBy() { return updatedBy; }
+    public Instant getCancelledAt() { return cancelledAt; }
+    public String getCancelReason() { return cancelReason; }
+    public String getSourcePoNumber() { return sourcePoNumber; }
+    public Long getSourceImportBatchId() { return sourceImportBatchId; }
+    public long getVersion() { return version; }
 }

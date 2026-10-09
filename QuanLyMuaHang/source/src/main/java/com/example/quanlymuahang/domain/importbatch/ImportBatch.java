@@ -8,6 +8,7 @@ import jakarta.persistence.GeneratedValue;
 import jakarta.persistence.GenerationType;
 import jakarta.persistence.Id;
 import jakarta.persistence.Table;
+import jakarta.persistence.PrePersist;
 
 import java.time.Instant;
 
@@ -45,7 +46,10 @@ public class ImportBatch {
     private int errorRows;
 
     @Column(name = "created_at", nullable = false)
-    private Instant createdAt = Instant.now();
+    private Instant createdAt;
+
+    @Column(name = "created_by")
+    private Long createdBy;
 
     protected ImportBatch() {
     }
@@ -56,6 +60,8 @@ public class ImportBatch {
         this.fileType = fileType;
         this.mode = mode;
     }
+
+    @PrePersist void onCreate() { if (createdAt == null) createdAt = Instant.now(); }
 
     public Long getId() { return id; }
     public String getFileName() { return fileName; }
@@ -71,4 +77,6 @@ public class ImportBatch {
     public int getErrorRows() { return errorRows; }
     public void setErrorRows(int value) { this.errorRows = value; }
     public Instant getCreatedAt() { return createdAt; }
+    public Long getCreatedBy() { return createdBy; }
+    public void setCreatedBy(Long createdBy) { this.createdBy = createdBy; }
 }

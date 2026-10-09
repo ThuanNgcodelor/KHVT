@@ -75,6 +75,18 @@ public class HistoricalPurchase {
     @Column(name = "currency_basis", nullable = false, length = 30)
     private String currencyBasis = "SOURCE";
 
+    @Column(name = "source_sheet", length = 80)
+    private String sourceSheet;
+
+    @Column(name = "import_batch_id")
+    private Long importBatchId;
+
+    @Column(name = "data_quality_flags", columnDefinition = "json")
+    private String dataQualityFlags;
+
+    @Column(name = "source_reference", length = 120, unique = true)
+    private String sourceReference;
+
     @Column(name = "source_row_number")
     private Integer sourceRowNumber;
 
@@ -113,6 +125,14 @@ public class HistoricalPurchase {
     public void setSource(String source) { this.source = source; }
     public String getCurrencyBasis() { return currencyBasis; }
     public void setCurrencyBasis(String currencyBasis) { this.currencyBasis = currencyBasis; }
+    public String getSourceSheet() { return sourceSheet; }
+    public void setSourceSheet(String sourceSheet) { this.sourceSheet = sourceSheet; }
+    public Long getImportBatchId() { return importBatchId; }
+    public void setImportBatchId(Long importBatchId) { this.importBatchId = importBatchId; }
+    public String getDataQualityFlags() { return dataQualityFlags; }
+    public void setDataQualityFlags(String dataQualityFlags) { this.dataQualityFlags = dataQualityFlags; }
+    public String getSourceReference() { return sourceReference; }
+    public void setSourceReference(String sourceReference) { this.sourceReference = sourceReference; }
     public Integer getSourceRowNumber() { return sourceRowNumber; }
     public void setSourceRowNumber(Integer value) { this.sourceRowNumber = value; }
     public MaterialCategory getCategory() { return category; }

@@ -25,12 +25,16 @@ public final class AccountPrincipal implements UserDetails, Serializable {
     private final Set<GrantedAuthority> authorities;
 
     public AccountPrincipal(UserAccountEntity account) {
+        this(account, true);
+    }
+
+    public AccountPrincipal(UserAccountEntity account, boolean linkedEmployeeActive) {
         this.id = account.getId();
         this.email = account.getEmail();
         this.displayName = account.getDisplayName();
         this.passwordHash = account.getPasswordHash();
         this.employeeId = account.getEmployeeId();
-        this.enabled = account.getStatus().name().equals("ACTIVE");
+        this.enabled = account.getStatus().name().equals("ACTIVE") && linkedEmployeeActive;
         this.locked = account.isLockedNow();
         this.mustChangePassword = account.isMustChangePassword();
         this.roles = account.getRoles().stream().map(role -> role.getCode()).collect(java.util.stream.Collectors.toUnmodifiableSet());

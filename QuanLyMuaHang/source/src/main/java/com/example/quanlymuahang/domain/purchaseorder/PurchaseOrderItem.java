@@ -63,6 +63,15 @@ public class PurchaseOrderItem {
         this.unitPrice = unitPrice;
     }
 
+    public void update(String code, String specification, BigDecimal quantity, String quantityText) {
+        this.materialCodeSnapshot = code;
+        this.specification = specification;
+        this.quantity = quantity;
+        this.quantityText = quantityText;
+    }
+
+    public void setMaterial(Material material) { this.material = material; }
+
     public Long getId() { return id; }
     public PurchaseOrder getPurchaseOrder() { return purchaseOrder; }
     public void setPurchaseOrder(PurchaseOrder purchaseOrder) { this.purchaseOrder = purchaseOrder; }

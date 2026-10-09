@@ -48,8 +48,9 @@ public class UserAdministrationController {
 
     @PostMapping("/users")
     @PreAuthorize("hasAuthority('*') or hasAuthority('USER_MANAGE')")
-    public UserAdministrationService.UserView create(@Valid @RequestBody CreateUserRequest body) {
-        return service.create(new UserAdministrationService.CreateUser(body.email(), body.displayName(), body.initialPassword(), body.employeeId(), body.roleCodes()));
+    public UserAdministrationService.UserView create(@Valid @RequestBody CreateUserRequest body, Authentication authentication) {
+        return service.create(new UserAdministrationService.CreateUser(body.email(), body.displayName(), body.initialPassword(), body.employeeId(), body.roleCodes()),
+                ((AccountPrincipal) authentication.getPrincipal()).id());
     }
 
     @PutMapping("/users/{id}")
@@ -61,7 +62,9 @@ public class UserAdministrationController {
 
     @PostMapping("/users/{id}/reset-password")
     @PreAuthorize("hasAuthority('*') or hasAuthority('USER_MANAGE')")
-    public void resetPassword(@PathVariable long id, @Valid @RequestBody ResetPasswordRequest body) { service.resetPassword(id, body.temporaryPassword()); }
+    public void resetPassword(@PathVariable long id, @Valid @RequestBody ResetPasswordRequest body, Authentication authentication) {
+        service.resetPassword(id, body.temporaryPassword(), ((AccountPrincipal) authentication.getPrincipal()).id());
+    }
 
     public record RoleView(String code, String name, String description, List<String> permissions) {}
     public record CreateUserRequest(@NotBlank @Email String email, @NotBlank @Size(max = 255) String displayName,

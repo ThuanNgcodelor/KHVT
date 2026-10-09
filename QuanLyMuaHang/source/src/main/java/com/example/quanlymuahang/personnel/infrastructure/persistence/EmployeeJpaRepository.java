@@ -10,6 +10,7 @@ import java.util.Optional;
 
 public interface EmployeeJpaRepository extends JpaRepository<EmployeeEntity, Long> {
     Optional<EmployeeEntity> findByEmployeeCodeIgnoreCase(String employeeCode);
+    boolean existsByEmployeeCodeIgnoreCaseAndIdNot(String employeeCode, Long id);
     boolean existsByEmployeeCodeIgnoreCase(String employeeCode);
     boolean existsByEmailIgnoreCase(String email);
     @Query("select e from EmployeeEntity e where (:query is null or :query = '' or lower(e.employeeCode) like lower(concat('%', :query, '%')) or lower(e.fullName) like lower(concat('%', :query, '%')) or lower(e.email) like lower(concat('%', :query, '%'))) and (:status is null or e.status = :status)")

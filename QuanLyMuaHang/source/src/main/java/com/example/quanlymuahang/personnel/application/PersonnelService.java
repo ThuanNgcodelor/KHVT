@@ -7,6 +7,11 @@ import com.example.quanlymuahang.personnel.infrastructure.persistence.EmployeeJp
 import com.example.quanlymuahang.personnel.infrastructure.persistence.EmployeeStatus;
 import com.example.quanlymuahang.personnel.infrastructure.persistence.PositionEntity;
 import com.example.quanlymuahang.personnel.infrastructure.persistence.PositionJpaRepository;
+import com.example.quanlymuahang.identity.infrastructure.persistence.AccountStatus;
+import com.example.quanlymuahang.identity.infrastructure.persistence.UserAccountEntity;
+import com.example.quanlymuahang.identity.infrastructure.persistence.UserAccountJpaRepository;
+import com.example.quanlymuahang.identity.infrastructure.security.SessionRevocationService;
+import com.example.quanlymuahang.sharedkernel.application.AuditRecorder;
 import com.example.quanlymuahang.sharedkernel.web.ApiException;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
@@ -22,9 +27,14 @@ public class PersonnelService {
     private final EmployeeJpaRepository employees;
     private final DepartmentJpaRepository departments;
     private final PositionJpaRepository positions;
+    private final UserAccountJpaRepository accounts;
+    private final SessionRevocationService sessions;
+    private final AuditRecorder audit;
 
-    public PersonnelService(EmployeeJpaRepository employees, DepartmentJpaRepository departments, PositionJpaRepository positions) {
+    public PersonnelService(EmployeeJpaRepository employees, DepartmentJpaRepository departments, PositionJpaRepository positions,
+                            UserAccountJpaRepository accounts, SessionRevocationService sessions, AuditRecorder audit) {
         this.employees = employees; this.departments = departments; this.positions = positions;
+        this.accounts = accounts; this.sessions = sessions; this.audit = audit;
     }
 
     @Transactional(readOnly = true)
@@ -36,58 +46,78 @@ public class PersonnelService {
     public EmployeeView getEmployee(long id) { return EmployeeView.from(employee(id)); }
 
     @Transactional
-    public EmployeeView createEmployee(EmployeeCommand command) {
+    public EmployeeView createEmployee(EmployeeCommand command, long actorId) {
         if (employees.existsByEmployeeCodeIgnoreCase(command.employeeCode().trim())) throw ApiException.conflict("EMPLOYEE_CODE_EXISTS", "Mã nhân viên đã tồn tại");
         String email = clean(command.email());
         if (email != null && employees.existsByEmailIgnoreCase(email)) throw ApiException.conflict("EMPLOYEE_EMAIL_EXISTS", "Email nhân viên đã tồn tại");
         EmployeeEntity employee = new EmployeeEntity(command.employeeCode(), command.fullName(), email, clean(command.phone()),
                 department(command.departmentId()), position(command.positionId()), command.joinedAt());
-        return EmployeeView.from(employees.save(employee));
+        EmployeeView view = EmployeeView.from(employees.save(employee));
+        audit.record(actorId, "EMPLOYEE_CREATED", "EMPLOYEE", view.id(), view);
+        return view;
     }
 
     @Transactional
-    public EmployeeView updateEmployee(long id, EmployeeCommand command) {
+    public EmployeeView updateEmployee(long id, EmployeeCommand command, long actorId) {
         EmployeeEntity employee = employee(id);
+        if (employees.existsByEmployeeCodeIgnoreCaseAndIdNot(command.employeeCode().trim(), id))
+            throw ApiException.conflict("EMPLOYEE_CODE_EXISTS", "Mã nhân viên đã tồn tại");
         String email = clean(command.email());
         if (email != null && employees.existsByEmailIgnoreCase(email) && !email.equalsIgnoreCase(employee.getEmail()))
             throw ApiException.conflict("EMPLOYEE_EMAIL_EXISTS", "Email nhân viên đã tồn tại");
-        employee.update(command.fullName(), email, clean(command.phone()), department(command.departmentId()), position(command.positionId()), command.joinedAt());
-        return EmployeeView.from(employee);
+        employee.update(command.employeeCode(), command.fullName(), email, clean(command.phone()), department(command.departmentId()), position(command.positionId()), command.joinedAt());
+        EmployeeView view = EmployeeView.from(employee);
+        audit.record(actorId, "EMPLOYEE_UPDATED", "EMPLOYEE", id, view);
+        return view;
     }
 
     @Transactional
-    public EmployeeView deactivateEmployee(long id) {
+    public EmployeeView deactivateEmployee(long id, long actorId) {
         EmployeeEntity employee = employee(id);
         employee.deactivate(LocalDate.now());
-        return EmployeeView.from(employee);
+        accounts.findByEmployeeId(id).ifPresent(account -> {
+            account.setStatus(AccountStatus.DISABLED);
+            sessions.revokeAll(account.getEmail());
+            audit.record(actorId, "ACCOUNT_DISABLED_EMPLOYEE_DEACTIVATED", "USER_ACCOUNT", account.getId(), java.util.Map.of("status", "DISABLED"));
+        });
+        EmployeeView view = EmployeeView.from(employee);
+        audit.record(actorId, "EMPLOYEE_DEACTIVATED", "EMPLOYEE", id, view);
+        return view;
     }
 
     @Transactional
-    public EmployeeView activateEmployee(long id) {
+    public EmployeeView activateEmployee(long id, long actorId) {
         EmployeeEntity employee = employee(id);
         employee.activate();
-        return EmployeeView.from(employee);
+        EmployeeView view = EmployeeView.from(employee);
+        audit.record(actorId, "EMPLOYEE_ACTIVATED", "EMPLOYEE", id, view);
+        return view;
     }
 
     @Transactional(readOnly = true)
     public List<DepartmentView> departments() { return departments.findAllByOrderByNameAsc().stream().map(DepartmentView::from).toList(); }
 
     @Transactional
-    public DepartmentView saveDepartment(Long id, DepartmentCommand command) {
+    public DepartmentView saveDepartment(Long id, DepartmentCommand command, long actorId) {
         DepartmentEntity entity = id == null ? new DepartmentEntity(clean(command.code()), command.name()) : departments.findById(id).orElseThrow(() -> ApiException.notFound("Không tìm thấy phòng ban"));
         if (id != null) entity.update(clean(command.code()), command.name(), command.active());
+        if (id != null && id.equals(command.parentId())) throw ApiException.badRequest("INVALID_DEPARTMENT_PARENT", "Phòng ban không thể là cha của chính nó");
         entity.setParent(command.parentId() == null ? null : departments.findById(command.parentId()).orElseThrow(() -> ApiException.notFound("Không tìm thấy phòng ban cha")));
-        return DepartmentView.from(departments.save(entity));
+        DepartmentView view = DepartmentView.from(departments.save(entity));
+        audit.record(actorId, id == null ? "DEPARTMENT_CREATED" : "DEPARTMENT_UPDATED", "DEPARTMENT", view.id(), view);
+        return view;
     }
 
     @Transactional(readOnly = true)
     public List<PositionView> positions() { return positions.findAllByOrderByNameAsc().stream().map(PositionView::from).toList(); }
 
     @Transactional
-    public PositionView savePosition(Long id, PositionCommand command) {
+    public PositionView savePosition(Long id, PositionCommand command, long actorId) {
         PositionEntity entity = id == null ? new PositionEntity(clean(command.code()), command.name()) : positions.findById(id).orElseThrow(() -> ApiException.notFound("Không tìm thấy chức vụ"));
         if (id != null) entity.update(clean(command.code()), command.name(), command.active());
-        return PositionView.from(positions.save(entity));
+        PositionView view = PositionView.from(positions.save(entity));
+        audit.record(actorId, id == null ? "POSITION_CREATED" : "POSITION_UPDATED", "POSITION", view.id(), view);
+        return view;
     }
 
     private EmployeeEntity employee(long id) { return employees.findById(id).orElseThrow(() -> ApiException.notFound("Không tìm thấy nhân viên")); }

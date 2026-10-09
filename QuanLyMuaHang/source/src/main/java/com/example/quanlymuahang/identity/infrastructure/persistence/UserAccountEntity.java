@@ -130,7 +130,10 @@ public class UserAccountEntity {
         return status == AccountStatus.ACTIVE && (lockedUntil == null || lockedUntil.isBefore(Instant.now()));
     }
 
-    public void setStatus(AccountStatus status) { this.status = status; }
+    public void setStatus(AccountStatus status) {
+        this.status = status;
+        if (status == AccountStatus.ACTIVE) { this.failedLoginCount = 0; this.lockedUntil = null; }
+    }
     public void setEmployeeId(Long employeeId) { this.employeeId = employeeId; }
     public void setDisplayName(String displayName) { this.displayName = displayName.trim(); }
     public boolean isLockedNow() { return lockedUntil != null && lockedUntil.isAfter(Instant.now()); }

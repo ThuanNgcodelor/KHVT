@@ -11,4 +11,5 @@ public interface SupplierRepository extends JpaRepository<Supplier, Long> {
     Optional<Supplier> findByNormalizedName(String normalizedName);
     List<Supplier> findTop50ByActiveTrueAndNormalizedNameContainingOrderByNameAsc(String query);
     boolean existsByCodeIgnoreCase(String code);
+    long countByActiveTrue();
 }

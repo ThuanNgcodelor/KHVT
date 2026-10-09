@@ -39,7 +39,7 @@ public class IdentityBootstrap implements ApplicationRunner {
         String canonicalEmail = UserAccountEntity.canonicalEmail(email);
         if (accounts.existsByEmail(canonicalEmail)) return;
         RoleEntity admin = roles.findByCode("ADMIN").orElseThrow(() -> new IllegalStateException("Role ADMIN chưa được khởi tạo"));
-        UserAccountEntity account = new UserAccountEntity(canonicalEmail, displayName, passwordEncoder.encode(password));
+        UserAccountEntity account = new UserAccountEntity(canonicalEmail, displayName, password);
         account.setStatus(AccountStatus.ACTIVE);
         account.changePassword(passwordEncoder.encode(password), true);
         account.replaceRoles(Set.of(admin));

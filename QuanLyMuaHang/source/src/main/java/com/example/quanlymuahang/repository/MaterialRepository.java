@@ -12,4 +12,5 @@ public interface MaterialRepository extends JpaRepository<Material, Long> {
     List<Material> findTop20ByActiveTrueAndNormalizedNameContainingIgnoreCaseOrderByNameAsc(String query);
     List<Material> findTop50ByActiveTrueAndNormalizedNameContainingOrderByNameAsc(String query);
     boolean existsByCodeIgnoreCase(String code);
+    long countByActiveTrue();
 }

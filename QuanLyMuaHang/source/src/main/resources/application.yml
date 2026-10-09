@@ -46,6 +46,8 @@ app:
   frontend-url: ${APP_FRONTEND_URL:http://localhost:5173}
   files:
     root: ${FILE_STORAGE_ROOT:./data/files}
+  pdf:
+    font-path: ${APP_PDF_FONT_PATH:/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf}
   bootstrap-admin:
     email: ${ADMIN_BOOTSTRAP_EMAIL:}
     password: ${ADMIN_BOOTSTRAP_PASSWORD:}

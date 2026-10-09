@@ -12,14 +12,16 @@ import jakarta.validation.constraints.Size;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.authentication.AuthenticationManager;
-import org.springframework.security.authentication.BadCredentialsException;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
 import org.springframework.security.core.Authentication;
+import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
 import org.springframework.security.core.AuthenticationException;
 import org.springframework.security.core.context.SecurityContext;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.security.web.context.SecurityContextRepository;
 import org.springframework.security.web.csrf.CsrfToken;
+import org.springframework.security.web.csrf.CsrfTokenRepository;
+import org.springframework.security.web.authentication.session.SessionAuthenticationStrategy;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
@@ -35,9 +37,15 @@ public class AuthController {
     private final AuthenticationManager authenticationManager;
     private final SecurityContextRepository contextRepository;
     private final AuthService authService;
+    private final CsrfTokenRepository csrfTokenRepository;
+    private final SessionAuthenticationStrategy sessionAuthenticationStrategy;
 
-    public AuthController(AuthenticationManager authenticationManager, SecurityContextRepository contextRepository, AuthService authService) {
-        this.authenticationManager = authenticationManager; this.contextRepository = contextRepository; this.authService = authService;
+    public AuthController(AuthenticationManager authenticationManager, SecurityContextRepository contextRepository,
+                          AuthService authService, CsrfTokenRepository csrfTokenRepository,
+                          SessionAuthenticationStrategy sessionAuthenticationStrategy) {
+        this.authenticationManager = authenticationManager; this.contextRepository = contextRepository;
+        this.authService = authService; this.csrfTokenRepository = csrfTokenRepository;
+        this.sessionAuthenticationStrategy = sessionAuthenticationStrategy;
     }
 
     @GetMapping("/csrf")
@@ -54,10 +62,12 @@ public class AuthController {
         }
         AccountPrincipal principal = (AccountPrincipal) authentication.getPrincipal();
         authService.recordLoginSuccess(principal.email());
+        sessionAuthenticationStrategy.onAuthentication(authentication, request, response);
         SecurityContext context = SecurityContextHolder.createEmptyContext();
         context.setAuthentication(authentication);
         SecurityContextHolder.setContext(context);
         contextRepository.saveContext(context, request, response);
+        csrfTokenRepository.saveToken(null, request, response);
         return ResponseEntity.ok(MeResponse.from(principal));
     }
 
@@ -73,9 +83,18 @@ public class AuthController {
     }
 
     @PostMapping("/change-password")
-    public ResponseEntity<Void> changePassword(@Valid @RequestBody ChangePasswordRequest body, Authentication authentication) {
-        authService.changePassword((AccountPrincipal) authentication.getPrincipal(), body.currentPassword(), body.newPassword());
-        return ResponseEntity.noContent().build();
+    public MeResponse changePassword(@Valid @RequestBody ChangePasswordRequest body, Authentication authentication,
+                                     HttpServletRequest request, HttpServletResponse response) {
+        HttpSession session = request.getSession(false);
+        String sessionId = session == null ? null : session.getId();
+        AccountPrincipal principal = authService.changePassword((AccountPrincipal) authentication.getPrincipal(),
+                body.currentPassword(), body.newPassword(), sessionId);
+        Authentication updatedAuthentication = new UsernamePasswordAuthenticationToken(principal, null, principal.getAuthorities());
+        SecurityContext context = SecurityContextHolder.createEmptyContext();
+        context.setAuthentication(updatedAuthentication);
+        SecurityContextHolder.setContext(context);
+        contextRepository.saveContext(context, request, response);
+        return MeResponse.from(principal);
     }
 
     public record LoginRequest(@NotBlank @Email String email, @NotBlank String password) {}

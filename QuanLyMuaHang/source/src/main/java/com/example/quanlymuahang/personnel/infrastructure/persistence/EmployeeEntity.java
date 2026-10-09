@@ -86,8 +86,9 @@ public class EmployeeEntity {
     @PrePersist void onCreate() { createdAt = Instant.now(); updatedAt = createdAt; }
     @PreUpdate void onUpdate() { updatedAt = Instant.now(); }
 
-    public void update(String fullName, String email, String phone, DepartmentEntity department,
+    public void update(String employeeCode, String fullName, String email, String phone, DepartmentEntity department,
                        PositionEntity position, LocalDate joinedAt) {
+        this.employeeCode = employeeCode.trim();
         this.fullName = fullName.trim();
         this.email = email == null || email.isBlank() ? null : email.trim().toLowerCase(java.util.Locale.ROOT);
         this.phone = phone;
