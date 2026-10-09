@@ -69,9 +69,12 @@ public class UserAdministrationService {
         boolean removesAdmin = account.getRoles().stream().anyMatch(role -> role.getCode().equals("ADMIN"))
                 && nextRoles.stream().noneMatch(role -> role.getCode().equals("ADMIN"));
         boolean willBeInactive = command.status() != AccountStatus.ACTIVE;
-        if ((removesAdmin || willBeInactive) && account.getRoles().stream().anyMatch(role -> role.getCode().equals("ADMIN"))
-                && accounts.countActiveAdministrators("ADMIN") <= 1)
-            throw ApiException.badRequest("LAST_ADMIN", "Không thể gỡ hoặc khóa quản trị viên hoạt động cuối cùng");
+        boolean isAdmin = account.getRoles().stream().anyMatch(role -> role.getCode().equals("ADMIN"));
+        if ((removesAdmin || willBeInactive) && isAdmin) {
+            roles.lockIdByCode("ADMIN").orElseThrow(() -> new IllegalStateException("Role ADMIN chưa được khởi tạo"));
+            if (accounts.lockActiveAdministrators("ADMIN").size() <= 1)
+                throw ApiException.badRequest("LAST_ADMIN", "Không thể gỡ hoặc khóa quản trị viên hoạt động cuối cùng");
+        }
         account.setDisplayName(command.displayName());
         account.setStatus(command.status());
         account.setEmployeeId(command.employeeId());

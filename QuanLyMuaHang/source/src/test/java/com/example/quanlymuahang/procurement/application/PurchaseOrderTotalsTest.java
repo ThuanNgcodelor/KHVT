@@ -38,4 +38,10 @@ class PurchaseOrderTotalsTest {
 
         assertThat(PurchaseOrderService.OrderView.from(order).grandTotal()).isEqualByComparingTo("1.01");
     }
+
+    @Test void acceptsTenPercentVatRegardlessOfDecimalScale() {
+        assertThat(PurchaseOrderService.isSupportedVat(new BigDecimal("10.00"))).isTrue();
+        assertThat(PurchaseOrderService.isSupportedVat(new BigDecimal("7.00"))).isFalse();
+        assertThat(PurchaseOrderService.isSupportedVat(null)).isFalse();
+    }
 }

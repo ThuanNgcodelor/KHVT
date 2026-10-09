@@ -178,6 +178,7 @@ public class LegacyWorkbookImportService {
         materials.saveAll(changedMaterials);
 
         List<HistoricalPurchase> historyRows = new ArrayList<>();
+        List<StoredRow> historySourceRows = new ArrayList<>();
         List<StoredRow> orderRows = new ArrayList<>();
         int errors = 0, warnings = 0, success = 0;
         for (StoredRow row : rows) {
@@ -186,10 +187,16 @@ public class LegacyWorkbookImportService {
             if (row.sheet().equals("LICH_SU")) {
                 HistoricalPurchase h = historical(row.data(), row.rowNumber(), row.issuesJson(), batchId, supplierByCode, supplierByName, materialByCode, materialByName);
                 historyRows.add(h);
+                historySourceRows.add(row);
             } else if (row.sheet().equals("DON_HANG")) orderRows.add(row);
             success++;
         }
-        history.saveAll(historyRows);
+        List<HistoricalPurchase> savedHistory = history.saveAll(historyRows);
+        for (int index = 0; index < savedHistory.size(); index++) {
+            StoredRow source = historySourceRows.get(index);
+            jdbc.update("UPDATE import_rows SET committed_entity_type='HISTORICAL_PURCHASE', committed_entity_id=? WHERE batch_id=? AND sheet_name=? AND row_number=?",
+                    savedHistory.get(index).getId(), batchId, source.sheet(), source.rowNumber());
+        }
 
         int importedOrders = importOrders(orderRows, batchId, supplierByCode, supplierByName, materialByCode, materialByName);
         jdbc.update("UPDATE import_rows SET status='COMMITTED' WHERE batch_id=? AND status IN ('READY','WARNING')", batchId);
@@ -212,14 +219,8 @@ public class LegacyWorkbookImportService {
             if (group.isEmpty()) continue;
             Map<String, String> first = group.get(0).data();
             String sourceNumber = value(first, "poNumber");
-            String number = sourceNumber;
-            if (number == null) continue;
-            if (!usedNumbers.add(number)) {
-                int suffix = duplicateNumbers.merge(number, 1, Integer::sum) + 1;
-                String candidate = (number.length() > 34 ? number.substring(0, 34) : number) + "-" + suffix;
-                while (!usedNumbers.add(candidate)) candidate = (number.length() > 31 ? number.substring(0, 31) : number) + "-" + (++suffix);
-                number = candidate;
-            }
+            if (sourceNumber == null) continue;
+            String number = internalOrderNumber(sourceNumber, usedNumbers, duplicateNumbers);
             LocalDate date = parseDate(firstValue(group, "date"));
             String supplierCode = firstValue(group, "supplierCode");
             String supplierName = firstValue(group, "supplierName");
@@ -250,8 +251,30 @@ public class LegacyWorkbookImportService {
             result.add(order);
             updateDailySequenceFromImportedNumber(number, date);
         }
-        orders.saveAll(result);
-        return result.size();
+        List<List<StoredRow>> sourceGroups = groups.values().stream().filter(group -> !group.isEmpty()
+                && value(group.get(0).data(), "poNumber") != null).toList();
+        List<PurchaseOrder> savedOrders = orders.saveAll(result);
+        for (int index = 0; index < savedOrders.size(); index++) {
+            PurchaseOrder order = savedOrders.get(index);
+            List<StoredRow> sourceGroup = sourceGroups.get(index);
+            for (StoredRow source : sourceGroup) {
+                jdbc.update("UPDATE import_rows SET committed_entity_type='PURCHASE_ORDER', committed_entity_id=? WHERE batch_id=? AND sheet_name=? AND row_number=?",
+                        order.getId(), batchId, source.sheet(), source.rowNumber());
+            }
+        }
+        return savedOrders.size();
+    }
+
+    private String internalOrderNumber(String sourceNumber, Set<String> usedNumbers, Map<String, Integer> duplicateNumbers) {
+        if (usedNumbers.add(sourceNumber) && !orders.existsByPoNumber(sourceNumber)) return sourceNumber;
+        int suffix = duplicateNumbers.merge(sourceNumber, 1, Integer::sum) + 1;
+        while (true) {
+            String suffixText = "-" + suffix;
+            int prefixLength = Math.max(1, 40 - suffixText.length());
+            String candidate = sourceNumber.substring(0, Math.min(sourceNumber.length(), prefixLength)) + suffixText;
+            if (usedNumbers.add(candidate) && !orders.existsByPoNumber(candidate)) return candidate;
+            suffix++;
+        }
     }
 
     private HistoricalPurchase historical(Map<String, String> data, int rowNumber,
@@ -265,7 +288,7 @@ public class LegacyWorkbookImportService {
         HistoricalPurchase h = new HistoricalPurchase();
         h.setPurchaseDate(parseDate(value(data, "date")));
         h.setSupplier(supplier);
-        h.setSupplierSnapshot(supplier == null ? value(data, "supplierName") : supplier.getName());
+        h.setSupplierSnapshot(value(data, "supplierName") == null && supplier != null ? supplier.getName() : value(data, "supplierName"));
         h.setSupplierCodeSnapshot(value(data, "supplierCode"));
         h.setMaterial(material); h.setMaterialCodeSnapshot(code); h.setMaterialNameSnapshot(name);
         h.setMaterialNameNormalizedSnapshot(TextNormalizer.normalize(name)); h.setUnit(value(data, "unit"));
@@ -275,6 +298,7 @@ public class LegacyWorkbookImportService {
         h.setCurrency(CurrencyCode.VND); h.setCurrencyBasis("ASSUMED_LEGACY");
         h.setSource("LEGACY_LICH_SU"); h.setSourceRowNumber(rowNumber); h.setCategory(MaterialCategory.MATERIAL);
         h.setSourceSheet("LICH_SU"); h.setImportBatchId(batchId); h.setDataQualityFlags(issuesJson);
+        h.setSourceReference("LEGACY:" + batchId + ":LICH_SU:" + rowNumber);
         return h;
     }
 
@@ -375,7 +399,11 @@ public class LegacyWorkbookImportService {
         return switch (field) {
             case "supplierCode" -> value.trim().toLowerCase(Locale.ROOT);
             case "supplierName" -> TextNormalizer.normalize(value);
-            case "currency" -> parseCurrency(value).name();
+            case "currency" -> switch (value.trim().toUpperCase(Locale.ROOT)) {
+                case "USD" -> "USD";
+                case "VND", "VNĐ" -> "VND";
+                default -> "UNSUPPORTED:" + value.trim().toUpperCase(Locale.ROOT);
+            };
             case "vatPercent" -> {
                 BigDecimal decimal = parseDecimal(value);
                 yield decimal == null ? value.trim() : decimal.stripTrailingZeros().toPlainString();
@@ -394,22 +422,27 @@ public class LegacyWorkbookImportService {
             required(data, "unitPrice", "MISSING_UNIT_PRICE", "Đơn giá", issues);
             if (parseFieldDecimal(data, "unitPrice") == null) issues.add("ERROR:INVALID_UNIT_PRICE: Đơn giá không phải số hợp lệ");
             if (value(data, "date") == null) issues.add("WARNING:MISSING_DATE: Không có ngày mua; sẽ giữ NULL");
+            else if (parseDate(value(data, "date")) == null) issues.add("WARNING:INVALID_DATE: Ngày mua không đọc được; sẽ giữ NULL");
             if (value(data, "supplierCode") == null) issues.add("WARNING:MISSING_SUPPLIER_CODE: Không có mã NCC; sẽ chỉ liên kết khi tên khớp chính xác và duy nhất");
             if (value(data, "supplierCode") == null && value(data, "supplierName") == null) issues.add("WARNING:MISSING_SUPPLIER: Không có nhà cung cấp");
             if (value(data, "materialCode") == null) issues.add("WARNING:MISSING_MATERIAL_CODE: Không có mã hàng; giữ snapshot và không tự ghép mơ hồ");
             if (value(data, "quantity") != null && parseFieldDecimal(data, "quantity") == null) issues.add("WARNING:QUANTITY_TEXT: Số lượng chữ được giữ nguyên và không cộng vào tổng");
         } else {
             required(data, "poNumber", "MISSING_PO_NUMBER", "Số PO", issues);
+            if (value(data, "poNumber") != null && value(data, "poNumber").length() > 40)
+                issues.add("ERROR:PO_NUMBER_TOO_LONG: Số PO vượt quá 40 ký tự");
             required(data, "materialName", "MISSING_MATERIAL_NAME", "Tên hàng", issues);
             required(data, "unitPrice", "MISSING_UNIT_PRICE", "Đơn giá", issues);
             if (parseFieldDecimal(data, "unitPrice") == null) issues.add("ERROR:INVALID_UNIT_PRICE: Đơn giá không phải số hợp lệ");
             if (value(data, "date") == null) issues.add("WARNING:MISSING_DATE: Không có ngày PO; sẽ giữ NULL");
+            else if (parseDate(value(data, "date")) == null) issues.add("WARNING:INVALID_DATE: Ngày PO không đọc được; sẽ giữ NULL");
             if (value(data, "supplierCode") == null) issues.add("WARNING:MISSING_SUPPLIER_CODE: Không có mã NCC; giữ snapshot tên");
             if (value(data, "materialCode") == null) issues.add("WARNING:MISSING_MATERIAL_CODE: Không có mã hàng; giữ snapshot tên");
             if (value(data, "currency") == null) issues.add("WARNING:MISSING_CURRENCY: Không ghi loại tiền; sẽ mặc định VND và ghi dấu nguồn");
             else if (!List.of("VND", "VNĐ", "USD").contains(value(data, "currency").toUpperCase(Locale.ROOT)))
                 issues.add("WARNING:UNSUPPORTED_CURRENCY: Loại tiền không hỗ trợ; sẽ mặc định VND và giữ raw ở staging");
             if (value(data, "vatPercent") == null) issues.add("WARNING:UNKNOWN_VAT: Không có VAT; để NULL, không tự suy đoán");
+            else if (parseFieldDecimal(data, "vatPercent") == null) issues.add("WARNING:INVALID_VAT: VAT không đọc được; để NULL, không tự suy đoán");
         }
         return issues;
     }
@@ -505,7 +538,14 @@ public class LegacyWorkbookImportService {
     }
     private static LocalDate parseDate(String text) {
         if (text == null || text.isBlank()) return null;
-        try { return LocalDate.parse(text.trim()); } catch (RuntimeException exception) { return null; }
+        String value = text.trim();
+        for (java.time.format.DateTimeFormatter formatter : List.of(
+                java.time.format.DateTimeFormatter.ISO_LOCAL_DATE,
+                java.time.format.DateTimeFormatter.ofPattern("d/M/uuuu", Locale.ROOT),
+                java.time.format.DateTimeFormatter.ofPattern("d-M-uuuu", Locale.ROOT))) {
+            try { return LocalDate.parse(value, formatter); } catch (RuntimeException ignored) { }
+        }
+        return null;
     }
     private static CurrencyCode parseCurrency(String text) {
         return text != null && text.trim().equalsIgnoreCase("USD") ? CurrencyCode.USD : CurrencyCode.VND;
@@ -531,9 +571,8 @@ public class LegacyWorkbookImportService {
         else if (byName.get(key) != entity) byName.put(key, null);
     }
     private static Supplier findSupplier(String code, String name, Map<String, Supplier> byCode, Map<String, Supplier> byName) {
-        Supplier found = code == null ? null : byCode.get(code.trim().toLowerCase(Locale.ROOT));
-        if (found == null && name != null) found = byName.get(TextNormalizer.normalize(name));
-        return found;
+        if (code != null) return byCode.get(code.trim().toLowerCase(Locale.ROOT));
+        return name == null ? null : byName.get(TextNormalizer.normalize(name));
     }
     private static void indexMaterial(Material entity, Map<String, Material> byCode, Map<String, Material> byName) {
         if (entity.getCode() != null) byCode.put(entity.getCode().trim().toLowerCase(Locale.ROOT), entity);
@@ -542,9 +581,8 @@ public class LegacyWorkbookImportService {
         else if (byName.get(key) != entity) byName.put(key, null);
     }
     private static Material findMaterial(String code, String name, Map<String, Material> byCode, Map<String, Material> byName) {
-        Material found = code == null ? null : byCode.get(code.trim().toLowerCase(Locale.ROOT));
-        if (found == null && name != null) found = byName.get(TextNormalizer.normalize(name));
-        return found;
+        if (code != null) return byCode.get(code.trim().toLowerCase(Locale.ROOT));
+        return name == null ? null : byName.get(TextNormalizer.normalize(name));
     }
     private void updateDailySequenceFromImportedNumber(String number, LocalDate date) {
         if (date == null) return;

@@ -238,8 +238,7 @@ public class PurchaseOrderService {
         if (command.items() == null || command.items().isEmpty() || command.items().size() > 200)
             throw ApiException.badRequest("INVALID_ITEMS", "Đơn mua cần có từ 1 đến 200 dòng hàng");
         if (command.currency() == null) throw ApiException.badRequest("CURRENCY_REQUIRED", "Loại tiền bắt buộc");
-        if (command.vatPercent() == null || List.of(new BigDecimal("0"), new BigDecimal("5"), new BigDecimal("8"), new BigDecimal("10")).stream()
-                .noneMatch(allowed -> allowed.compareTo(command.vatPercent()) == 0))
+        if (!isSupportedVat(command.vatPercent()))
             throw ApiException.badRequest("INVALID_VAT", "VAT của PO mới phải là 0%, 5%, 8% hoặc 10%");
         for (ItemCommand item : command.items()) {
             if (item.unitPrice() == null || item.unitPrice().signum() <= 0) throw ApiException.badRequest("INVALID_UNIT_PRICE", "Đơn giá phải lớn hơn 0");
@@ -247,6 +246,11 @@ public class PurchaseOrderService {
             boolean text = item.quantityText() != null && !item.quantityText().isBlank();
             if (numeric == text) throw ApiException.badRequest("INVALID_QUANTITY", "Mỗi dòng phải có số lượng dạng số hoặc số lượng chữ, không được để trống hoặc nhập cả hai");
         }
+    }
+
+    static boolean isSupportedVat(BigDecimal vatPercent) {
+        return vatPercent != null && List.of(new BigDecimal("0"), new BigDecimal("5"), new BigDecimal("8"), new BigDecimal("10")).stream()
+                .anyMatch(allowed -> allowed.compareTo(vatPercent) == 0);
     }
 
     private void saveRevision(PurchaseOrder order, long actorId, String reason) {

@@ -10,6 +10,7 @@ import com.example.quanlymuahang.personnel.infrastructure.persistence.PositionJp
 import com.example.quanlymuahang.identity.infrastructure.persistence.AccountStatus;
 import com.example.quanlymuahang.identity.infrastructure.persistence.UserAccountEntity;
 import com.example.quanlymuahang.identity.infrastructure.persistence.UserAccountJpaRepository;
+import com.example.quanlymuahang.identity.infrastructure.persistence.RoleJpaRepository;
 import com.example.quanlymuahang.identity.infrastructure.security.SessionRevocationService;
 import com.example.quanlymuahang.sharedkernel.application.AuditRecorder;
 import com.example.quanlymuahang.sharedkernel.web.ApiException;
@@ -28,13 +29,14 @@ public class PersonnelService {
     private final DepartmentJpaRepository departments;
     private final PositionJpaRepository positions;
     private final UserAccountJpaRepository accounts;
+    private final RoleJpaRepository roles;
     private final SessionRevocationService sessions;
     private final AuditRecorder audit;
 
     public PersonnelService(EmployeeJpaRepository employees, DepartmentJpaRepository departments, PositionJpaRepository positions,
-                            UserAccountJpaRepository accounts, SessionRevocationService sessions, AuditRecorder audit) {
+                            UserAccountJpaRepository accounts, RoleJpaRepository roles, SessionRevocationService sessions, AuditRecorder audit) {
         this.employees = employees; this.departments = departments; this.positions = positions;
-        this.accounts = accounts; this.sessions = sessions; this.audit = audit;
+        this.accounts = accounts; this.roles = roles; this.sessions = sessions; this.audit = audit;
     }
 
     @Transactional(readOnly = true)
@@ -76,9 +78,11 @@ public class PersonnelService {
         EmployeeEntity employee = employee(id);
         var linkedAccount = accounts.findByEmployeeId(id);
         if (linkedAccount.filter(account -> account.getStatus() == AccountStatus.ACTIVE
-                && account.getRoles().stream().anyMatch(role -> role.getCode().equals("ADMIN"))).isPresent()
-                && accounts.countActiveAdministrators("ADMIN") <= 1)
-            throw ApiException.badRequest("LAST_ADMIN", "Không thể nghỉ việc người dùng đang là quản trị viên hoạt động cuối cùng; chuyển quyền trước.");
+                && account.getRoles().stream().anyMatch(role -> role.getCode().equals("ADMIN"))).isPresent()) {
+            roles.lockIdByCode("ADMIN").orElseThrow(() -> new IllegalStateException("Role ADMIN chưa được khởi tạo"));
+            if (accounts.lockActiveAdministrators("ADMIN").size() <= 1)
+                throw ApiException.badRequest("LAST_ADMIN", "Không thể nghỉ việc người dùng đang là quản trị viên hoạt động cuối cùng; chuyển quyền trước.");
+        }
         employee.deactivate(LocalDate.now());
         linkedAccount.ifPresent(account -> {
             account.setStatus(AccountStatus.DISABLED);

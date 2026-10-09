@@ -18,6 +18,7 @@ import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.security.web.SecurityFilterChain;
 import org.springframework.security.web.context.HttpSessionSecurityContextRepository;
 import org.springframework.security.web.context.SecurityContextRepository;
+import org.springframework.security.web.context.SecurityContextHolderFilter;
 import org.springframework.security.web.csrf.CookieCsrfTokenRepository;
 import org.springframework.security.web.csrf.CsrfTokenRepository;
 import org.springframework.security.web.authentication.session.ChangeSessionIdAuthenticationStrategy;
@@ -59,7 +60,8 @@ public class SecurityConfig {
     @Bean
     SecurityFilterChain securityFilterChain(HttpSecurity http, DaoAuthenticationProvider provider,
                                             SecurityContextRepository contextRepository,
-                                            CsrfTokenRepository csrfRepository) throws Exception {
+                                            CsrfTokenRepository csrfRepository,
+                                            com.fasterxml.jackson.databind.ObjectMapper objectMapper) throws Exception {
         http.authenticationProvider(provider)
                 .csrf(csrf -> csrf.csrfTokenRepository(csrfRepository))
                 .securityContext(context -> context.securityContextRepository(contextRepository))
@@ -82,7 +84,8 @@ public class SecurityConfig {
                             response.setStatus(HttpServletResponse.SC_FORBIDDEN);
                             response.setContentType(MediaType.APPLICATION_JSON_VALUE);
                             response.getWriter().write("{\"code\":\"FORBIDDEN\",\"message\":\"Bạn không có quyền thực hiện thao tác này\"}");
-                        }));
+                        }))
+                .addFilterAfter(new PasswordChangeRequiredFilter(objectMapper), SecurityContextHolderFilter.class);
         return http.build();
     }
 }
