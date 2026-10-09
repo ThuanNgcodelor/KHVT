@@ -74,8 +74,13 @@ public class PersonnelService {
     @Transactional
     public EmployeeView deactivateEmployee(long id, long actorId) {
         EmployeeEntity employee = employee(id);
+        var linkedAccount = accounts.findByEmployeeId(id);
+        if (linkedAccount.filter(account -> account.getStatus() == AccountStatus.ACTIVE
+                && account.getRoles().stream().anyMatch(role -> role.getCode().equals("ADMIN"))).isPresent()
+                && accounts.countActiveAdministrators("ADMIN") <= 1)
+            throw ApiException.badRequest("LAST_ADMIN", "Không thể nghỉ việc người dùng đang là quản trị viên hoạt động cuối cùng; chuyển quyền trước.");
         employee.deactivate(LocalDate.now());
-        accounts.findByEmployeeId(id).ifPresent(account -> {
+        linkedAccount.ifPresent(account -> {
             account.setStatus(AccountStatus.DISABLED);
             sessions.revokeAll(account.getEmail());
             audit.record(actorId, "ACCOUNT_DISABLED_EMPLOYEE_DEACTIVATED", "USER_ACCOUNT", account.getId(), java.util.Map.of("status", "DISABLED"));

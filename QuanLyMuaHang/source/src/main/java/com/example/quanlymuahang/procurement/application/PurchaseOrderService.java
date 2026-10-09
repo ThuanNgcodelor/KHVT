@@ -156,10 +156,6 @@ public class PurchaseOrderService {
     }
 
     private PdfFile pdfForRevision(PurchaseOrder order, int revision, long actorId) {
-        if (order.getStatus() == PurchaseOrderStatus.CANCELLED)
-            throw ApiException.conflict("PO_CANCELLED", "Đơn mua đã hủy không thể phát hành PDF mới");
-        if (order.getVatPercent() == null)
-            throw ApiException.conflict("VAT_UNKNOWN", "Đơn legacy chưa xác định VAT. Hãy bổ sung VAT và tạo revision trước khi phát hành PDF.");
         return generatePdf(order, OrderView.from(order), revision, actorId, true);
     }
 
@@ -169,6 +165,10 @@ public class PurchaseOrderService {
             Path path = safeStoredPath(existing.get().getStorageKey());
             if (Files.isRegularFile(path)) return readPdf(existing.get(), path);
         }
+        if (snapshot.vatPercent() == null)
+            throw ApiException.conflict("VAT_UNKNOWN", "Đơn legacy chưa xác định VAT. Hãy bổ sung VAT và tạo revision trước khi phát hành PDF.");
+        if (currentRevision && order.getStatus() == PurchaseOrderStatus.CANCELLED)
+            throw ApiException.conflict("PO_CANCELLED", "Đơn mua đã hủy không thể phát hành PDF mới");
         byte[] content = renderPdf(snapshot);
         String fileName = snapshot.poNumber() + "-r" + revision + ".pdf";
         String storageKey = "purchase-orders/" + order.getId() + "/r" + revision + ".pdf";
@@ -322,11 +322,20 @@ public class PurchaseOrderService {
     }
     private PurchaseOrder order(long id) { return orders.findById(id).orElseThrow(() -> ApiException.notFound("Không tìm thấy đơn mua")); }
 
+    @Transactional(readOnly = true)
+    public List<RevisionView> revisions(long id) {
+        order(id);
+        return revisions.findAllByPurchaseOrderIdOrderByRevisionDesc(id).stream()
+                .map(revision -> new RevisionView(revision.getRevision(), revision.getChangedBy(), revision.getChangeReason(), revision.getCreatedAt()))
+                .toList();
+    }
+
     public record OrderCommand(Long supplierId, LocalDate orderDate, CurrencyCode currency, BigDecimal vatPercent,
                                String note, String preparedBy, String changeReason, List<ItemCommand> items) {}
     public record ItemCommand(Long materialId, String materialCode, String materialName, String specification,
                               String unit, BigDecimal quantity, String quantityText, BigDecimal unitPrice) {}
     public record PdfFile(String fileName, byte[] content) {}
+    public record RevisionView(int revision, Long changedBy, String changeReason, java.time.Instant createdAt) {}
     public record OrderView(Long id, String poNumber, LocalDate orderDate, Long supplierId, String supplierName,
                             String supplierAddress, CurrencyCode currency, BigDecimal vatPercent, String note,
                             String preparedBy, PurchaseOrderStatus status, int revision, long version,

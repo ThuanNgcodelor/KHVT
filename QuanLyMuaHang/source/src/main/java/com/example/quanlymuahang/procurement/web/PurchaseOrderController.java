@@ -73,6 +73,20 @@ public class PurchaseOrderController {
     @PreAuthorize("hasAuthority('*') or hasAuthority('PO_READ')")
     public ResponseEntity<byte[]> pdf(@PathVariable long id, Authentication authentication) {
         PurchaseOrderService.PdfFile file = service.pdf(id, actor(authentication));
+        return pdfResponse(file);
+    }
+
+    @GetMapping("/{id}/revisions")
+    @PreAuthorize("hasAuthority('*') or hasAuthority('PO_READ')")
+    public List<PurchaseOrderService.RevisionView> revisions(@PathVariable long id) { return service.revisions(id); }
+
+    @GetMapping("/{id}/revisions/{revision}/pdf")
+    @PreAuthorize("hasAuthority('*') or hasAuthority('PO_READ')")
+    public ResponseEntity<byte[]> revisionPdf(@PathVariable long id, @PathVariable int revision, Authentication authentication) {
+        return pdfResponse(service.pdf(id, revision, actor(authentication)));
+    }
+
+    private ResponseEntity<byte[]> pdfResponse(PurchaseOrderService.PdfFile file) {
         return ResponseEntity.ok().contentType(MediaType.APPLICATION_PDF)
                 .header(HttpHeaders.CONTENT_DISPOSITION, ContentDisposition.attachment().filename(file.fileName()).build().toString())
                 .body(file.content());

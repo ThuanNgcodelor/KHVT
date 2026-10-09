@@ -17,6 +17,7 @@ import com.example.quanlymuahang.repository.PurchaseOrderRepository;
 import com.example.quanlymuahang.repository.SupplierRepository;
 import com.example.quanlymuahang.service.TextNormalizer;
 import com.example.quanlymuahang.sharedkernel.web.ApiException;
+import com.example.quanlymuahang.sharedkernel.application.AuditRecorder;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -68,12 +69,13 @@ public class LegacyWorkbookImportService {
     private final PurchaseOrderRepository orders;
     private final JdbcTemplate jdbc;
     private final ObjectMapper mapper;
+    private final AuditRecorder audit;
 
     public LegacyWorkbookImportService(ImportBatchRepository batches, HistoricalPurchaseRepository history,
                                        SupplierRepository suppliers, MaterialRepository materials,
-                                       PurchaseOrderRepository orders, JdbcTemplate jdbc, ObjectMapper mapper) {
+                                       PurchaseOrderRepository orders, JdbcTemplate jdbc, ObjectMapper mapper, AuditRecorder audit) {
         this.batches = batches; this.history = history; this.suppliers = suppliers; this.materials = materials;
-        this.orders = orders; this.jdbc = jdbc; this.mapper = mapper;
+        this.orders = orders; this.jdbc = jdbc; this.mapper = mapper; this.audit = audit;
     }
 
     @Transactional
@@ -109,6 +111,8 @@ public class LegacyWorkbookImportService {
         batch.setCreatedBy(actorId); batch.setTotalRows(total); batch.setErrorRows(errors); batch.setSuccessRows(total - errors);
         ImportBatch saved = batches.saveAndFlush(batch);
         persistPreviewRows(saved.getId(), parsed.rows());
+        audit.record(actorId, "LEGACY_IMPORT_PREVIEWED", "IMPORT_BATCH", saved.getId(),
+                Map.of("fileName", saved.getFileName(), "sha256", saved.getSha256(), "totalRows", total, "errorRows", errors, "warningRows", warnings));
         return new PreviewResult(saved.getId(), saved.getFileName(), saved.getSha256(), saved.getStatus().name(),
                 summary(parsed, errors, warnings), parsed.rows().stream().filter(row -> !row.issues().isEmpty()).limit(30)
                 .map(row -> new RowIssue(row.sheet(), row.rowNumber(), row.status(), row.issues())).toList(), false, null);
@@ -190,8 +194,10 @@ public class LegacyWorkbookImportService {
         jdbc.update("UPDATE import_rows SET status='COMMITTED' WHERE batch_id=? AND status IN ('READY','WARNING')", batchId);
         batch.setSuccessRows(success); batch.setErrorRows(errors);
         batch.setStatus(errors == 0 ? ImportBatchStatus.COMMITTED : ImportBatchStatus.PARTIAL);
-        return new CommitResult(batchId, batch.getStatus().name(), success, errors, warnings, changedSuppliers.size(), changedMaterials.size(),
+        CommitResult result = new CommitResult(batchId, batch.getStatus().name(), success, errors, warnings, changedSuppliers.size(), changedMaterials.size(),
                 historyRows.size(), importedOrders, "Đã import dữ liệu hợp lệ; các trường thiếu được giữ nguyên là NULL hoặc kèm snapshot nguồn.");
+        audit.record(actorId, "LEGACY_IMPORT_COMMITTED", "IMPORT_BATCH", batchId, result);
+        return result;
     }
 
     private int importOrders(List<StoredRow> rows, long batchId, Map<String, Supplier> supplierByCode,

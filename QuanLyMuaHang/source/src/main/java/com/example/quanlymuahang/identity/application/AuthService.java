@@ -37,6 +37,10 @@ public class AuthService {
         });
     }
 
+    public void recordLogout(AccountPrincipal principal) {
+        audit.record(principal.id(), "AUTH_LOGOUT", "USER_ACCOUNT", principal.id(), null);
+    }
+
     @Transactional
     public AccountPrincipal changePassword(AccountPrincipal principal, String currentPassword, String newPassword, String currentSessionId) {
         if (newPassword == null || newPassword.length() < 12)

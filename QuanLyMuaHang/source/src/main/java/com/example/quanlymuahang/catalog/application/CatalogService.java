@@ -6,6 +6,7 @@ import com.example.quanlymuahang.domain.supplier.Supplier;
 import com.example.quanlymuahang.repository.MaterialRepository;
 import com.example.quanlymuahang.repository.SupplierRepository;
 import com.example.quanlymuahang.service.TextNormalizer;
+import com.example.quanlymuahang.sharedkernel.application.AuditRecorder;
 import com.example.quanlymuahang.sharedkernel.web.ApiException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -16,8 +17,11 @@ import java.util.List;
 public class CatalogService {
     private final MaterialRepository materials;
     private final SupplierRepository suppliers;
+    private final AuditRecorder audit;
 
-    public CatalogService(MaterialRepository materials, SupplierRepository suppliers) { this.materials = materials; this.suppliers = suppliers; }
+    public CatalogService(MaterialRepository materials, SupplierRepository suppliers, AuditRecorder audit) {
+        this.materials = materials; this.suppliers = suppliers; this.audit = audit;
+    }
 
     @Transactional(readOnly = true)
     public List<MaterialView> searchMaterials(String query) {
@@ -26,22 +30,26 @@ public class CatalogService {
     }
 
     @Transactional
-    public MaterialView createMaterial(MaterialCommand command) {
+    public MaterialView createMaterial(MaterialCommand command, long actorId) {
         String code = clean(command.code());
         if (code != null && materials.existsByCodeIgnoreCase(code)) throw ApiException.conflict("MATERIAL_CODE_EXISTS", "Mã vật tư đã tồn tại");
         Material entity = new Material(command.name().trim(), TextNormalizer.normalize(command.name()));
         entity.update(code, command.name().trim(), TextNormalizer.normalize(command.name()), command.category(), clean(command.defaultUnit()), true);
-        return MaterialView.from(materials.save(entity));
+        MaterialView view = MaterialView.from(materials.save(entity));
+        audit.record(actorId, "MATERIAL_CREATED", "MATERIAL", view.id(), view);
+        return view;
     }
 
     @Transactional
-    public MaterialView updateMaterial(long id, MaterialCommand command) {
+    public MaterialView updateMaterial(long id, MaterialCommand command, long actorId) {
         Material entity = materials.findById(id).orElseThrow(() -> ApiException.notFound("Không tìm thấy vật tư"));
         String code = clean(command.code());
         if (code != null && materials.existsByCodeIgnoreCase(code) && !code.equalsIgnoreCase(entity.getCode()))
             throw ApiException.conflict("MATERIAL_CODE_EXISTS", "Mã vật tư đã tồn tại");
         entity.update(code, command.name().trim(), TextNormalizer.normalize(command.name()), command.category(), clean(command.defaultUnit()), command.active());
-        return MaterialView.from(entity);
+        MaterialView view = MaterialView.from(entity);
+        audit.record(actorId, "MATERIAL_UPDATED", "MATERIAL", id, view);
+        return view;
     }
 
     @Transactional(readOnly = true)
@@ -51,22 +59,26 @@ public class CatalogService {
     }
 
     @Transactional
-    public SupplierView createSupplier(SupplierCommand command) {
+    public SupplierView createSupplier(SupplierCommand command, long actorId) {
         String code = clean(command.code());
         if (code != null && suppliers.existsByCodeIgnoreCase(code)) throw ApiException.conflict("SUPPLIER_CODE_EXISTS", "Mã nhà cung cấp đã tồn tại");
         Supplier entity = new Supplier(command.name().trim(), TextNormalizer.normalize(command.name()));
         entity.update(code, command.name().trim(), TextNormalizer.normalize(command.name()), clean(command.address()), clean(command.taxCode()), clean(command.phone()), clean(command.email()), true);
-        return SupplierView.from(suppliers.save(entity));
+        SupplierView view = SupplierView.from(suppliers.save(entity));
+        audit.record(actorId, "SUPPLIER_CREATED", "SUPPLIER", view.id(), view);
+        return view;
     }
 
     @Transactional
-    public SupplierView updateSupplier(long id, SupplierCommand command) {
+    public SupplierView updateSupplier(long id, SupplierCommand command, long actorId) {
         Supplier entity = suppliers.findById(id).orElseThrow(() -> ApiException.notFound("Không tìm thấy nhà cung cấp"));
         String code = clean(command.code());
         if (code != null && suppliers.existsByCodeIgnoreCase(code) && !code.equalsIgnoreCase(entity.getCode()))
             throw ApiException.conflict("SUPPLIER_CODE_EXISTS", "Mã nhà cung cấp đã tồn tại");
         entity.update(code, command.name().trim(), TextNormalizer.normalize(command.name()), clean(command.address()), clean(command.taxCode()), clean(command.phone()), clean(command.email()), command.active());
-        return SupplierView.from(entity);
+        SupplierView view = SupplierView.from(entity);
+        audit.record(actorId, "SUPPLIER_UPDATED", "SUPPLIER", id, view);
+        return view;
     }
 
     private static String clean(String value) { return value == null || value.isBlank() ? null : value.trim(); }

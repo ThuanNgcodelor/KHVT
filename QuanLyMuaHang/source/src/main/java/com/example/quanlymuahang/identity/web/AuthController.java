@@ -75,10 +75,12 @@ public class AuthController {
     public MeResponse me(Authentication authentication) { return MeResponse.from((AccountPrincipal) authentication.getPrincipal()); }
 
     @PostMapping("/logout")
-    public ResponseEntity<Void> logout(HttpServletRequest request) {
+    public ResponseEntity<Void> logout(HttpServletRequest request, HttpServletResponse response, Authentication authentication) {
+        if (authentication != null && authentication.getPrincipal() instanceof AccountPrincipal principal) authService.recordLogout(principal);
         SecurityContextHolder.clearContext();
         HttpSession session = request.getSession(false);
         if (session != null) session.invalidate();
+        csrfTokenRepository.saveToken(null, request, response);
         return ResponseEntity.noContent().build();
     }
 

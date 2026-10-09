@@ -25,4 +25,14 @@ class UserAccountTest {
         assertThat(planner.can("PO_CREATE")).isTrue();
         assertThat(planner.can("PERSONNEL_MANAGE")).isFalse();
     }
+
+    @Test
+    void viewerCanReadCatalogAndPricesButCannotEdit() {
+        UserAccount viewer = new UserAccount(3L, "viewer", true, false);
+        viewer.assignRole(RoleCode.VIEWER);
+
+        assertThat(viewer.can("CATALOG_READ")).isTrue();
+        assertThat(viewer.can("PRICE_READ")).isTrue();
+        assertThat(viewer.can("CATALOG_MANAGE")).isFalse();
+    }
 }
