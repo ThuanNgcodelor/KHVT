@@ -58,7 +58,9 @@ Thay Google Apps Script/Google Sheet bằng hệ thống mua hàng có dữ li�
 
 ## Current source status
 
-QuanLyMuaHang/source hiện là starter/skeleton, chưa có full auth/personnel/procurement/import. Plan 10 Phase 0 phải đồng bộ Compose/README source trước khi chạy Docker; hiện compose cũ còn service app/frontend, chưa có Redis và publish MySQL port mặc định. Không chạy compose xuống hoặc xóa volume khi chưa xác nhận project cụ thể.
+Kiểm kê 2026-10-09: `source/` đã có code auth/personnel/catalog/pricing/procurement/import/export/dashboard. Compose hiện chỉ chạy MySQL và Redis với port localhost 3307/6380. Đã có log build thành công và 11 test qua, cùng kiểm tra khởi động/CSRF/admin login/logout trong phiên làm việc; đây chưa phải nghiệm thu đầy đủ các nghiệp vụ.
+
+Frontend React/Vite đã có giao diện khung, còn dùng dữ liệu demo và chưa nối đầy đủ API/auth. Cấu trúc backend chưa đồng nhất hoàn toàn theo thiết kế DDD trong plan. Xem [hệ thống hiện tại](../docs/HE_THONG_HIEN_TAI.md) và [AGENTS.md](../AGENTS.md) để biết code thực tế, bằng chứng kiểm thử và phần còn thiếu. Các checklist trong plan cần được xác minh theo acceptance, không tự đánh dấu hoàn thành từ việc đã có code.
 
 ## Global Definition of Done
 
