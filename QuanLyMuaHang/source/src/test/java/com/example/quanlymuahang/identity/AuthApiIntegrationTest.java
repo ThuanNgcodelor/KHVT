@@ -60,6 +60,11 @@ class AuthApiIntegrationTest {
         mvc.perform(get("/api/auth/me").session(session))
                 .andExpect(status().isOk()).andExpect(jsonPath("email").value(EMAIL))
                 .andExpect(jsonPath("roles[0]").value("ADMIN"))
+                .andExpect(jsonPath("permissions.length()").value(1)).andExpect(jsonPath("permissions[0]").value("*"))
+                .andExpect(jsonPath("modules.length()").value(3))
+                .andExpect(jsonPath("modules[0].code").value("PURCHASING"))
+                .andExpect(jsonPath("modules[1].code").value("PERSONNEL"))
+                .andExpect(jsonPath("modules[2].code").value("ADMINISTRATION"))
                 .andExpect(jsonPath("password").doesNotExist()).andExpect(jsonPath("passwordHash").doesNotExist());
         Csrf csrf = csrf(session);
         mvc.perform(post("/api/auth/logout").session(session).cookie(csrf.cookie())
@@ -78,7 +83,10 @@ class AuthApiIntegrationTest {
         changePassword(session, csrf, "short").andExpect(status().isBadRequest());
         changePassword(session, csrf, PASSWORD).andExpect(status().isBadRequest());
         changePassword(session, csrf, "new-synthetic-password").andExpect(status().isOk())
-                .andExpect(jsonPath("mustChangePassword").value(false));
+                .andExpect(jsonPath("mustChangePassword").value(false))
+                .andExpect(jsonPath("permissions[0]").value("*"))
+                .andExpect(jsonPath("modules.length()").value(3))
+                .andExpect(jsonPath("passwordHash").doesNotExist());
         mvc.perform(get("/api/dashboard").session(session)).andExpect(status().isOk());
     }
 
@@ -86,6 +94,10 @@ class AuthApiIntegrationTest {
     void viewerReadsDashboardButCannotAdministerUsersOrPersonnel() throws Exception {
         account("VIEWER", false, "PO_READ", "CATALOG_READ", "PRICE_READ");
         MockHttpSession session = login();
+        mvc.perform(get("/api/auth/me").session(session)).andExpect(status().isOk())
+                .andExpect(jsonPath("permissions.length()").value(3))
+                .andExpect(jsonPath("modules.length()").value(1))
+                .andExpect(jsonPath("modules[0].code").value("PURCHASING"));
         mvc.perform(get("/api/dashboard").session(session)).andExpect(status().isOk());
         mvc.perform(get("/api/admin/users").session(session)).andExpect(status().isForbidden());
         mvc.perform(get("/api/personnel/employees").session(session)).andExpect(status().isForbidden());
@@ -95,9 +107,66 @@ class AuthApiIntegrationTest {
     void hrReadsPersonnelButCannotReadPurchasingDashboard() throws Exception {
         account("HR_MANAGER", false, "PERSONNEL_READ", "PERSONNEL_MANAGE");
         MockHttpSession session = login();
+        mvc.perform(get("/api/auth/me").session(session)).andExpect(status().isOk())
+                .andExpect(jsonPath("permissions.length()").value(2))
+                .andExpect(jsonPath("modules.length()").value(1))
+                .andExpect(jsonPath("modules[0].code").value("PERSONNEL"));
         mvc.perform(get("/api/personnel/employees").session(session)).andExpect(status().isOk());
         mvc.perform(get("/api/dashboard").session(session)).andExpect(status().isForbidden());
         mvc.perform(get("/api/admin/users").session(session)).andExpect(status().isForbidden());
+    }
+
+    @Test
+    void ungrantedAccountHasNoModulesAndCannotBypassPortalWithDirectApiCalls() throws Exception {
+        account("NO_GRANTS", false);
+        MockHttpSession session = login();
+        mvc.perform(get("/api/auth/me").session(session)).andExpect(status().isOk())
+                .andExpect(jsonPath("permissions").isEmpty()).andExpect(jsonPath("modules").isEmpty());
+        mvc.perform(get("/api/dashboard").session(session)).andExpect(status().isForbidden());
+        mvc.perform(get("/api/personnel/employees").session(session)).andExpect(status().isForbidden());
+        mvc.perform(get("/api/admin/users").session(session)).andExpect(status().isForbidden());
+    }
+
+    @Test
+    void inactiveRoleDoesNotGrantModulesOrEffectivePermissions() throws Exception {
+        account("INACTIVE_ADMIN", false, false, "*");
+        MockHttpSession session = login();
+        mvc.perform(get("/api/auth/me").session(session)).andExpect(status().isOk())
+                .andExpect(jsonPath("permissions").isEmpty()).andExpect(jsonPath("modules").isEmpty());
+        mvc.perform(get("/api/dashboard").session(session)).andExpect(status().isForbidden());
+        mvc.perform(get("/api/personnel/employees").session(session)).andExpect(status().isForbidden());
+        mvc.perform(get("/api/admin/users").session(session)).andExpect(status().isForbidden());
+    }
+
+    @Test
+    void customRoleGetsPurchasingFromPermissionsWithoutBuiltInRoleName() throws Exception {
+        account("BUYING_READ_ONLY", false, "PO_READ", "CATALOG_READ");
+        MockHttpSession session = login();
+        mvc.perform(get("/api/auth/me").session(session)).andExpect(status().isOk())
+                .andExpect(jsonPath("roles[0]").value("BUYING_READ_ONLY"))
+                .andExpect(jsonPath("modules.length()").value(1))
+                .andExpect(jsonPath("modules[0].code").value("PURCHASING"))
+                .andExpect(jsonPath("modules[0].entryPath").value("/dashboard"));
+        mvc.perform(get("/api/dashboard").session(session)).andExpect(status().isOk());
+        mvc.perform(get("/api/admin/users").session(session)).andExpect(status().isForbidden());
+    }
+
+    @Test
+    void roleListingReportsModulesDerivedFromRolePermissions() throws Exception {
+        account("ACCESS_ADMIN", false, "USER_READ");
+        MockHttpSession session = login();
+        mvc.perform(get("/api/auth/me").session(session)).andExpect(status().isOk())
+                .andExpect(jsonPath("modules.length()").value(1))
+                .andExpect(jsonPath("modules[0].code").value("ADMINISTRATION"));
+        mvc.perform(get("/api/admin/roles").session(session)).andExpect(status().isOk())
+                .andExpect(jsonPath("length()").value(1))
+                .andExpect(jsonPath("[0].moduleCodes[0]").value("ADMINISTRATION"))
+                .andExpect(jsonPath("[0].permissions[0]").value("USER_READ"))
+                .andExpect(jsonPath("[0].passwordHash").doesNotExist());
+        mvc.perform(get("/api/admin/users").session(session)).andExpect(status().isOk())
+                .andExpect(jsonPath("content[0].password").doesNotExist())
+                .andExpect(jsonPath("content[0].passwordHash").doesNotExist());
+        mvc.perform(get("/api/dashboard").session(session)).andExpect(status().isForbidden());
     }
 
     @Test
@@ -110,7 +179,11 @@ class AuthApiIntegrationTest {
     }
 
     private void account(String role, boolean temporary, String... permissions) {
-        jdbc.update("insert into roles(code,name,system_role,active,created_at,updated_at) values (?,?,true,true,CURRENT_TIMESTAMP,CURRENT_TIMESTAMP)", role, role);
+        account(role, temporary, true, permissions);
+    }
+
+    private void account(String role, boolean temporary, boolean activeRole, String... permissions) {
+        jdbc.update("insert into roles(code,name,system_role,active,created_at,updated_at) values (?,?,true,?,CURRENT_TIMESTAMP,CURRENT_TIMESTAMP)", role, role, activeRole);
         for (String permission : permissions) {
             jdbc.update("insert into permissions(code,name,system_permission) values (?,?,true)", permission, permission);
             jdbc.update("insert into role_permissions(role_id,permission_id) select r.id,p.id from roles r,permissions p where r.code=? and p.code=?", role, permission);
@@ -125,7 +198,8 @@ class AuthApiIntegrationTest {
         Csrf csrf = csrf(null);
         MvcResult result = mvc.perform(post("/api/auth/login").cookie(csrf.cookie()).header(csrf.header(), csrf.token())
                 .contentType("application/json").content(json.writeValueAsString(Map.of("email", EMAIL, "password", PASSWORD))))
-                .andExpect(status().isOk()).andReturn();
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("password").doesNotExist()).andExpect(jsonPath("passwordHash").doesNotExist()).andReturn();
         return (MockHttpSession) result.getRequest().getSession(false);
     }
 

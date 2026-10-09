@@ -103,12 +103,16 @@ public class AuthController {
     public record ChangePasswordRequest(@NotBlank String currentPassword, @NotBlank @Size(min = 12, max = 200) String newPassword) {}
     public record CsrfResponse(String headerName, String token) {}
     public record AuthError(String code, String message) {}
-    public record MeResponse(Long id, String email, String displayName, Long employeeId, Set<String> roles,
+    public record MeResponse(Long id, String email, String displayName, Long employeeId, Set<String> roles, Set<String> permissions,
                              boolean mustChangePassword, Instant authenticatedAt,
                              java.util.List<ApplicationModuleCatalog.ModuleView> modules) {
         static MeResponse from(AccountPrincipal principal) {
+            Set<String> permissions = principal.getAuthorities().stream()
+                    .map(authority -> authority.getAuthority())
+                    .filter(authority -> !authority.startsWith("ROLE_"))
+                    .collect(java.util.stream.Collectors.toUnmodifiableSet());
             return new MeResponse(principal.id(), principal.email(), principal.displayName(), principal.employeeId(),
-                    principal.roles(), principal.mustChangePassword(), Instant.now(), ApplicationModuleCatalog.accessibleTo(principal));
+                    principal.roles(), permissions, principal.mustChangePassword(), Instant.now(), ApplicationModuleCatalog.forPermissions(permissions));
         }
     }
 }

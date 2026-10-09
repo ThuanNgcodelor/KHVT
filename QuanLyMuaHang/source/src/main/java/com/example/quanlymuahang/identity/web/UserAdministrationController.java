@@ -1,6 +1,7 @@
 package com.example.quanlymuahang.identity.web;
 
 import com.example.quanlymuahang.identity.application.UserAdministrationService;
+import com.example.quanlymuahang.identity.application.ApplicationModuleCatalog;
 import com.example.quanlymuahang.identity.infrastructure.persistence.AccountStatus;
 import com.example.quanlymuahang.identity.infrastructure.persistence.RoleJpaRepository;
 import com.example.quanlymuahang.identity.infrastructure.security.AccountPrincipal;
@@ -36,8 +37,12 @@ public class UserAdministrationController {
     @GetMapping("/roles")
     @PreAuthorize("hasAuthority('*') or hasAuthority('USER_READ')")
     public List<RoleView> roles() {
-        return roles.findAllByActiveTrueOrderByNameAsc().stream().map(role -> new RoleView(role.getCode(), role.getName(),
-                role.getDescription(), role.getPermissions().stream().map(permission -> permission.getCode()).sorted().toList())).toList();
+        return roles.findAllByActiveTrueOrderByNameAsc().stream().map(role -> {
+            Set<String> permissions = role.getPermissions().stream().map(permission -> permission.getCode())
+                    .collect(java.util.stream.Collectors.toUnmodifiableSet());
+            return new RoleView(role.getCode(), role.getName(), role.getDescription(), permissions.stream().sorted().toList(),
+                    ApplicationModuleCatalog.forPermissions(permissions).stream().map(ApplicationModuleCatalog.ModuleView::code).toList());
+        }).toList();
     }
 
     @GetMapping("/users")
@@ -66,7 +71,7 @@ public class UserAdministrationController {
         service.resetPassword(id, body.temporaryPassword(), ((AccountPrincipal) authentication.getPrincipal()).id());
     }
 
-    public record RoleView(String code, String name, String description, List<String> permissions) {}
+    public record RoleView(String code, String name, String description, List<String> permissions, List<String> moduleCodes) {}
     public record CreateUserRequest(@NotBlank @Email String email, @NotBlank @Size(max = 255) String displayName,
                                     @NotBlank @Size(min = 12, max = 200) String initialPassword, Long employeeId,
                                     @NotEmpty Set<String> roleCodes) {}

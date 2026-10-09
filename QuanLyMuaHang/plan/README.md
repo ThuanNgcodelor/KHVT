@@ -8,7 +8,7 @@ Thay Google Apps Script/Google Sheet bằng hệ thống mua hàng có dữ li�
 
 - DDD thực dụng modular monolith, backend là nơi enforce nghiệp vụ/permission.
 - Browser auth dùng Spring Security + Spring Session Redis, cookie HttpOnly + CSRF; không dùng JWT localStorage.
-- Roles mặc định: ADMIN wildcard, HR_MANAGER, PLANNER, VIEWER; Admin quản lý user/role/personnel toàn quyền.
+- Roles mặc định: ADMIN được seed permission wildcard `*`, HR_MANAGER, PLANNER, VIEWER. Kiểm tra quyền dùng permission hiệu lực, không bypass từ tên role; quản trị CRUD role/permission vẫn là phạm vi cần bổ sung.
 - React cùng origin Spring Boot; base API cấu hình tập trung tại frontend/src/config/baseApi.ts.
 - Compose chỉ có MySQL và Redis. Java chạy native/systemd; cloudflared chạy native system service và trỏ tới app.
 - PO PDF có subtotal/VAT/grand total; dòng quantity text không tính vào số tiền.

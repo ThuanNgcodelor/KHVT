@@ -22,7 +22,7 @@ If there is no `.codegraph/` directory, skip CodeGraph entirely — indexing is 
 ## Bản đồ nhanh
 
 - `source/`: ứng dụng chính, backend Spring Boot Java 21; `source/pom.xml` là điểm build.
-- `source/frontend/`: React/TypeScript/Vite/Tailwind; auth/CSRF, layout theo component và dashboard API đã triển khai. Đọc `source/frontend/README.md` để biết pages/hooks và phần UI còn thiếu.
+- `source/frontend/`: React/TypeScript/Vite/Tailwind; auth/CSRF, cổng ứng dụng, dashboard, nhân sự và tài khoản theo pages/hooks/components. Đọc `source/frontend/README.md` để biết phần UI đã có và giới hạn kiểm thử.
 - `source/src/main/resources/db/migration/`: schema MySQL do Flyway quản lý.
 - `source/src/test/`: test backend. Kết quả build và runtime local có thể nằm trong `source/target/runtime/`; thư mục `target/` là đầu ra sinh ra, không phải source.
 - `plan/`: phạm vi, nghiệp vụ, thiết kế UI, triển khai và acceptance.
@@ -45,7 +45,8 @@ If there is no `.codegraph/` directory, skip CodeGraph entirely — indexing is 
 - Đọc và áp dụng [skill giao diện KHVT](skills/khvt-ui/SKILL.md) khi sửa frontend. Đây là skill riêng của repository, được tạo theo yêu cầu người dùng, không phải skill chính thức từ OpenAI. Người dùng đã yêu cầu bỏ màu cam; dùng palette xanh rêu/xanh ngọc của skill trừ khi có chỉ dẫn mới.
 - Base API nằm ở `source/frontend/src/config/baseApi.ts`; request đi qua `services/apiClient.ts`. Không hard-code host trong component.
 - Auth dùng session cookie HttpOnly và CSRF, không lưu token phiên trong localStorage. Sau login cần lấy lại CSRF token; tài khoản có mật khẩu tạm phải đổi mật khẩu.
-- Client đã có auth/CSRF, đổi mật khẩu lần đầu và dashboard API; UI CRUD nhân sự/tài khoản/PO/giá/import còn thiếu. Browser tests dùng API giả lập, không coi đó là nghiệm thu MySQL/Redis thật.
+- Client có auth/CSRF, đổi mật khẩu lần đầu, dashboard và UI nhân viên/phòng ban/chức vụ/tài khoản. UI PO/giá/import còn là trang chờ; catalog/role/permission/audit UI chưa có. Browser tests dùng API giả lập, không coi đó là nghiệm thu MySQL/Redis thật.
+- Sau login/đổi mật khẩu tạm, vào `/modules`. Danh sách ứng dụng và permission hiệu lực do backend trả trong thông tin phiên; frontend kiểm tra `modules` và `permissions`, không suy ra quyền chỉ từ tên role. Admin hiện cấp ứng dụng qua vai trò; chưa có grant độc lập hoặc xin/duyệt quyền. Đọc [cổng ứng dụng và phân quyền](docs/CONG_UNG_DUNG_VA_PHAN_QUYEN.md) trước khi thêm module hoặc thay mô hình quyền.
 - Tách page/component theo tính năng khi triển khai; không tiếp tục dồn toàn bộ tính năng vào `App.tsx`.
 - Nhãn trạng thái API, KPI và bảng phải phản ánh dữ liệu thật hoặc ghi rõ dữ liệu mẫu. Có loading, empty, error, 401/403 và trạng thái gửi form; kiểm tra keyboard và màn hình nhỏ.
 - Chạy `npm.cmd ci`, `npm.cmd run build`, `npm.cmd run dev` trong `source/frontend/` trên PowerShell; dùng `npm` trên shell phù hợp. Kiểm tra scripts và các test thực sự có trước khi tuyên bố đã chạy E2E.

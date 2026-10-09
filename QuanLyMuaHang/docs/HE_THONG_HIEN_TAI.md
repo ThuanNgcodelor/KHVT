@@ -23,7 +23,7 @@ Backend có code cho các nhóm API sau:
 | Nhóm | Chức năng có trong code | Giới hạn bằng chứng |
 |---|---|---|
 | Identity | CSRF, login/logout/me, đổi mật khẩu, bootstrap admin, tạo/sửa/reset tài khoản, gán vai trò, session revocation, audit | Có test MockMvc cho login/CSRF/đổi mật khẩu/quyền/logout; chưa kiểm thử đầy đủ khóa tài khoản, last-admin và revoke Redis |
-| Roles và cổng ứng dụng | Vai trò/quyền mặc định, đọc roles/permission, gán role; registry ứng dụng trả module được phép từ quyền hiệu lực trong phiên | `/api/admin/roles` chỉ đọc; chưa có CRUD role/permission, grant module riêng hoặc luồng xin/duyệt quyền |
+| Roles và cổng ứng dụng | Vai trò/quyền mặc định, đọc roles có permissions/moduleCodes, gán role; registry trả modules từ hợp permission hiệu lực trong phiên | `/api/admin/roles` chỉ đọc; moduleCodes là mô tả theo quyền, chưa có CRUD role/permission, grant module riêng hoặc luồng xin/duyệt quyền |
 | Personnel | Danh sách/chi tiết/tạo/sửa/kích hoạt/ngừng nhân viên; phòng ban và chức vụ | Chưa kiểm thử đầy đủ các luồng API với MySQL/Redis và tất cả vai trò |
 | Catalog và Pricing | Danh mục vật tư/NCC, tra cứu lịch sử/giá | Có controller/service; chưa nghiệm thu với dữ liệu nghiệp vụ |
 | Procurement | Danh sách/chi tiết/tạo/sửa/hủy PO, revision và PDF | Có code và một số test tổng tiền/model; chưa thử đầy đủ luồng tạo/sửa/hủy/xuất tài liệu |
@@ -84,7 +84,7 @@ Hướng dọn cấu trúc hợp lý là thống nhất dần theo từng module
 
 - Đã triển khai login, đổi mật khẩu lần đầu, khôi phục phiên, logout và CSRF cho mutation; session qua cookie HttpOnly, không lưu token localStorage.
 - Tách page/component/hook/service theo feature: `auth`, `portal`, `dashboard`, `personnel`, `identity-admin`. Layout có Header/Navigation/Sidebar/Footer riêng; `AppShell` ghép bố cục, `App.tsx` ghép providers/routes. Chi tiết ở `source/frontend/README.md`.
-- Sau login/đổi mật khẩu tạm, mở `/modules` để chọn Mua hàng, Nhân sự hoặc Quản trị theo danh sách backend trả về. Mỗi ứng dụng có khu vực làm việc riêng và đường quay về cổng ứng dụng. Quyền được cấp qua role hiện có; chưa có grant module độc lập, xin/duyệt quyền hay module Bán hàng. Xem [thiết kế cổng ứng dụng và phân quyền](CONG_UNG_DUNG_VA_PHAN_QUYEN.md).
+- Sau login/đổi mật khẩu tạm, mở `/modules` để chọn Mua hàng, Nhân sự hoặc Quản trị theo danh sách backend trả về. Mỗi ứng dụng có khu vực làm việc riêng và đường quay về cổng ứng dụng. Quyền được cấp qua role; wildcard `*` trong permission hiệu lực mở tất cả module, không bypass bằng tên role. Chưa có grant module độc lập, xin/duyệt quyền hay Bán hàng. Xem [thiết kế cổng ứng dụng và phân quyền](CONG_UNG_DUNG_VA_PHAN_QUYEN.md).
 - Giao diện chuyển sang xanh rêu/xanh ngọc, nền trắng ngà và bảng nghiệp vụ gọn theo `skills/khvt-ui/SKILL.md`; bỏ màu cam. Footer auth/cổng ứng dụng/khu vực làm việc có © Bản quyền thuộc về KHVT | Cung cấp bởi link ThuanNgcodelor.
 - Dashboard lấy số liệu thật; bỏ fallback demo và nhãn thành công cố định. Có loading/error/retry/empty, hết phiên chuyển về login và xóa cache nghiệp vụ. HR không gửi request tổng quan mua hàng.
 - UI nhân sự có danh sách, tìm kiếm mã/tên, lọc trạng thái, phân trang, thêm/sửa, ngừng/kích hoạt nhân viên; thêm/sửa phòng ban và chức vụ qua API. Form phân biệt hồ sơ nhân viên với tài khoản đăng nhập. Kích hoạt nhân viên không tự mở lại tài khoản đã bị vô hiệu hóa.

@@ -81,16 +81,17 @@ npm.cmd run dev -- --host 127.0.0.1 --port 5173 --strictPort
 
 Mở `http://localhost:5173`, khớp `APP_FRONTEND_URL` mặc định của backend. Nếu dùng origin khác, cấu hình `APP_FRONTEND_URL` tương ứng. Vite proxy `/api` và `/actuator` về backend. Đăng nhập bằng tài khoản được cấp; email miền nội bộ được chấp nhận và backend kiểm tra tài khoản. Admin bootstrap có mật khẩu tạm được chuyển tới trang đổi mật khẩu, sau đó vào cổng `/modules`. Giữ mật khẩu riêng trong `.env`, không đưa lên chat. Bootstrap chỉ tạo tài khoản khi chưa tồn tại; đổi mật khẩu đăng nhập rồi thì mật khẩu trong `.env` không tự ghi đè lại.
 
-API dùng cookie session HttpOnly, không lưu token đăng nhập trong localStorage. Mutation gửi CSRF; sau login lấy lại CSRF. Khi hết phiên, frontend xóa cache dữ liệu nghiệp vụ và chuyển về login. Cổng lấy `modules` từ backend, menu/route/thao tác dùng quyền hiệu lực; backend vẫn kiểm tra quyền từng API.
+API dùng cookie session HttpOnly, không lưu token đăng nhập trong localStorage. Mutation gửi CSRF; sau login lấy lại CSRF. Khi hết phiên, frontend xóa cache dữ liệu nghiệp vụ và chuyển về login. Cổng lấy `modules` từ backend, menu/route/thao tác dùng `permissions` hiệu lực; wildcard `*` mở quyền, không kiểm tra bypass chỉ bằng tên ADMIN. Backend vẫn kiểm tra quyền từng API.
 
 ## Phạm vi hiện có
 
 - Đăng nhập, đổi mật khẩu lần đầu, khôi phục phiên, đăng xuất.
 - Cổng chọn ứng dụng theo quyền sau đăng nhập: Mua hàng, Nhân sự, Quản trị. Nút Cổng ứng dụng để đổi ứng dụng; không có quyền thì hiển thị thông báo liên hệ admin.
 - Layout dùng chung, menu riêng theo ứng dụng, keyboard focus, menu mobile. Palette xanh rêu/xanh ngọc; footer © Bản quyền thuộc về KHVT | Cung cấp bởi [ThuanNgcodelor](https://github.com/ThuanNgcodelor).
-- Dashboard lấy dữ liệu thật, có loading/error/retry/empty; không fallback demo. HR chỉ có lời chào và đường dẫn nhân sự, không gọi API dashboard mua hàng.
+- Dashboard Mua hàng lấy dữ liệu thật, có loading/error/retry/empty; không fallback demo. HR không có quyền Mua hàng thì không được vào dashboard và không gửi request tổng quan mua hàng.
 - Nhân sự: danh sách/tìm kiếm/lọc trạng thái/phân trang, tạo/sửa hồ sơ, ngừng/kích hoạt; tạo/sửa phòng ban và chức vụ.
 - Tài khoản: danh sách/phân trang, tạo/sửa, liên kết nhân viên hoạt động, gán role và trạng thái, reset mật khẩu tạm. Admin cấp Mua hàng qua PLANNER/VIEWER, Nhân sự qua HR_MANAGER; một người có thể có nhiều role. Thay quyền/trạng thái/reset thu hồi phiên theo backend.
+- API role trả `permissions` và `moduleCodes` suy ra theo registry để giải thích ứng dụng của từng vai trò. Form lưu `roleCodes`; không gửi grant hoặc moduleCodes. Danh sách ứng dụng của phiên được backend tính lại từ hợp permission.
 - Trang PO/giá/import hiện báo đang triển khai, chưa có CRUD UI. Chưa có CRUD role/permission, grant module độc lập, luồng xin/duyệt quyền hay Bán hàng. Xem [mô hình phân quyền và mở rộng](../../docs/CONG_UNG_DUNG_VA_PHAN_QUYEN.md).
 
 Hồ sơ nhân viên và tài khoản đăng nhập là hai đối tượng riêng. Ngừng nhân viên vô hiệu hóa tài khoản liên kết; kích hoạt nhân viên không tự khôi phục tài khoản. Khi cần mở lại, admin kiểm tra trạng thái tài khoản riêng. Bộ lọc hiện là mã/tên và trạng thái nhân viên; chưa có bộ lọc phòng ban hay search tài khoản vì API danh sách tài khoản hiện chỉ phân trang.

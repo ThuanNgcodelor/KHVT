@@ -55,9 +55,11 @@ Frontend và API khác origin phải dùng credentials; cấu hình `APP_FRONTEN
 - Import yêu cầu mua/báo giá thành draft để người dùng rà lại: `/api/imports/operational/preview` và `/api/imports/operational/paste`. Luồng draft không ghi lịch sử giá hay tạo PO; PDF scan không có OCR.
 - Health check: `/actuator/health`.
 
-Quyền mặc định: `ADMIN` toàn quyền; `HR_MANAGER` quản lý nhân sự; `PLANNER` làm danh mục/giá/đơn mua/import yêu cầu; `VIEWER` chỉ tra cứu. Mọi thay đổi đi qua API được audit, request có `X-Request-ID`.
+Quyền mặc định: `ADMIN` được seed permission wildcard `*` nên có toàn quyền; `HR_MANAGER` quản lý nhân sự; `PLANNER` làm danh mục/giá/đơn mua/import yêu cầu; `VIEWER` chỉ tra cứu. Tên role riêng lẻ không thay permission trong kiểm tra quyền module/action. Mọi thay đổi đi qua API được audit, request có `X-Request-ID`.
 
 Thông tin login/me/đổi mật khẩu gồm `permissions` hiệu lực và `modules` được truy cập; không có mật khẩu/hash. Registry `ApplicationModuleCatalog` cấp Mua hàng khi có `PO_READ` + `CATALOG_READ`, Nhân sự khi có `PERSONNEL_READ`, Quản trị khi có `USER_READ`; wildcard mở tất cả ứng dụng đã đăng ký. Admin cấp quyền bằng cách gán role trong trang Tài khoản; cập nhật tài khoản thu hồi phiên hiện có. Cổng `/modules` không thay thế kiểm tra quyền từng API. Chưa có CRUD role/permission, grant module riêng, luồng xin/duyệt quyền hay nghiệp vụ Bán hàng; xem [cổng ứng dụng và hướng mở rộng](../docs/CONG_UNG_DUNG_VA_PHAN_QUYEN.md).
+
+`GET /api/admin/roles` trả `permissions` và `moduleCodes` do registry suy ra cho từng role để giải thích phạm vi trong form. `moduleCodes` không phải grant độc lập; tạo/sửa tài khoản vẫn gửi `roleCodes`. Quyền phiên là hợp permission từ các vai trò rồi tính lại modules.
 
 ## Import dữ liệu Excel cũ
 

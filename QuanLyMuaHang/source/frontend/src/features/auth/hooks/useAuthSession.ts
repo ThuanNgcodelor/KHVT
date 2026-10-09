@@ -24,6 +24,7 @@ export function useAuthSession(): AuthContextValue {
   async function clearSession() {
     await client.cancelQueries()
     client.removeQueries({ predicate: (query) => query.queryKey[0] !== 'auth' })
+    client.getMutationCache().clear()
     resetCsrf()
     client.setQueryData(authKey, null)
   }
@@ -32,6 +33,7 @@ export function useAuthSession(): AuthContextValue {
     const expired = () => {
       void client.cancelQueries()
       client.removeQueries({ predicate: (query) => query.queryKey[0] !== 'auth' })
+      client.getMutationCache().clear()
       resetCsrf()
       client.setQueryData(authKey, null)
     }
@@ -49,6 +51,7 @@ export function useAuthSession(): AuthContextValue {
   useEffect(() => {
     if (session.data === null) {
       client.removeQueries({ predicate: (query) => query.queryKey[0] !== 'auth' })
+      client.getMutationCache().clear()
       resetCsrf()
     }
   }, [session.data, client])
@@ -62,6 +65,7 @@ export function useAuthSession(): AuthContextValue {
       const user = await authApi.login(email.trim(), password)
       await client.cancelQueries()
       client.removeQueries({ predicate: (query) => query.queryKey[0] !== 'auth' })
+      client.getMutationCache().clear()
       client.setQueryData(authKey, user)
       // The next mutation will retry fetching CSRF if this refresh is offline.
       await authApi.refreshCsrf().catch(() => undefined)

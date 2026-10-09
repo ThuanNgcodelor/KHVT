@@ -24,7 +24,7 @@ Skill riêng của repository, được tạo theo yêu cầu người dùng; kh
 - Loading, không có dữ liệu, không có kết quả lọc, lỗi có retry và 403 cần phân biệt. Không thay API lỗi bằng dữ liệu demo; không hiển thị thành công trước khi server xác nhận.
 - Form có validation phù hợp contract; giữ nội dung khi server lỗi để người dùng sửa. Mật khẩu tạm không xuất vào toast, log, URL, fixture thật hay browser trace.
 - Xác nhận thao tác ngừng nhân viên, khóa tài khoản, thay quyền và reset mật khẩu; nêu hậu quả về phiên đăng nhập khi backend thực hiện. Không thêm nút xóa khi API chỉ hỗ trợ ngừng/kích hoạt.
-- UI ẩn thao tác theo vai trò mặc định nhưng backend luôn kiểm tra quyền. Không dựng màn sửa role/permission nếu backend mới có API đọc.
+- UI ẩn thao tác theo permission hiệu lực backend trả về nhưng backend luôn kiểm tra lại quyền. Không dựng màn sửa role/permission nếu backend mới có API đọc.
 - Phân biệt cấp quyền vào ứng dụng và quyền thao tác bên trong. Không thêm checkbox grant/approval chỉ hoạt động phía frontend; nối API thực tế trước khi dựng luồng cấp/thu hồi hoặc duyệt quyền.
 - Dialog dùng semantics đúng, focus vào dialog, giữ Tab bên trong, Escape đóng khi không gửi, trả focus về nút mở. Bảng cuộn trong vùng bảng ở mobile; không làm tràn toàn trang. Menu mobile có đóng và hỗ trợ Escape.
 

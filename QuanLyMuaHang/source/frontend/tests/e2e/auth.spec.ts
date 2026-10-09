@@ -1,58 +1,24 @@
-import { test, expect, type Page } from '@playwright/test'
-
-// Synthetic API fixtures: these tests do not connect to MySQL/Redis or real accounts.
-async function mockApi(page: Page, options: { role?: string; signedIn?: boolean; mustChange?: boolean } = {}) {
-  const state = { signedIn: options.signedIn ?? false, mustChange: options.mustChange ?? false, csrf: 0, dashboardCalls: 0, dashboardStatus: 200, changes: 0 }
-  const user = () => ({ id: 1, email: 'fixture@localhost', displayName: 'Người dùng kiểm thử', employeeId: null,
-    roles: [options.role ?? 'ADMIN'], mustChangePassword: state.mustChange, authenticatedAt: '2026-10-09T08:00:00Z' })
-  await page.route('**/api/**', async (route) => {
-    const request = route.request()
-    const path = new URL(request.url()).pathname
-    const reply = (body: unknown, status = 200) => route.fulfill({ status, contentType: 'application/json', body: JSON.stringify(body) })
-    if (path === '/api/auth/csrf') return reply({ headerName: 'X-XSRF-TOKEN', token: `fixture-${++state.csrf}` })
-    if (request.method() === 'POST' && request.headers()['x-xsrf-token'] !== `fixture-${state.csrf}`) return reply({ code: 'FORBIDDEN', message: 'CSRF test failed' }, 403)
-    if (path === '/api/auth/me') return state.signedIn ? reply(user()) : reply({ code: 'UNAUTHENTICATED' }, 401)
-    if (path === '/api/auth/login') {
-      if (request.postDataJSON().password !== 'fixture-password') return reply({ message: 'Thông tin đăng nhập không đúng.' }, 401)
-      state.signedIn = true
-      return reply(user())
-    }
-    if (path === '/api/auth/logout') { state.signedIn = false; return route.fulfill({ status: 204 }) }
-    if (path === '/api/auth/change-password') {
-      state.changes++
-      if (state.csrf < 2) return reply({ message: 'Expected CSRF rotation' }, 403)
-      state.mustChange = false
-      return reply(user())
-    }
-    if (path === '/api/dashboard') {
-      state.dashboardCalls++
-      if (state.dashboardStatus !== 200) {
-        if (state.dashboardStatus === 401) state.signedIn = false
-        return reply({ code: state.dashboardStatus === 401 ? 'UNAUTHENTICATED' : 'INTERNAL_ERROR' }, state.dashboardStatus)
-      }
-      return reply({ purchaseOrdersThisMonth: 3, activeMaterials: 12, activeSuppliers: 4, recentOrders: [], generatedAt: '2026-10-09T08:00:00Z' })
-    }
-    return reply({ code: 'UNEXPECTED_TEST_REQUEST' }, 404)
-  })
-  return state
-}
-
-async function login(page: Page, password = 'fixture-password') {
-  await page.getByLabel('Email', { exact: true }).fill('fixture@localhost')
-  await page.getByLabel('Mật khẩu', { exact: true }).fill(password)
-  await page.getByRole('button', { name: 'Đăng nhập', exact: true }).click()
-}
+import { test, expect } from '@playwright/test'
+import { login, mockApi } from './fixtures'
 
 test('redirects protected pages, logs in, restores session on reload, and logs out', async ({ page }) => {
   const state = await mockApi(page)
   await page.goto('/admin/users')
   await expect(page).toHaveURL(/\/login$/)
   await login(page)
-  await expect(page).toHaveURL(/\/dashboard$/)
+  await expect(page).toHaveURL(/\/modules$/)
+  await expect(page.getByRole('heading', { name: 'Ứng dụng của bạn' })).toBeVisible()
+  await expect(page.getByRole('link', { name: /^Mua hàng/ })).toBeVisible()
+  await expect(page.getByRole('link', { name: /^Nhân sự/ })).toBeVisible()
+  await expect(page.getByRole('link', { name: /^Quản trị/ })).toBeVisible()
+  await expect(page.getByRole('link', { name: /^Bán hàng/ })).toHaveCount(0)
+  await page.getByRole('link', { name: /^Mua hàng/ }).click()
   await expect(page.getByText('Chưa có đơn mua hàng.', { exact: true })).toBeVisible()
   expect(state.csrf).toBeGreaterThanOrEqual(2)
   await page.reload()
-  await expect(page.getByRole('heading', { name: 'Xin chào, Người dùng kiểm thử' })).toBeVisible()
+  await expect(page.getByRole('heading', { name: 'Tổng quan mua hàng' })).toBeVisible()
+  await page.getByRole('link', { name: 'Đổi ứng dụng' }).click()
+  await expect(page).toHaveURL(/\/modules$/)
   await page.getByRole('button', { name: 'Đăng xuất', exact: true }).click()
   await expect(page).toHaveURL(/\/login$/)
   await page.goto('/dashboard')
@@ -76,7 +42,7 @@ test('requires a first password change and validates before sending', async ({ p
   await page.getByLabel('Mật khẩu mới', { exact: true }).fill('new-fixture-password')
   await page.getByLabel('Nhập lại mật khẩu mới', { exact: true }).fill('new-fixture-password')
   await page.getByRole('button', { name: 'Lưu mật khẩu mới' }).click()
-  await expect(page).toHaveURL(/\/dashboard$/)
+  await expect(page).toHaveURL(/\/modules$/)
   expect(state.changes).toBe(1)
 })
 
@@ -98,8 +64,14 @@ test('viewer cannot open account administration', async ({ page }) => {
 
 test('HR sees personnel navigation without purchasing data requests', async ({ page }) => {
   const state = await mockApi(page, { role: 'HR_MANAGER', signedIn: true })
+  await page.goto('/modules')
+  await expect(page.getByRole('link', { name: /^Mua hàng/ })).toHaveCount(0)
+  await expect(page.getByRole('link', { name: /^Quản trị/ })).toHaveCount(0)
+  await page.getByRole('link', { name: /^Nhân sự/ }).click()
+  await expect(page.getByRole('heading', { name: 'Nhân sự', exact: true })).toBeVisible()
+  await expect(page.getByRole('button', { name: 'Thêm nhân viên' })).toBeVisible()
   await page.goto('/dashboard')
-  await expect(page.getByRole('link', { name: 'Quản lý nhân sự', exact: true })).toBeVisible()
+  await expect(page.getByRole('heading', { name: 'Bạn không có quyền truy cập' })).toBeVisible()
   await expect(page.getByRole('heading', { name: 'Đơn mua hàng gần đây' })).toHaveCount(0)
   expect(state.dashboardCalls).toBe(0)
 })
@@ -127,7 +99,7 @@ test('expired API session redirects to login and removes private content', async
 test('layout fits the viewport and mobile navigation closes with Escape', async ({ page }, testInfo) => {
   await mockApi(page, { signedIn: true })
   await page.goto('/dashboard')
-  await expect(page.getByRole('heading', { name: 'Xin chào, Người dùng kiểm thử' })).toBeVisible()
+  await expect(page.getByRole('heading', { name: 'Tổng quan mua hàng' })).toBeVisible()
   if (testInfo.project.name.includes('mobile')) {
     const toggle = page.getByRole('button', { name: 'Mở menu' })
     await toggle.click()
@@ -137,5 +109,28 @@ test('layout fits the viewport and mobile navigation closes with Escape', async 
     await expect(toggle).toHaveAttribute('aria-expanded', 'false')
   }
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(true)
-  await expect(page.getByRole('contentinfo')).toContainText('Quản lý mua hàng KHVT')
+  await expect(page.getByRole('contentinfo')).toContainText('© Bản quyền thuộc về KHVT | Cung cấp bởi')
+  await expect(page.getByRole('link', { name: 'ThuanNgcodelor', exact: true })).toHaveAttribute('href', 'https://github.com/ThuanNgcodelor')
+})
+
+test('portal follows effective permissions for a custom role and guards direct URLs', async ({ page }) => {
+  const state = await mockApi(page, { role: 'CUSTOM_READER', signedIn: true, permissions: ['PO_READ', 'CATALOG_READ', 'PRICE_READ'] })
+  await page.goto('/modules')
+  await expect(page.getByRole('link', { name: /^Mua hàng/ })).toBeVisible()
+  await expect(page.getByRole('link', { name: /^Nhân sự/ })).toHaveCount(0)
+  await page.getByRole('link', { name: /^Mua hàng/ }).click()
+  await expect(page.getByRole('heading', { name: 'Tổng quan mua hàng' })).toBeVisible()
+  await expect(page.getByRole('link', { name: 'Import yêu cầu', exact: true })).toHaveCount(0)
+  await page.goto('/admin/employees')
+  await expect(page.getByRole('heading', { name: 'Bạn không có quyền truy cập' })).toBeVisible()
+  expect(state.writes).toHaveLength(0)
+})
+
+test('portal explains an account without granted modules', async ({ page }) => {
+  const state = await mockApi(page, { role: 'NO_ACCESS', signedIn: true })
+  await page.goto('/')
+  await expect(page).toHaveURL(/\/modules$/)
+  await expect(page.getByText('Chưa có ứng dụng được cấp quyền', { exact: true })).toBeVisible()
+  await expect(page.getByRole('link', { name: /^Mua hàng/ })).toHaveCount(0)
+  expect(state.dashboardCalls).toBe(0)
 })

@@ -17,6 +17,11 @@ public final class ApplicationModuleCatalog {
     );
     public static List<ModuleView> accessibleTo(AccountPrincipal principal) {
         Set<String> permissions = principal.getAuthorities().stream().map(authority -> authority.getAuthority()).collect(Collectors.toSet());
+        return forPermissions(permissions);
+    }
+
+    /** Uses the same permission rule for a logged-in user and an assignable role. */
+    public static List<ModuleView> forPermissions(Set<String> permissions) {
         return MODULES.stream().filter(module -> permissions.contains("*") || permissions.containsAll(module.requiredPermissions()))
                 .map(Registration::view).toList();
     }

@@ -11,7 +11,7 @@ export function Header({ title, initials, sidebarOpen, menuRef, onToggleMenu, on
       aria-label="Mở menu" aria-expanded={sidebarOpen} aria-controls="main-navigation"><Icon name="menu" /></button>
     <div className="breadcrumb"><span>KHVT</span><b>/</b><strong>{title}</strong></div>
     <div className="topbar-actions">
-      <Link className="switch-app" to="/modules"><Icon name="overview" size={17} /><span>Đổi ứng dụng</span></Link>
+      <Link className="switch-app" to="/modules" aria-label="Đổi ứng dụng"><Icon name="overview" size={17} /><span>Đổi ứng dụng</span></Link>
       <button className="secondary-button" type="button" disabled={loggingOut} onClick={() => { void onLogout() }}>
         {loggingOut ? 'Đang đăng xuất…' : 'Đăng xuất'}
       </button>

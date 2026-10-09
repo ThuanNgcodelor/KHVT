@@ -12,7 +12,7 @@ Footer ở trang đăng nhập, cổng ứng dụng và khu vực làm việc d�
 
 ## Cách cấp quyền đang có
 
-Hệ thống hiện dùng vai trò và permission. Admin gán một hoặc nhiều vai trò khi tạo/sửa tài khoản trong Quản trị → Tài khoản. Backend lấy các permission hiệu lực của người dùng, đối chiếu với `ApplicationModuleCatalog`, rồi trả `modules` trong kết quả login, `me` và đổi mật khẩu. Frontend hiển thị danh sách đó; không tự quyết định quyền ứng dụng từ danh sách vai trò.
+Hệ thống hiện dùng vai trò và permission. Admin gán một hoặc nhiều vai trò khi tạo/sửa tài khoản trong Quản trị → Tài khoản. Backend hợp các permission hiệu lực của người dùng từ vai trò, đối chiếu với `ApplicationModuleCatalog`, rồi trả `permissions` và `modules` trong kết quả login, `me` và đổi mật khẩu. Frontend hiển thị danh sách đó; không tự quyết định quyền ứng dụng từ tên vai trò.
 
 Registry hiện được khai báo trong code backend, chưa phải bảng danh mục cho admin tự thêm ứng dụng:
 
@@ -22,7 +22,7 @@ Registry hiện được khai báo trong code backend, chưa phải bảng danh 
 | `PERSONNEL` | Nhân sự | Có `PERSONNEL_READ` | `/admin/employees` |
 | `ADMINISTRATION` | Quản trị | Có `USER_READ` | `/admin/users` |
 
-Permission wildcard `*` được nhận diện ở backend và mở các ứng dụng đã đăng ký. Hiện các vai trò mặc định có kết quả:
+Permission wildcard `*` được nhận diện ở backend và mở các ứng dụng đã đăng ký. Vai trò mặc định `ADMIN` có permission này; tên vai trò `ADMIN` riêng lẻ không phải điều kiện bypass kiểm tra module hoặc permission frontend. Hiện các vai trò mặc định có kết quả:
 
 | Vai trò | Ứng dụng được hiển thị | Phạm vi |
 |---|---|---|
@@ -33,7 +33,11 @@ Permission wildcard `*` được nhận diện ở backend và mở các ứng d
 
 Ví dụ, admin gán `PLANNER` cho một tài khoản để cấp Mua hàng; gán thêm `HR_MANAGER` để tài khoản có cả Mua hàng và Nhân sự. Đổi vai trò hiện là thao tác quản trị trực tiếp, không có bước người dùng xin quyền hoặc admin duyệt yêu cầu. Backend thu hồi các phiên hiện có khi cập nhật tài khoản; lần đăng nhập sau tải lại quyền và danh sách ứng dụng.
 
-Hệ thống chưa có grant module riêng theo từng tài khoản. `/api/admin/roles` chỉ đọc danh sách vai trò và permission, chưa có API tạo/sửa vai trò hoặc ma trận permission. Frontend dùng danh sách `permissions` hiệu lực trong thông tin phiên để kiểm tra route/thao tác của các màn đã triển khai; tên vai trò được dùng để giải thích quyền được gán.
+Thao tác hiện tại: mở Quản trị → Tài khoản → Thêm hoặc Sửa → chọn vai trò → xác nhận tác động phiên → lưu. Tài khoản mới có mật khẩu tạm tối thiểu 12 ký tự và phải đổi mật khẩu khi đăng nhập. Admin không được tự khóa/vô hiệu hóa tài khoản của mình hoặc gỡ/khóa admin hoạt động cuối cùng; các ràng buộc này được backend kiểm tra. Sửa tài khoản của chính mình có thể thu hồi phiên hiện tại.
+
+`GET /api/admin/roles` trả `permissions` và `moduleCodes` cho từng vai trò. `moduleCodes` là kết quả registry tính từ permission của chính vai trò đó, giúp form mô tả ứng dụng đi kèm; nó không phải danh sách grant có thể sửa. Quyền cuối cùng của tài khoản được tính từ hợp permission của tất cả vai trò, rồi registry tính lại danh sách `modules` trong phiên.
+
+Hệ thống chưa có grant module riêng theo từng tài khoản, API tạo/sửa vai trò hoặc ma trận permission. Payload tạo/sửa tài khoản nhận `roleCodes`, không nhận `moduleCodes` hay grant ứng dụng. Frontend dùng danh sách `permissions` hiệu lực trong thông tin phiên để kiểm tra route/thao tác của các màn đã triển khai; tên vai trò được dùng để giải thích quyền được gán.
 
 ## Hiển thị ứng dụng và quyền thao tác
 
@@ -63,7 +67,7 @@ Khi đó có thể bổ sung:
 | `user_module_grants` | Người dùng, module, trạng thái cấp/thu hồi, người cấp, thời điểm; một grant hiệu lực cho mỗi cặp user/module |
 | `module_access_requests` | Chỉ cần nếu có quy trình xin quyền: người yêu cầu, module, lý do, trạng thái, người duyệt và thời điểm |
 
-Quyền truy cập khi ấy cần cả **grant module hiệu lực và permission hành động**. Cấp Mua hàng không tự cấp `PO_WRITE`; thu hồi grant phải chặn toàn bộ nhóm API Mua hàng, không chỉ ẩn ô ở frontend. Backend cần kiểm tra grant trong luồng authorization, audit các thay đổi và thu hồi/làm mới phiên để tránh quyền cũ còn trong session. Quyền wildcard của admin và việc có cần grant riêng cho admin phải được chốt rõ trước khi chuyển mô hình.
+Quyền truy cập khi ấy cần cả **grant module hiệu lực và permission hành động**. Cấp Mua hàng không tự cấp `PO_CREATE`; thu hồi grant phải chặn toàn bộ nhóm API Mua hàng, không chỉ ẩn ô ở frontend. Backend cần kiểm tra grant trong luồng authorization, audit các thay đổi và thu hồi/làm mới phiên để tránh quyền cũ còn trong session. Quyền wildcard của admin và việc có cần grant riêng cho admin phải được chốt rõ trước khi chuyển mô hình.
 
 Không nên thêm checkbox "đã cấp ứng dụng" chỉ lưu ở frontend: nó không kiểm soát được request API và dễ lệch với quyền trong session. Với nhu cầu hiện tại, tận dụng vai trò đã có giữ được một nguồn quyền; thêm grant độc lập sau khi có yêu cầu nghiệp vụ cụ thể.
 
