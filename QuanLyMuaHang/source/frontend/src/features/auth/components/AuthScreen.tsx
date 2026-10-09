@@ -3,14 +3,14 @@ import { useForm } from 'react-hook-form'
 import { z } from 'zod'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { Navigate } from 'react-router-dom'
-import { useAuth } from './AuthProvider'
-import { ApiError } from '../../services/apiClient'
-import { PageState } from '../../components/PageState'
+import { useAuth } from '../hooks/useAuth'
+import { ApiError } from '../../../services/apiClient'
+import { PageState } from '../../../components/PageState'
 
 const schema = z.object({ email: z.string(), password: z.string().min(1, 'Nhập mật khẩu hiện tại.'), newPassword: z.string(), confirmation: z.string() })
 type FormValues = z.infer<typeof schema>
 
-export function AuthPage({ mode }: { mode: 'login' | 'change-password' }) {
+export function AuthScreen({ mode }: { mode: 'login' | 'change-password' }) {
   const auth = useAuth()
   const changing = mode === 'change-password'
   const [showPassword, setShowPassword] = useState(false)

@@ -1,16 +1,11 @@
-import { useQuery } from '@tanstack/react-query'
 import { Link } from 'react-router-dom'
-import { dashboardApi } from '../../services/dashboardApi'
-import { useAuth } from '../auth/AuthProvider'
-import { hasRole } from '../auth/types'
-import { PageState } from '../../components/PageState'
-import type { DashboardResponse } from '../../types/api'
+import { hasRole } from '../../auth/types'
+import { PageState } from '../../../components/PageState'
+import { useDashboard } from '../hooks/useDashboard'
 
 const statusLabels = { DRAFT: 'Nháp', EXPORTED: 'Đã xuất', CANCELLED: 'Đã hủy' }
 export function DashboardPage() {
-  const { user } = useAuth()
-  const purchasing = !!user && hasRole(user, ['ADMIN', 'PLANNER', 'VIEWER'])
-  const summary = useQuery({ queryKey: ['dashboard', user?.id], queryFn: ({ signal }) => dashboardApi.getSummary(signal), enabled: purchasing })
+  const { user, purchasing, summary } = useDashboard()
   const date = new Intl.DateTimeFormat('vi-VN', { dateStyle: 'full', timeZone: 'Asia/Ho_Chi_Minh' }).format(new Date())
   if (!purchasing) return <><div className="page-intro"><div><p className="eyebrow">{date}</p><h1>Xin chào, {user?.displayName}</h1><p className="page-description">Chọn chức năng phù hợp với công việc và quyền được cấp.</p></div></div>{user && hasRole(user, ['HR_MANAGER']) && <Link className="secondary-button" to="/admin/employees">Quản lý nhân sự</Link>}</>
   if (summary.isPending) return <PageState title="Đang tải tổng quan…" />

@@ -1,22 +1,12 @@
-import { createContext, useContext, useEffect, type ReactNode } from 'react'
+import { useEffect } from 'react'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
-import { ApiError, authEvents, resetCsrf } from '../../services/apiClient'
-import { authApi } from './authApi'
-import type { CurrentUser } from './types'
+import { ApiError, authEvents, resetCsrf } from '../../../services/apiClient'
+import { authApi } from '../authApi'
+import type { CurrentUser } from '../types'
+import type { AuthContextValue } from '../AuthContext'
 
 const authKey = ['auth', 'me'] as const
-type AuthContextValue = {
-  user: CurrentUser | null
-  pending: boolean
-  error: Error | null
-  refresh: () => void
-  login: (email: string, password: string) => Promise<void>
-  changePassword: (currentPassword: string, newPassword: string) => Promise<void>
-  logout: () => Promise<void>
-}
-const AuthContext = createContext<AuthContextValue | null>(null)
-
-export function AuthProvider({ children }: { children: ReactNode }) {
+export function useAuthSession(): AuthContextValue {
   const client = useQueryClient()
   const session = useQuery({
     queryKey: authKey,
@@ -39,7 +29,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }
 
   useEffect(() => {
-    const expired = () => { void clearSession() }
+    const expired = () => {
+      void client.cancelQueries()
+      client.removeQueries({ predicate: (query) => query.queryKey[0] !== 'auth' })
+      resetCsrf()
+      client.setQueryData(authKey, null)
+    }
     const passwordRequired = () => {
       client.setQueryData<CurrentUser | null>(authKey, (user) => user ? { ...user, mustChangePassword: true } : null)
     }
@@ -81,10 +76,5 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       await clearSession()
     },
   }
-  return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>
-}
-export function useAuth() {
-  const context = useContext(AuthContext)
-  if (!context) throw new Error('AuthProvider is required')
-  return context
+  return value
 }

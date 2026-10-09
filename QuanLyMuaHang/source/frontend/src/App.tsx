@@ -1,9 +1,11 @@
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { BrowserRouter, Navigate, Outlet, Route, Routes } from 'react-router-dom'
-import { AuthProvider, useAuth } from './features/auth/AuthProvider'
-import { AuthPage } from './features/auth/AuthPage'
+import { AuthProvider } from './features/auth/AuthProvider'
+import { useAuth } from './features/auth/hooks/useAuth'
+import { LoginPage } from './features/auth/pages/LoginPage'
+import { ChangePasswordPage } from './features/auth/pages/ChangePasswordPage'
 import { AppShell } from './app/AppShell'
-import { DashboardPage } from './features/dashboard/DashboardPage'
+import { DashboardPage } from './features/dashboard/pages/DashboardPage'
 import { PageState } from './components/PageState'
 import { hasRole, type RoleCode } from './features/auth/types'
 
@@ -30,8 +32,8 @@ function PlannedPage({ title }: { title: string }) {
 
 export function App() {
   return <QueryClientProvider client={queryClient}><BrowserRouter><AuthProvider><Routes>
-    <Route path="/login" element={<AuthPage key="login" mode="login" />} />
-    <Route path="/change-password" element={<AuthPage key="change-password" mode="change-password" />} />
+    <Route path="/login" element={<LoginPage />} />
+    <Route path="/change-password" element={<ChangePasswordPage />} />
     <Route element={<RequireSession />}><Route element={<AppShell />}>
       <Route index element={<Navigate to="/dashboard" replace />} />
       <Route path="dashboard" element={<DashboardPage />} />
