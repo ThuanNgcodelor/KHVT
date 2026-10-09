@@ -39,7 +39,7 @@ public class OperationalRequestImportService {
         try {
             byte[] bytes = file.getBytes();
             if (name.endsWith(".xlsx") || name.endsWith(".xls")) return spreadsheet(name, bytes);
-            if (name.endsWith(".csv")) return delimited(name, new String(bytes, StandardCharsets.UTF_8), 0.95, false);
+            if (name.endsWith(".csv")) return delimited(name, new String(bytes, StandardCharsets.UTF_8), 0.95, false, "CSV");
             if (name.endsWith(".pdf")) return pdf(name, bytes);
             throw ApiException.badRequest("UNSUPPORTED_FILE", "Luồng này chỉ hỗ trợ .xlsx, .xls, .csv hoặc PDF có text");
         } catch (IOException exception) {
@@ -49,7 +49,7 @@ public class OperationalRequestImportService {
 
     public DraftPreview paste(String content) {
         if (content == null || content.isBlank()) throw ApiException.badRequest("PASTE_REQUIRED", "Dán các dòng từ Excel trước");
-        return delimited("paste-excel.tsv", content, 0.9, true);
+        return delimited("paste-excel.tsv", content, 0.9, true, "PASTE");
     }
 
     private DraftPreview spreadsheet(String fileName, byte[] bytes) throws IOException {

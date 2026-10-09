@@ -124,7 +124,7 @@ public class LegacyWorkbookImportService {
         ImportBatch batch = batches.findById(batchId).orElseThrow(() -> ApiException.notFound("Không tìm thấy lô import"));
         if (!MODE.equals(batch.getMode())) throw ApiException.badRequest("INVALID_IMPORT_MODE", "Lô import không phải workbook legacy");
         if (batch.getStatus() != ImportBatchStatus.PREVIEW) throw ApiException.conflict("IMPORT_ALREADY_PROCESSED", "Lô import đã được xử lý trước đó");
-        List<StoredRow> rows = jdbc.query("SELECT sheet_name,row_number,mapped_json,status,issues_json FROM import_rows WHERE batch_id=? ORDER BY sheet_name,row_number",
+        List<StoredRow> rows = jdbc.query("SELECT sheet_name,`row_number`,mapped_json,status,issues_json FROM import_rows WHERE batch_id=? ORDER BY sheet_name,`row_number`",
                 (rs, index) -> new StoredRow(rs.getString(1), rs.getInt(2), readJson(rs.getString(3)), rs.getString(4), rs.getString(5)), batchId);
         if (rows.stream().anyMatch(row -> row.issuesJson() != null && row.issuesJson().contains("PO_HEADER_CONFLICT")))
             throw ApiException.conflict("PO_HEADER_CONFLICT", "Một hoặc nhiều số PO có header khác nhau giữa các dòng. Hãy chỉnh workbook cho nhất quán rồi tải lại; chưa có dữ liệu nào được commit.");
@@ -194,7 +194,7 @@ public class LegacyWorkbookImportService {
         List<HistoricalPurchase> savedHistory = history.saveAll(historyRows);
         for (int index = 0; index < savedHistory.size(); index++) {
             StoredRow source = historySourceRows.get(index);
-            jdbc.update("UPDATE import_rows SET committed_entity_type='HISTORICAL_PURCHASE', committed_entity_id=? WHERE batch_id=? AND sheet_name=? AND row_number=?",
+            jdbc.update("UPDATE import_rows SET committed_entity_type='HISTORICAL_PURCHASE', committed_entity_id=? WHERE batch_id=? AND sheet_name=? AND `row_number`=?",
                     savedHistory.get(index).getId(), batchId, source.sheet(), source.rowNumber());
         }
 
@@ -258,7 +258,7 @@ public class LegacyWorkbookImportService {
             PurchaseOrder order = savedOrders.get(index);
             List<StoredRow> sourceGroup = sourceGroups.get(index);
             for (StoredRow source : sourceGroup) {
-                jdbc.update("UPDATE import_rows SET committed_entity_type='PURCHASE_ORDER', committed_entity_id=? WHERE batch_id=? AND sheet_name=? AND row_number=?",
+                jdbc.update("UPDATE import_rows SET committed_entity_type='PURCHASE_ORDER', committed_entity_id=? WHERE batch_id=? AND sheet_name=? AND `row_number`=?",
                         order.getId(), batchId, source.sheet(), source.rowNumber());
             }
         }
@@ -448,7 +448,7 @@ public class LegacyWorkbookImportService {
     }
 
     private void persistPreviewRows(long batchId, List<LegacyRow> rows) {
-        jdbc.batchUpdate("INSERT INTO import_rows (batch_id,sheet_name,row_number,raw_json,mapped_json,issues_json,status) VALUES (?,?,?,?,?,?,?)",
+        jdbc.batchUpdate("INSERT INTO import_rows (batch_id,sheet_name,`row_number`,raw_json,mapped_json,issues_json,status) VALUES (?,?,?,?,?,?,?)",
                 new BatchPreparedStatementSetter() {
                     @Override public void setValues(PreparedStatement ps, int i) throws SQLException {
                         LegacyRow row = rows.get(i);

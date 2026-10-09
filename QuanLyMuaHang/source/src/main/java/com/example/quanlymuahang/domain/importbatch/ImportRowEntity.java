@@ -17,7 +17,7 @@ public class ImportRowEntity {
     @Id @GeneratedValue(strategy = GenerationType.IDENTITY) private Long id;
     @Column(name = "batch_id", nullable = false) private Long batchId;
     @Column(name = "sheet_name", nullable = false, length = 80) private String sheetName;
-    @Column(name = "row_number", nullable = false) private int rowNumber;
+    @Column(name = "`row_number`", nullable = false) private int rowNumber;
     @Column(name = "raw_json", nullable = false, columnDefinition = "json") private String rawJson;
     @Column(name = "mapped_json", columnDefinition = "json") private String mappedJson;
     @Column(name = "issues_json", columnDefinition = "json") private String issuesJson;

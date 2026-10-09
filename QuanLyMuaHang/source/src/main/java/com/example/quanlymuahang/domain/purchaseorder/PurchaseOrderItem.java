@@ -70,8 +70,6 @@ public class PurchaseOrderItem {
         this.quantityText = quantityText;
     }
 
-    public void setMaterial(Material material) { this.material = material; }
-
     public Long getId() { return id; }
     public PurchaseOrder getPurchaseOrder() { return purchaseOrder; }
     public void setPurchaseOrder(PurchaseOrder purchaseOrder) { this.purchaseOrder = purchaseOrder; }

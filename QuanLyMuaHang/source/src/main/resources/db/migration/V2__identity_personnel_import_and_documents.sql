@@ -160,7 +160,7 @@ CREATE TABLE import_rows (
     id BIGINT PRIMARY KEY AUTO_INCREMENT,
     batch_id BIGINT NOT NULL,
     sheet_name VARCHAR(80) NOT NULL,
-    row_number INT NOT NULL,
+    `row_number` INT NOT NULL,
     raw_json JSON NOT NULL,
     mapped_json JSON NULL,
     issues_json JSON NULL,
@@ -168,7 +168,7 @@ CREATE TABLE import_rows (
     committed_entity_type VARCHAR(60) NULL,
     committed_entity_id BIGINT NULL,
     created_at TIMESTAMP(6) NOT NULL DEFAULT CURRENT_TIMESTAMP(6),
-    UNIQUE KEY uk_import_rows_batch_sheet_row (batch_id, sheet_name, row_number),
+    UNIQUE KEY uk_import_rows_batch_sheet_row (batch_id, sheet_name, `row_number`),
     CONSTRAINT fk_import_rows_batch FOREIGN KEY (batch_id) REFERENCES import_batches(id),
     KEY idx_import_rows_status (batch_id, status)
 );

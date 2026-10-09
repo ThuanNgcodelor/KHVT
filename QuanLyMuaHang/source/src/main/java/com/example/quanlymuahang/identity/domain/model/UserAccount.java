@@ -24,7 +24,7 @@ public final class UserAccount {
         if (roles.contains(RoleCode.ADMIN)) return true;
         return switch (permission) {
             case "PERSONNEL_READ", "PERSONNEL_MANAGE" -> roles.contains(RoleCode.HR_MANAGER);
-            case "CATALOG_READ", "CATALOG_MANAGE", "IMPORT_OPERATIONAL", "PO_CREATE", "PO_EDIT", "PO_CANCEL" -> roles.contains(RoleCode.PLANNER);
+            case "CATALOG_MANAGE", "IMPORT_OPERATIONAL", "PO_CREATE", "PO_EDIT", "PO_CANCEL" -> roles.contains(RoleCode.PLANNER);
             case "CATALOG_READ", "PRICE_READ", "PO_READ" -> roles.contains(RoleCode.PLANNER) || roles.contains(RoleCode.VIEWER);
             default -> false;
         };
