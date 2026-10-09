@@ -3,7 +3,7 @@ import { test, expect, type Page } from '@playwright/test'
 // Synthetic API fixtures: these tests do not connect to MySQL/Redis or real accounts.
 async function mockApi(page: Page, options: { role?: string; signedIn?: boolean; mustChange?: boolean } = {}) {
   const state = { signedIn: options.signedIn ?? false, mustChange: options.mustChange ?? false, csrf: 0, dashboardCalls: 0, dashboardStatus: 200, changes: 0 }
-  const user = () => ({ id: 1, email: 'fixture@example.test', displayName: 'Người dùng kiểm thử', employeeId: null,
+  const user = () => ({ id: 1, email: 'fixture@localhost', displayName: 'Người dùng kiểm thử', employeeId: null,
     roles: [options.role ?? 'ADMIN'], mustChangePassword: state.mustChange, authenticatedAt: '2026-10-09T08:00:00Z' })
   await page.route('**/api/**', async (route) => {
     const request = route.request()
@@ -38,7 +38,7 @@ async function mockApi(page: Page, options: { role?: string; signedIn?: boolean;
 }
 
 async function login(page: Page, password = 'fixture-password') {
-  await page.getByLabel('Email', { exact: true }).fill('fixture@example.test')
+  await page.getByLabel('Email', { exact: true }).fill('fixture@localhost')
   await page.getByLabel('Mật khẩu', { exact: true }).fill(password)
   await page.getByRole('button', { name: 'Đăng nhập', exact: true }).click()
 }

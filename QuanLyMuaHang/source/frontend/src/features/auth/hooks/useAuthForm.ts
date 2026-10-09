@@ -11,6 +11,9 @@ const schema = z.object({
   newPassword: z.string(), confirmation: z.string(),
 })
 type FormValues = z.infer<typeof schema>
+// Allow internal addresses (e.g. user@localhost) accepted by backend @Email.
+// The server remains the authority for the account and complete validation.
+const loginEmail = z.string().trim().regex(/^[^\s@]+@[^\s@]+$/)
 
 export function useAuthForm(mode: 'login' | 'change-password') {
   const auth = useAuth()
@@ -20,7 +23,7 @@ export function useAuthForm(mode: 'login' | 'change-password') {
   const logout = useLogout()
   const form = useForm<FormValues>({
     resolver: zodResolver(schema.superRefine((values, context) => {
-      if (!changing && !z.email().safeParse(values.email.trim()).success) {
+      if (!changing && !loginEmail.safeParse(values.email).success) {
         context.addIssue({ code: 'custom', path: ['email'], message: 'Nhập địa chỉ email hợp lệ.' })
       }
       if (changing) {

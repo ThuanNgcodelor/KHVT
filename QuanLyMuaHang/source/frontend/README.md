@@ -58,7 +58,7 @@ npm.cmd ci
 npm.cmd run dev -- --host 127.0.0.1 --port 5173 --strictPort
 ```
 
-Mở `http://127.0.0.1:5173`. Vite proxy `/api` và `/actuator` về backend. Đăng nhập bằng tài khoản được cấp; admin bootstrap có mật khẩu tạm sẽ được chuyển tới trang đổi mật khẩu. Giữ mật khẩu riêng trong `.env`, không đưa lên chat.
+Mở `http://localhost:5173`, khớp `APP_FRONTEND_URL` mặc định của backend. Nếu dùng origin khác, cấu hình `APP_FRONTEND_URL` tương ứng. Vite proxy `/api` và `/actuator` về backend. Đăng nhập bằng tài khoản được cấp; email miền nội bộ được chấp nhận và backend kiểm tra tài khoản. Admin bootstrap có mật khẩu tạm sẽ được chuyển tới trang đổi mật khẩu. Giữ mật khẩu riêng trong `.env`, không đưa lên chat.
 
 API dùng cookie session HttpOnly, không lưu token đăng nhập trong localStorage. Mutation gửi CSRF; sau login lấy lại CSRF. Khi hết phiên, frontend xóa cache dữ liệu nghiệp vụ và chuyển về login. Menu/route phản ánh vai trò mặc định; backend vẫn là nơi kiểm tra quyền.
 
@@ -78,6 +78,8 @@ npx.cmd playwright install chromium
 npm.cmd run test:e2e
 ```
 
-Đã chạy build thành công, 6 Vitest tests và 16 Playwright lượt chạy thành công (8 tình huống trên Chromium desktop và viewport mobile). Playwright dùng server riêng cổng 5190 và **API giả lập**, không xác nhận MySQL/Redis hay nghiệp vụ thật đã được nghiệm thu. Fixture dùng dữ liệu/tài khoản tổng hợp. Báo cáo/trace ở `test-results/` đã được ignore; không ghi mật khẩu thật vào test hoặc trace.
+Đã chạy build thành công, 6 Vitest tests và 16 Playwright lượt chạy thành công (8 tình huống trên Chromium desktop và viewport mobile). Playwright dùng server riêng cổng 5190 và **API giả lập**, không xác nhận MySQL/Redis hay nghiệp vụ thật đã được nghiệm thu. Fixture dùng dữ liệu/tài khoản tổng hợp; kiểm tra cả đăng nhập bằng email miền nội bộ. Báo cáo/trace ở `test-results/` đã được ignore; không ghi mật khẩu thật vào test hoặc trace.
+
+Đã kiểm tra riêng qua browser với backend/MySQL/Redis local thật: đăng nhập admin bootstrap, chuyển tới trang đổi mật khẩu, reload vẫn giữ phiên, truy cập dashboard bị chuyển lại trang đổi mật khẩu, rồi logout thành công. Không đổi mật khẩu admin trong smoke test; chưa kiểm tra luồng ghi nghiệp vụ thật hay hoàn tất đổi mật khẩu bằng tài khoản này.
 
 Hướng dẫn UI ở [plan 05](../../plan/05-react-vite-tailwind-ui.md) và [plan 12](../../plan/12-react-vite-playwright-openai.md). Chưa có skill frontend chuyên biệt được tạo/cài.

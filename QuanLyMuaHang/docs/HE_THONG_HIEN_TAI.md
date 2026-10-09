@@ -85,6 +85,8 @@ Hướng dọn cấu trúc hợp lý là thống nhất dần theo từng module
 - Dashboard lấy số liệu thật; bỏ fallback demo và nhãn thành công cố định. Có loading/error/retry/empty, hết phiên chuyển về login và xóa cache nghiệp vụ. HR không gửi request tổng quan mua hàng.
 - UI CRUD nhân sự/tài khoản, danh mục/giá, PO và import chưa triển khai. Các route này hiện thông báo đang triển khai; chưa có thao tác ghi dữ liệu.
 - Đã chạy `npm.cmd run build`, 6 test Vitest và 16 lượt Playwright thành công (8 tình huống trên Chromium desktop/mobile). Playwright dùng **API giả lập**, không xác nhận tích hợp thật MySQL/Redis; kiểm tra login, đổi mật khẩu, reload, logout, quyền route/menu, lỗi API, hết phiên và menu mobile/Escape.
+- Smoke browser với MySQL/Redis thật đã qua: admin bootstrap login, trang bắt buộc đổi mật khẩu, reload giữ phiên, bảo vệ dashboard và logout. Không đổi mật khẩu admin hay ghi dữ liệu nghiệp vụ trong smoke này. Phát hiện và sửa validation email frontend trước đó từ chối miền nội bộ được backend chấp nhận.
+- Một lần chạy browser song song gặp lỗi thiếu bộ nhớ của Node/Windows; cấu hình Playwright chạy một worker để giảm bộ nhớ.
 - Chưa tìm thấy `SKILL.md` frontend chuyên biệt trong repository hoặc skill catalog đang được cung cấp. Chưa tạo/cài skill frontend trong lần kiểm kê này.
 - Hướng dẫn UI hiện nằm ở `plan/05-react-vite-tailwind-ui.md` và `plan/12-react-vite-playwright-openai.md`. Đây là tài liệu thiết kế, không phải skill đã cài. Nếu bổ sung skill sau này, ghi rõ tên, path và nguồn; skill riêng của dự án không được gọi là skill chính thức của OpenAI.
 
