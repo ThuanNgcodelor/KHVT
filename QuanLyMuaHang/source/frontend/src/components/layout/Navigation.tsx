@@ -1,12 +1,14 @@
-import { NavLink } from 'react-router-dom'
-import { navigation } from '../../app/navigation'
-import { hasRole, type CurrentUser } from '../../features/auth/types'
+import { NavLink, useLocation } from 'react-router-dom'
+import { moduleForPath, navigation } from '../../app/navigation'
+import { hasEveryPermission, type CurrentUser } from '../../features/auth/types'
 import { Icon } from '../Icon'
 
 export function Navigation({ user, onNavigate }: { user: CurrentUser; onNavigate: () => void }) {
-  const items = navigation.filter((item) => !item.roles || hasRole(user, item.roles))
+  const { pathname } = useLocation()
+  const module = moduleForPath(pathname)
+  const items = navigation.filter((item) => item.moduleCode === module && hasEveryPermission(user, item.permissions))
   return <nav className="nav-list" aria-label="Điều hướng chính">
-    {['Làm việc', 'Quản trị'].filter((group) => items.some((item) => item.group === group)).map((group) => <div className="nav-group" key={group}>
+    {[...new Set(items.map((item) => item.group))].map((group) => <div className="nav-group" key={group}>
     <p className="nav-label">{group}</p>
     {items.filter((item) => item.group === group).map((item) => <NavLink key={item.path} to={item.path}
       className={({ isActive }) => `nav-item ${isActive ? 'nav-item-active' : ''}`} onClick={onNavigate}>

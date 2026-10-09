@@ -1,6 +1,6 @@
 ---
 name: khvt-ui
-description: Thiết kế và triển khai giao diện React quản lý nội bộ cho dự án KHVT, đặc biệt bảng nhân sự, tài khoản và mua hàng. Áp dụng khi chỉnh giao diện trong source/frontend; không thay thế ứng dụng bằng landing page hoặc sản phẩm khác.
+description: Thiết kế và triển khai giao diện React quản lý nội bộ cho KHVT, gồm cổng chọn ứng dụng theo quyền, bảng nhân sự, tài khoản và mua hàng. Áp dụng khi chỉnh source/frontend; giữ ứng dụng nghiệp vụ hiện có.
 ---
 
 # Giao diện nghiệp vụ KHVT
@@ -15,6 +15,7 @@ Skill riêng của repository, được tạo theo yêu cầu người dùng; kh
 - Đầu trang có tiêu đề, mô tả ngắn và thao tác chính; một bảng là trọng tâm của trang danh sách. Dùng SVG nét thống nhất cho menu, không dùng ký tự emoji hoặc icon ngẫu nhiên.
 - Bỏ slogan quảng cáo, gradient, glow, KPI/trend giả và những khối trang trí không giúp thực hiện nghiệp vụ. Dashboard chỉ có số liệu API cung cấp.
 - Footer tại trang auth và khu vực làm việc: `© Bản quyền thuộc về KHVT | Cung cấp bởi` và link `https://github.com/ThuanNgcodelor` với nhãn `ThuanNgcodelor`.
+- Sau login/đổi mật khẩu tạm, mở cổng chọn ứng dụng. Ô ứng dụng lấy từ danh sách `modules` do backend trả về, có tên/mô tả/icon dễ nhận biết; có đường quay lại cổng khi đang làm việc. Không hiển thị Bán hàng hay module chưa triển khai. Xem [cổng ứng dụng và phân quyền](../../docs/CONG_UNG_DUNG_VA_PHAN_QUYEN.md) khi sửa luồng cấp quyền hoặc thêm module.
 
 ## Triển khai
 
@@ -24,6 +25,7 @@ Skill riêng của repository, được tạo theo yêu cầu người dùng; kh
 - Form có validation phù hợp contract; giữ nội dung khi server lỗi để người dùng sửa. Mật khẩu tạm không xuất vào toast, log, URL, fixture thật hay browser trace.
 - Xác nhận thao tác ngừng nhân viên, khóa tài khoản, thay quyền và reset mật khẩu; nêu hậu quả về phiên đăng nhập khi backend thực hiện. Không thêm nút xóa khi API chỉ hỗ trợ ngừng/kích hoạt.
 - UI ẩn thao tác theo vai trò mặc định nhưng backend luôn kiểm tra quyền. Không dựng màn sửa role/permission nếu backend mới có API đọc.
+- Phân biệt cấp quyền vào ứng dụng và quyền thao tác bên trong. Không thêm checkbox grant/approval chỉ hoạt động phía frontend; nối API thực tế trước khi dựng luồng cấp/thu hồi hoặc duyệt quyền.
 - Dialog dùng semantics đúng, focus vào dialog, giữ Tab bên trong, Escape đóng khi không gửi, trả focus về nút mở. Bảng cuộn trong vùng bảng ở mobile; không làm tràn toàn trang. Menu mobile có đóng và hỗ trợ Escape.
 
 ## Kiểm chứng

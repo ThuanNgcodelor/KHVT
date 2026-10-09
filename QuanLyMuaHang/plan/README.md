@@ -13,7 +13,8 @@ Thay Google Apps Script/Google Sheet bằng hệ thống mua hàng có dữ li�
 - Compose chỉ có MySQL và Redis. Java chạy native/systemd; cloudflared chạy native system service và trỏ tới app.
 - PO PDF có subtotal/VAT/grand total; dòng quantity text không tính vào số tiền.
 - Workbook migration có preview/report/idempotency; xử lý đúng các thiếu dữ liệu đã kiểm kê.
-- Không có OpenAI API feature trong MVP. Skill UI chuyên biệt không có sẵn trong workspace; giao diện theo ảnh tham chiếu và checklist thiết kế.
+- Không có OpenAI API feature trong MVP. Dùng [skill UI riêng của KHVT](../skills/khvt-ui/SKILL.md), ảnh tham chiếu và checklist; skill repository này không phải skill chính thức của OpenAI.
+- Giao diện xanh rêu/xanh ngọc, không dùng màu cam theo yêu cầu mới. Login/đổi mật khẩu tạm dẫn tới cổng chọn ứng dụng theo quyền backend; admin cấp quyền qua role hiện có. [Thiết kế cổng ứng dụng](../docs/CONG_UNG_DUNG_VA_PHAN_QUYEN.md) tách rõ triển khai hiện tại và hướng grant độc lập/Bán hàng.
 
 ## Stack
 
@@ -58,9 +59,9 @@ Thay Google Apps Script/Google Sheet bằng hệ thống mua hàng có dữ li�
 
 ## Current source status
 
-Kiểm kê 2026-10-09: `source/` đã có code auth/personnel/catalog/pricing/procurement/import/export/dashboard. Compose hiện chỉ chạy MySQL và Redis với port localhost 3307/6380. Đã có log build thành công và 11 test qua, cùng kiểm tra khởi động/CSRF/admin login/logout trong phiên làm việc; đây chưa phải nghiệm thu đầy đủ các nghiệp vụ.
+Cập nhật 2026-10-10: `source/` có code auth/personnel/catalog/pricing/procurement/import/export/dashboard và registry ứng dụng theo quyền. Compose chỉ chạy MySQL/Redis ở localhost 3307/6380. Lịch sử 2026-10-09 có 17 test backend qua trên H2/servlet session và package thành công sau khi giải quyết JAR bị khóa; có smoke khởi động/CSRF/admin login/logout với MySQL/Redis thật. Đây chưa phải nghiệm thu đầy đủ các nghiệp vụ hay kết quả cho thay đổi mới.
 
-Frontend đã có login/đổi mật khẩu lần đầu/session/CSRF, dashboard API và layout tách pages/hooks/components. Build, 6 Vitest tests và 16 lượt Playwright dùng API giả lập đã qua; UI CRUD nghiệp vụ vẫn còn thiếu. Thư mục backend demo đã xóa theo yêu cầu người dùng. Cấu trúc backend chưa đồng nhất hoàn toàn theo thiết kế DDD trong plan. Xem [hệ thống hiện tại](../docs/HE_THONG_HIEN_TAI.md) và [AGENTS.md](../AGENTS.md) để biết code thực tế, bằng chứng kiểm thử và phần còn thiếu. Các checklist trong plan cần được xác minh theo acceptance, không tự đánh dấu hoàn thành từ việc đã có code.
+Frontend có login/đổi mật khẩu lần đầu/session/CSRF, dashboard API, cổng chọn ứng dụng, UI nhân sự/tài khoản và layout theo pages/hooks/components. Giao diện đã đổi palette và thêm footer bản quyền theo yêu cầu. Kiểm thử thay đổi mới đang tiến hành; lịch sử build, 6 Vitest tests và 16 lượt Playwright API giả lập ngày 2026-10-09 không chứng minh phần mới đã qua. UI danh mục/giá/PO/import còn thiếu; chưa có grant module độc lập, xin/duyệt quyền hay Bán hàng. Backend demo đã xóa. Cấu trúc backend chưa đồng nhất hoàn toàn theo DDD trong plan. Xem [hệ thống hiện tại](../docs/HE_THONG_HIEN_TAI.md) và [AGENTS.md](../AGENTS.md) để biết bằng chứng và phần còn thiếu; không đánh dấu acceptance từ việc đã có code.
 
 ## Global Definition of Done
 

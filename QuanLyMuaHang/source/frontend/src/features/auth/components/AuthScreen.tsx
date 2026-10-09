@@ -10,7 +10,7 @@ export function AuthScreen({ mode }: { mode: 'login' | 'change-password' }) {
   if (auth.pending) return <PageState title="Đang kiểm tra phiên đăng nhập…" />
   if (auth.error) return <PageState title="Chưa kết nối được hệ thống" message="Kiểm tra kết nối rồi thử lại." onRetry={auth.refresh} />
   if (changing && !auth.user) return <Navigate to="/login" replace />
-  if (auth.user && !auth.user.mustChangePassword) return <Navigate to="/dashboard" replace />
+  if (auth.user && !auth.user.mustChangePassword) return <Navigate to="/modules" replace />
   if (!changing && auth.user?.mustChangePassword) return <Navigate to="/change-password" replace />
 
   return <div className="auth-layout">

@@ -1,6 +1,7 @@
 package com.example.quanlymuahang.identity.web;
 
 import com.example.quanlymuahang.identity.application.AuthService;
+import com.example.quanlymuahang.identity.application.ApplicationModuleCatalog;
 import com.example.quanlymuahang.identity.infrastructure.security.AccountPrincipal;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
@@ -103,10 +104,11 @@ public class AuthController {
     public record CsrfResponse(String headerName, String token) {}
     public record AuthError(String code, String message) {}
     public record MeResponse(Long id, String email, String displayName, Long employeeId, Set<String> roles,
-                             boolean mustChangePassword, Instant authenticatedAt) {
+                             boolean mustChangePassword, Instant authenticatedAt,
+                             java.util.List<ApplicationModuleCatalog.ModuleView> modules) {
         static MeResponse from(AccountPrincipal principal) {
             return new MeResponse(principal.id(), principal.email(), principal.displayName(), principal.employeeId(),
-                    principal.roles(), principal.mustChangePassword(), Instant.now());
+                    principal.roles(), principal.mustChangePassword(), Instant.now(), ApplicationModuleCatalog.accessibleTo(principal));
         }
     }
 }

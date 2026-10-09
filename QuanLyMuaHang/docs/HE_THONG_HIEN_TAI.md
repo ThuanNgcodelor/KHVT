@@ -1,6 +1,6 @@
 # Hệ thống hiện tại — Quản lý mua hàng KHVT
 
-Kiểm kê ngày 2026-10-09. Tài liệu mô tả code đã quan sát và kết quả đã có; không phải biên bản nghiệm thu. Khi code thay đổi, kiểm tra lại trước khi dùng các thông tin này làm kết luận.
+Cập nhật ngày 2026-10-10. Tài liệu mô tả code đã quan sát và kết quả đã có; không phải biên bản nghiệm thu. Khi code thay đổi, kiểm tra lại trước khi dùng các thông tin này làm kết luận. Kiểm thử cho đợt thay đổi giao diện/cổng ứng dụng/nhân sự/tài khoản mới đang tiến hành; các kết quả ngày 2026-10-09 bên dưới là lịch sử.
 
 ## Các thư mục ở gốc
 
@@ -9,6 +9,8 @@ Kiểm kê ngày 2026-10-09. Tài liệu mô tả code đã quan sát và kết 
 | `AGENTS.md` | Điểm vào cho AI: quy tắc làm việc, bản đồ code, liên kết tài liệu |
 | `docs/NGUYEN_TAC_TRUNG_THUC.md` | Cam kết về trung thực và minh bạch bằng chứng |
 | `docs/HE_THONG_HIEN_TAI.md` | Bản đồ hiện trạng và các phần còn thiếu |
+| `docs/CONG_UNG_DUNG_VA_PHAN_QUYEN.md` | Cổng chọn ứng dụng, quyền hiện có và hướng mở rộng Bán hàng/grant độc lập |
+| `skills/khvt-ui/SKILL.md` | Skill giao diện riêng của repository, palette và quy tắc UI theo yêu cầu người dùng |
 | `source/` | Backend và frontend của hệ thống mua hàng đang triển khai |
 | `plan/` | Thiết kế và tiêu chí cần đạt; không mặc nhiên là trạng thái đã hoàn thành |
 | `backend(Demo để lấy phần login)/` | Đã xóa theo yêu cầu người dùng; không thuộc build ứng dụng chính |
@@ -21,7 +23,7 @@ Backend có code cho các nhóm API sau:
 | Nhóm | Chức năng có trong code | Giới hạn bằng chứng |
 |---|---|---|
 | Identity | CSRF, login/logout/me, đổi mật khẩu, bootstrap admin, tạo/sửa/reset tài khoản, gán vai trò, session revocation, audit | Có test MockMvc cho login/CSRF/đổi mật khẩu/quyền/logout; chưa kiểm thử đầy đủ khóa tài khoản, last-admin và revoke Redis |
-| Roles | Vai trò/quyền mặc định trong migration, đọc danh sách roles, gán role cho tài khoản | `/api/admin/roles` hiện chỉ đọc; chưa có API tạo/sửa role và ma trận permission đầy đủ theo plan |
+| Roles và cổng ứng dụng | Vai trò/quyền mặc định, đọc roles/permission, gán role; registry ứng dụng trả module được phép từ quyền hiệu lực trong phiên | `/api/admin/roles` chỉ đọc; chưa có CRUD role/permission, grant module riêng hoặc luồng xin/duyệt quyền |
 | Personnel | Danh sách/chi tiết/tạo/sửa/kích hoạt/ngừng nhân viên; phòng ban và chức vụ | Chưa kiểm thử đầy đủ các luồng API với MySQL/Redis và tất cả vai trò |
 | Catalog và Pricing | Danh mục vật tư/NCC, tra cứu lịch sử/giá | Có controller/service; chưa nghiệm thu với dữ liệu nghiệp vụ |
 | Procurement | Danh sách/chi tiết/tạo/sửa/hủy PO, revision và PDF | Có code và một số test tổng tiền/model; chưa thử đầy đủ luồng tạo/sửa/hủy/xuất tài liệu |
@@ -81,14 +83,17 @@ Hướng dọn cấu trúc hợp lý là thống nhất dần theo từng module
 ## Frontend và skill giao diện
 
 - Đã triển khai login, đổi mật khẩu lần đầu, khôi phục phiên, logout và CSRF cho mutation; session qua cookie HttpOnly, không lưu token localStorage.
-- Tách `features/auth/pages`, `features/auth/hooks`, `features/auth/components` và `features/dashboard/pages`, `features/dashboard/hooks`. Layout có Header/Navigation/Sidebar/Footer riêng; `AppShell` ghép bố cục, `App.tsx` ghép providers/routes. Chi tiết ở `source/frontend/README.md`.
+- Tách page/component/hook/service theo feature: `auth`, `portal`, `dashboard`, `personnel`, `identity-admin`. Layout có Header/Navigation/Sidebar/Footer riêng; `AppShell` ghép bố cục, `App.tsx` ghép providers/routes. Chi tiết ở `source/frontend/README.md`.
+- Sau login/đổi mật khẩu tạm, mở `/modules` để chọn Mua hàng, Nhân sự hoặc Quản trị theo danh sách backend trả về. Mỗi ứng dụng có khu vực làm việc riêng và đường quay về cổng ứng dụng. Quyền được cấp qua role hiện có; chưa có grant module độc lập, xin/duyệt quyền hay module Bán hàng. Xem [thiết kế cổng ứng dụng và phân quyền](CONG_UNG_DUNG_VA_PHAN_QUYEN.md).
+- Giao diện chuyển sang xanh rêu/xanh ngọc, nền trắng ngà và bảng nghiệp vụ gọn theo `skills/khvt-ui/SKILL.md`; bỏ màu cam. Footer auth/cổng ứng dụng/khu vực làm việc có © Bản quyền thuộc về KHVT | Cung cấp bởi link ThuanNgcodelor.
 - Dashboard lấy số liệu thật; bỏ fallback demo và nhãn thành công cố định. Có loading/error/retry/empty, hết phiên chuyển về login và xóa cache nghiệp vụ. HR không gửi request tổng quan mua hàng.
-- UI CRUD nhân sự/tài khoản, danh mục/giá, PO và import chưa triển khai. Các route này hiện thông báo đang triển khai; chưa có thao tác ghi dữ liệu.
-- Đã chạy `npm.cmd run build`, 6 test Vitest và 16 lượt Playwright thành công (8 tình huống trên Chromium desktop/mobile). Playwright dùng **API giả lập**, không xác nhận tích hợp thật MySQL/Redis; kiểm tra login, đổi mật khẩu, reload, logout, quyền route/menu, lỗi API, hết phiên và menu mobile/Escape.
+- UI nhân sự có danh sách, tìm kiếm mã/tên, lọc trạng thái, phân trang, thêm/sửa, ngừng/kích hoạt nhân viên; thêm/sửa phòng ban và chức vụ qua API. Form phân biệt hồ sơ nhân viên với tài khoản đăng nhập. Kích hoạt nhân viên không tự mở lại tài khoản đã bị vô hiệu hóa.
+- UI quản trị tài khoản có danh sách/phân trang, tạo/sửa tài khoản, liên kết nhân viên đang hoạt động, gán vai trò, thay trạng thái và đặt lại mật khẩu tạm. Role và danh sách permission dùng API đọc; chưa có ma trận chỉnh quyền. Thao tác thay quyền/trạng thái/reset có xác nhận và thông báo thu hồi phiên theo API. Không có nút xóa nhân viên/tài khoản.
+- UI danh mục/giá, PO và import chưa triển khai; route hiện thông báo đang triển khai và chưa có thao tác ghi dữ liệu trên các màn đó.
+- Lịch sử 2026-10-09: đã chạy `npm.cmd run build`, 6 test Vitest và 16 lượt Playwright thành công (8 tình huống trên Chromium desktop/mobile). Playwright dùng **API giả lập**, không xác nhận tích hợp thật MySQL/Redis; kiểm tra login, đổi mật khẩu, reload, logout, quyền route/menu, lỗi API, hết phiên và menu mobile/Escape. Kết quả này không xác nhận đợt thay đổi 2026-10-10.
 - Smoke browser với MySQL/Redis thật đã qua: admin bootstrap login, trang bắt buộc đổi mật khẩu, reload giữ phiên, bảo vệ dashboard và logout. Không đổi mật khẩu admin hay ghi dữ liệu nghiệp vụ trong smoke này. Phát hiện và sửa validation email frontend trước đó từ chối miền nội bộ được backend chấp nhận.
 - Một lần chạy browser song song gặp lỗi thiếu bộ nhớ của Node/Windows; cấu hình Playwright chạy một worker để giảm bộ nhớ.
-- Chưa tìm thấy `SKILL.md` frontend chuyên biệt trong repository hoặc skill catalog đang được cung cấp. Chưa tạo/cài skill frontend trong lần kiểm kê này.
-- Hướng dẫn UI hiện nằm ở `plan/05-react-vite-tailwind-ui.md` và `plan/12-react-vite-playwright-openai.md`. Đây là tài liệu thiết kế, không phải skill đã cài. Nếu bổ sung skill sau này, ghi rõ tên, path và nguồn; skill riêng của dự án không được gọi là skill chính thức của OpenAI.
+- Đã có [skill KHVT UI](../skills/khvt-ui/SKILL.md) trong repository, tạo theo yêu cầu người dùng và được AGENTS.md tham chiếu. Đây là skill riêng của dự án, không phải skill chính thức của OpenAI hay skill đã cài vào catalog toàn cục. Plan 05/12 là tài liệu bổ trợ và đã cập nhật palette cùng cổng ứng dụng.
 
 ## Thư mục backend demo đã xóa
 
@@ -102,7 +107,7 @@ Vì vậy thư mục demo không cần để build/chạy ứng dụng chính hi
 
 1. Bổ sung kiểm tra Redis session revocation/last-admin/khóa tài khoản và integration MySQL/Redis cô lập; các test auth mới chưa bao phủ các trường hợp này.
 2. Kiểm thử PO, import, pricing, PDF/XLSX với dữ liệu thử và tiêu chí ở plan 09; không commit workbook thật để test.
-3. Triển khai UI nhân sự/tài khoản rồi các feature danh mục/giá/PO/import; nối API và kiểm thử từng luồng.
-4. Quyết định phạm vi quản trị role/permission vì hiện chưa đủ các API được mô tả trong plan.
+3. Hoàn tất kiểm chứng UI nhân sự/tài khoản/cổng ứng dụng vừa thay đổi, rồi triển khai danh mục/giá/PO/import theo từng luồng API.
+4. Quyết định phạm vi CRUD role/permission và có cần grant module/xin duyệt quyền độc lập không; hiện admin cấp ứng dụng thông qua vai trò. Bán hàng mới là hướng mở rộng, chưa có code nghiệp vụ.
 5. Thống nhất cấu trúc backend từng module; tiếp tục giữ frontend theo pages/hooks/components khi bổ sung tính năng.
 6. Kiểm thử backup/restore, HTTPS, triển khai host và Cloudflare Tunnel trước khi dùng production.

@@ -9,8 +9,12 @@ import { EmployeeForm } from '../components/EmployeeForm'
 import { PersonnelTabs } from '../components/PersonnelTabs'
 import { useEmployees, useEmployeeStatus } from '../hooks/usePersonnel'
 import type { Employee } from '../types'
+import { useAuth } from '../../auth/hooks/useAuth'
+import { hasPermission } from '../../auth/types'
 
 export function EmployeesPage() {
+  const { user } = useAuth()
+  const canManage = !!user && hasPermission(user, 'PERSONNEL_MANAGE')
   const [search, setSearch] = useState('')
   const [q, setQuery] = useState('')
   const [status, setStatus] = useState('')
@@ -31,7 +35,7 @@ export function EmployeesPage() {
   }
   return <>
     <PageHeader title="Nhân sự" description="Danh bạ nhân viên, phòng ban và chức vụ của đơn vị."
-      actions={<button className="primary-button" onClick={() => { setNotice(''); setEditing('new') }}><Icon name="plus" />Thêm nhân viên</button>} />
+      actions={canManage && <button className="primary-button" onClick={() => { setNotice(''); setEditing('new') }}><Icon name="plus" />Thêm nhân viên</button>} />
     <PersonnelTabs />
     {notice && <p className="notice" role="status">{notice}</p>}
     <section className="panel" aria-label="Danh sách nhân viên">
@@ -53,8 +57,8 @@ export function EmployeesPage() {
           <td>{employee.departmentName ?? 'Chưa phân phòng ban'}<span className="cell-subtitle">{employee.positionName ?? 'Chưa phân chức vụ'}</span></td>
           <td>{employee.email ?? '—'}<span className="cell-subtitle">{employee.phone ?? '—'}</span></td>
           <td><span className={`status-badge ${employee.status === 'ACTIVE' ? 'active' : 'inactive'}`}>{employee.status === 'ACTIVE' ? 'Đang làm việc' : 'Đã ngừng'}</span></td>
-          <td><div className="table-actions"><button className="text-button" aria-label={`Sửa ${employee.fullName}`} onClick={() => setEditing(employee)}>Sửa</button>
-            <button className={`text-button ${employee.status === 'ACTIVE' ? 'danger' : ''}`} aria-label={`${employee.status === 'ACTIVE' ? 'Ngừng' : 'Kích hoạt'} ${employee.fullName}`} onClick={() => { changeStatus.reset(); setConfirm(employee) }}>{employee.status === 'ACTIVE' ? 'Ngừng' : 'Kích hoạt'}</button></div></td>
+          <td>{canManage ? <div className="table-actions"><button className="text-button" aria-label={`Sửa ${employee.fullName}`} onClick={() => setEditing(employee)}>Sửa</button>
+            <button className={`text-button ${employee.status === 'ACTIVE' ? 'danger' : ''}`} aria-label={`${employee.status === 'ACTIVE' ? 'Ngừng' : 'Kích hoạt'} ${employee.fullName}`} onClick={() => { changeStatus.reset(); setConfirm(employee) }}>{employee.status === 'ACTIVE' ? 'Ngừng' : 'Kích hoạt'}</button></div> : '—'}</td>
         </tr>)}</tbody>
       </table></div>}
       {!employees.error && data && <Pagination page={data.number} size={data.size} total={data.totalElements} pages={data.totalPages} busy={employees.isFetching} onChange={setPage} />}

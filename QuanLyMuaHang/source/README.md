@@ -2,7 +2,7 @@
 
 Backend là Spring Boot REST API trên Java 21, chia module theo nghiệp vụ theo hướng DDD modular monolith. Cấu trúc hiện còn pha trộn module nghiệp vụ với entity/repository dùng chung; xem [bản đồ hệ thống hiện tại](../docs/HE_THONG_HIEN_TAI.md) để phân biệt thiết kế và code đang chạy.
 
-Frontend React/Vite ở `frontend/` đã có login, đổi mật khẩu lần đầu, session/CSRF, layout và dashboard API; các UI CRUD còn chờ triển khai. Xem [cấu trúc và cách chạy frontend](frontend/README.md). Hướng dẫn cho AI nằm ở [AGENTS.md](../AGENTS.md), kèm [nguyên tắc trung thực](../docs/NGUYEN_TAC_TRUNG_THUC.md).
+Frontend React/Vite ở `frontend/` có login, đổi mật khẩu lần đầu, session/CSRF, cổng chọn ứng dụng, dashboard API và UI nhân sự/tài khoản. UI danh mục/giá/PO/import còn chờ triển khai; kiểm thử các thay đổi mới đang tiến hành. Xem [cấu trúc và cách chạy frontend](frontend/README.md). Hướng dẫn cho AI nằm ở [AGENTS.md](../AGENTS.md), kèm [nguyên tắc trung thực](../docs/NGUYEN_TAC_TRUNG_THUC.md) và [skill giao diện KHVT](../skills/khvt-ui/SKILL.md).
 
 ## Chạy local
 
@@ -56,6 +56,8 @@ Frontend và API khác origin phải dùng credentials; cấu hình `APP_FRONTEN
 - Health check: `/actuator/health`.
 
 Quyền mặc định: `ADMIN` toàn quyền; `HR_MANAGER` quản lý nhân sự; `PLANNER` làm danh mục/giá/đơn mua/import yêu cầu; `VIEWER` chỉ tra cứu. Mọi thay đổi đi qua API được audit, request có `X-Request-ID`.
+
+Thông tin login/me/đổi mật khẩu gồm `permissions` hiệu lực và `modules` được truy cập; không có mật khẩu/hash. Registry `ApplicationModuleCatalog` cấp Mua hàng khi có `PO_READ` + `CATALOG_READ`, Nhân sự khi có `PERSONNEL_READ`, Quản trị khi có `USER_READ`; wildcard mở tất cả ứng dụng đã đăng ký. Admin cấp quyền bằng cách gán role trong trang Tài khoản; cập nhật tài khoản thu hồi phiên hiện có. Cổng `/modules` không thay thế kiểm tra quyền từng API. Chưa có CRUD role/permission, grant module riêng, luồng xin/duyệt quyền hay nghiệp vụ Bán hàng; xem [cổng ứng dụng và hướng mở rộng](../docs/CONG_UNG_DUNG_VA_PHAN_QUYEN.md).
 
 ## Import dữ liệu Excel cũ
 

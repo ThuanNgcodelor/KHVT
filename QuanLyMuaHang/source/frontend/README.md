@@ -10,10 +10,16 @@ src/
   App.tsx                          providers và routes
   app/
     AppShell.tsx                   ghép Header/Sidebar/nội dung/Footer
-    navigation.ts                  cấu hình menu và vai trò mặc định
+    navigation.ts                  cấu hình menu theo ứng dụng/quyền
     hooks/useSidebar.ts            trạng thái menu, Escape và cleanup listener
   components/
     PageState.tsx                  loading/error/forbidden/chưa triển khai
+    PageHeader.tsx                 tiêu đề/mô tả/thao tác của trang
+    Dialog.tsx                     form và xác nhận, focus/keyboard
+    Field.tsx                      label/lỗi form
+    Pagination.tsx                 phân trang API
+    TableFeedback.tsx              trạng thái bảng
+    Icon.tsx                       SVG thống nhất
     layout/
       Brand.tsx
       Header.tsx
@@ -36,6 +42,21 @@ src/
     dashboard/
       pages/DashboardPage.tsx      hiển thị tổng quan từ API
       hooks/useDashboard.ts        query và điều kiện tải dữ liệu
+    portal/
+      pages/ModulesPage.tsx        cổng chọn ứng dụng từ danh sách backend
+    personnel/
+      pages/EmployeesPage.tsx      danh sách/tìm kiếm/lọc/phân trang nhân viên
+      pages/UnitsPage.tsx          phòng ban và chức vụ
+      components/                 form, xác nhận trạng thái, tabs
+      hooks/usePersonnel.ts       query và mutation nhân sự
+      personnelApi.ts             API nhân viên/phòng ban/chức vụ
+      types.ts
+    identity-admin/
+      pages/UsersPage.tsx          tài khoản và phân quyền qua role
+      components/                 form, chọn nhân viên, reset mật khẩu
+      hooks/useUsers.ts           query và mutation quản trị tài khoản
+      userAdminApi.ts
+      types.ts
   services/
     apiClient.ts                   cookies, CSRF và lỗi HTTP tập trung
     dashboardApi.ts
@@ -58,16 +79,21 @@ npm.cmd ci
 npm.cmd run dev -- --host 127.0.0.1 --port 5173 --strictPort
 ```
 
-Mở `http://localhost:5173`, khớp `APP_FRONTEND_URL` mặc định của backend. Nếu dùng origin khác, cấu hình `APP_FRONTEND_URL` tương ứng. Vite proxy `/api` và `/actuator` về backend. Đăng nhập bằng tài khoản được cấp; email miền nội bộ được chấp nhận và backend kiểm tra tài khoản. Admin bootstrap có mật khẩu tạm sẽ được chuyển tới trang đổi mật khẩu. Giữ mật khẩu riêng trong `.env`, không đưa lên chat.
+Mở `http://localhost:5173`, khớp `APP_FRONTEND_URL` mặc định của backend. Nếu dùng origin khác, cấu hình `APP_FRONTEND_URL` tương ứng. Vite proxy `/api` và `/actuator` về backend. Đăng nhập bằng tài khoản được cấp; email miền nội bộ được chấp nhận và backend kiểm tra tài khoản. Admin bootstrap có mật khẩu tạm được chuyển tới trang đổi mật khẩu, sau đó vào cổng `/modules`. Giữ mật khẩu riêng trong `.env`, không đưa lên chat. Bootstrap chỉ tạo tài khoản khi chưa tồn tại; đổi mật khẩu đăng nhập rồi thì mật khẩu trong `.env` không tự ghi đè lại.
 
-API dùng cookie session HttpOnly, không lưu token đăng nhập trong localStorage. Mutation gửi CSRF; sau login lấy lại CSRF. Khi hết phiên, frontend xóa cache dữ liệu nghiệp vụ và chuyển về login. Menu/route phản ánh vai trò mặc định; backend vẫn là nơi kiểm tra quyền.
+API dùng cookie session HttpOnly, không lưu token đăng nhập trong localStorage. Mutation gửi CSRF; sau login lấy lại CSRF. Khi hết phiên, frontend xóa cache dữ liệu nghiệp vụ và chuyển về login. Cổng lấy `modules` từ backend, menu/route/thao tác dùng quyền hiệu lực; backend vẫn kiểm tra quyền từng API.
 
 ## Phạm vi hiện có
 
 - Đăng nhập, đổi mật khẩu lần đầu, khôi phục phiên, đăng xuất.
-- Layout dùng chung, menu theo vai trò, keyboard focus, menu mobile.
+- Cổng chọn ứng dụng theo quyền sau đăng nhập: Mua hàng, Nhân sự, Quản trị. Nút Cổng ứng dụng để đổi ứng dụng; không có quyền thì hiển thị thông báo liên hệ admin.
+- Layout dùng chung, menu riêng theo ứng dụng, keyboard focus, menu mobile. Palette xanh rêu/xanh ngọc; footer © Bản quyền thuộc về KHVT | Cung cấp bởi [ThuanNgcodelor](https://github.com/ThuanNgcodelor).
 - Dashboard lấy dữ liệu thật, có loading/error/retry/empty; không fallback demo. HR chỉ có lời chào và đường dẫn nhân sự, không gọi API dashboard mua hàng.
-- Trang nghiệp vụ PO/giá/import/nhân sự/tài khoản hiện báo đang triển khai; chưa có CRUD UI.
+- Nhân sự: danh sách/tìm kiếm/lọc trạng thái/phân trang, tạo/sửa hồ sơ, ngừng/kích hoạt; tạo/sửa phòng ban và chức vụ.
+- Tài khoản: danh sách/phân trang, tạo/sửa, liên kết nhân viên hoạt động, gán role và trạng thái, reset mật khẩu tạm. Admin cấp Mua hàng qua PLANNER/VIEWER, Nhân sự qua HR_MANAGER; một người có thể có nhiều role. Thay quyền/trạng thái/reset thu hồi phiên theo backend.
+- Trang PO/giá/import hiện báo đang triển khai, chưa có CRUD UI. Chưa có CRUD role/permission, grant module độc lập, luồng xin/duyệt quyền hay Bán hàng. Xem [mô hình phân quyền và mở rộng](../../docs/CONG_UNG_DUNG_VA_PHAN_QUYEN.md).
+
+Hồ sơ nhân viên và tài khoản đăng nhập là hai đối tượng riêng. Ngừng nhân viên vô hiệu hóa tài khoản liên kết; kích hoạt nhân viên không tự khôi phục tài khoản. Khi cần mở lại, admin kiểm tra trạng thái tài khoản riêng. Bộ lọc hiện là mã/tên và trạng thái nhân viên; chưa có bộ lọc phòng ban hay search tài khoản vì API danh sách tài khoản hiện chỉ phân trang.
 
 ## Kiểm tra
 
@@ -78,8 +104,10 @@ npx.cmd playwright install chromium
 npm.cmd run test:e2e
 ```
 
-Đã chạy build thành công, 6 Vitest tests và 16 Playwright lượt chạy thành công (8 tình huống trên Chromium desktop và viewport mobile). Playwright dùng server riêng cổng 5190 và **API giả lập**, không xác nhận MySQL/Redis hay nghiệp vụ thật đã được nghiệm thu. Fixture dùng dữ liệu/tài khoản tổng hợp; kiểm tra cả đăng nhập bằng email miền nội bộ. Báo cáo/trace ở `test-results/` đã được ignore; không ghi mật khẩu thật vào test hoặc trace.
+Kiểm thử cho thay đổi giao diện/cổng ứng dụng/nhân sự/tài khoản ngày 2026-10-10 đang tiến hành; chưa dùng kết quả cũ để xác nhận phần mới. Lịch sử ngày 2026-10-09: build thành công, 6 Vitest tests và 16 Playwright lượt chạy thành công (8 tình huống trên Chromium desktop và viewport mobile).
+
+Playwright dùng server riêng cổng 5190 và **API giả lập**, không xác nhận MySQL/Redis hay nghiệp vụ thật đã được nghiệm thu. Fixture dùng dữ liệu/tài khoản tổng hợp; kiểm tra cả đăng nhập bằng email miền nội bộ. Báo cáo/trace ở `test-results/` đã được ignore; không ghi mật khẩu thật vào test hoặc trace. Test với backend/MySQL/Redis thật phải được thực hiện riêng trên dữ liệu thử và ghi rõ phạm vi.
 
 Đã kiểm tra riêng qua browser với backend/MySQL/Redis local thật: đăng nhập admin bootstrap, chuyển tới trang đổi mật khẩu, reload vẫn giữ phiên, truy cập dashboard bị chuyển lại trang đổi mật khẩu, rồi logout thành công. Không đổi mật khẩu admin trong smoke test; chưa kiểm tra luồng ghi nghiệp vụ thật hay hoàn tất đổi mật khẩu bằng tài khoản này.
 
-Hướng dẫn UI ở [plan 05](../../plan/05-react-vite-tailwind-ui.md) và [plan 12](../../plan/12-react-vite-playwright-openai.md). Chưa có skill frontend chuyên biệt được tạo/cài.
+Đọc [skill KHVT UI](../../skills/khvt-ui/SKILL.md) khi sửa frontend, kèm [plan 05](../../plan/05-react-vite-tailwind-ui.md) và [plan 12](../../plan/12-react-vite-playwright-openai.md). Skill được tạo riêng trong repository theo yêu cầu người dùng và được AGENTS.md tham chiếu; không phải skill chính thức của OpenAI hay skill đã cài vào catalog toàn cục.

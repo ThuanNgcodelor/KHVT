@@ -7,8 +7,8 @@ import { Field, fieldA11y } from '../../../components/Field'
 import { errorMessage } from '../../../services/errorMessage'
 import { useCreateUser, useRoles, useUpdateUser } from '../hooks/useUsers'
 import { useAuth } from '../../auth/hooks/useAuth'
-import { roleLabels, type RoleCode } from '../../auth/types'
 import { EmployeePicker } from './EmployeePicker'
+import { RoleOptions } from './RoleOptions'
 import type { UserAccount } from '../types'
 
 const base = z.object({
@@ -70,14 +70,7 @@ export function UserForm({ account, onClose, onSaved }: { account?: UserAccount;
       </div>
       {!account && <label className="checkbox-field"><input type="checkbox" checked={showPassword} onChange={(event) => setShowPassword(event.target.checked)} />Hiện mật khẩu</label>}
       <EmployeePicker value={employeeId} onChange={(id) => { setEmployeeId(id); setConfirmed(false) }} disabled={busy} />
-      <div className="form-field"><label id="role-options-label">Vai trò *</label>
-        <div className="role-options" role="group" aria-labelledby="role-options-label" aria-describedby={errors.roleCodes ? 'role-options-error' : undefined}>
-          {roles.isPending && <p role="status" className="field-help">Đang tải vai trò…</p>}
-          {roles.data?.map((role) => <div key={role.code}><label className="checkbox-field"><input type="checkbox" value={role.code} {...form.register('roleCodes')} />{roleLabels[role.code as RoleCode] ?? role.name}</label>{role.description && <p className="field-help">{role.description}</p>}</div>)}
-          {unavailableRoles.map((code) => <label key={code} className="checkbox-field"><input type="checkbox" value={code} {...form.register('roleCodes')} />{code} (không còn hoạt động; bỏ chọn trước khi lưu)</label>)}
-        </div>
-        {errors.roleCodes && <p className="field-error" id="role-options-error">{errors.roleCodes.message}</p>}
-      </div>
+      <RoleOptions roles={roles.data ?? []} unavailable={unavailableRoles} registration={form.register('roleCodes')} pending={roles.isPending} error={errors.roleCodes?.message} />
       {roles.error && <p className="form-error" role="alert">{errorMessage(roles.error)} <button className="text-button" type="button" onClick={() => { void roles.refetch() }}>Tải lại vai trò</button></p>}
       {confirmed && <p className="notice" role="status">Xác nhận lưu thay đổi cho {account?.email}. Các phiên đăng nhập của tài khoản sẽ bị thu hồi.</p>}
       {saveError && <p className="form-error" role="alert">{errorMessage(saveError)}</p>}

@@ -3,7 +3,8 @@ import { PageHeader } from '../../../components/PageHeader'
 import { Icon } from '../../../components/Icon'
 import { Pagination } from '../../../components/Pagination'
 import { TableFeedback } from '../../../components/TableFeedback'
-import { roleLabels, type RoleCode } from '../../auth/types'
+import { hasPermission, roleLabels, type RoleCode } from '../../auth/types'
+import { useAuth } from '../../auth/hooks/useAuth'
 import { useUsers } from '../hooks/useUsers'
 import { UserForm } from '../components/UserForm'
 import { ResetPasswordForm } from '../components/ResetPasswordForm'
@@ -11,6 +12,8 @@ import type { UserAccount } from '../types'
 
 const statusLabels = { ACTIVE: 'Hoạt động', LOCKED: 'Khóa', DISABLED: 'Vô hiệu hóa' }
 export function UsersPage() {
+  const { user } = useAuth()
+  const canManage = !!user && hasPermission(user, 'USER_MANAGE')
   const [page, setPage] = useState(0)
   const [editing, setEditing] = useState<UserAccount | 'new' | null>(null)
   const [resetting, setResetting] = useState<UserAccount | null>(null)
@@ -19,7 +22,7 @@ export function UsersPage() {
   const data = users.data
   return <>
     <PageHeader title="Tài khoản" description="Quản lý quyền truy cập, trạng thái đăng nhập và liên kết hồ sơ nhân viên."
-      actions={<button className="primary-button" onClick={() => { setNotice(''); setEditing('new') }}><Icon name="plus" />Thêm tài khoản</button>} />
+      actions={canManage && <button className="primary-button" onClick={() => { setNotice(''); setEditing('new') }}><Icon name="plus" />Thêm tài khoản</button>} />
     {notice && <p className="notice" role="status">{notice}</p>}
     <section className="panel" aria-label="Danh sách tài khoản">
       <div className="panel-heading"><h2>Tài khoản hệ thống</h2><div className="header-actions">{data && !users.error && <span className="table-count">{data.totalElements} tài khoản</span>}<button className="text-button" disabled={users.isFetching} onClick={() => { void users.refetch() }}>Tải lại</button></div></div>
@@ -32,7 +35,7 @@ export function UsersPage() {
           <td>{account.roleCodes.map((code) => <span className="role-tag" key={code}>{roleLabels[code as RoleCode] ?? code}</span>)}</td>
           <td><span className={`status-badge ${account.status === 'ACTIVE' ? 'active' : account.status === 'LOCKED' ? 'locked' : 'inactive'}`}>{statusLabels[account.status]}</span>{account.mustChangePassword && <span className="cell-subtitle">Cần đổi mật khẩu</span>}{account.lockedUntil && new Date(account.lockedUntil).getTime() > Date.now() && <span className="cell-subtitle">Tạm khóa do đăng nhập sai</span>}</td>
           <td>{account.lastLoginAt ? new Intl.DateTimeFormat('vi-VN', { dateStyle: 'short', timeStyle: 'short', timeZone: 'Asia/Ho_Chi_Minh' }).format(new Date(account.lastLoginAt)) : 'Chưa đăng nhập'}</td>
-          <td><div className="table-actions"><button className="text-button" aria-label={`Sửa tài khoản ${account.email}`} onClick={() => setEditing(account)}>Sửa</button><button className="text-button" aria-label={`Đặt lại mật khẩu ${account.email}`} onClick={() => { setNotice(''); setResetting(account) }}>Đặt lại mật khẩu</button></div></td>
+          <td>{canManage ? <div className="table-actions"><button className="text-button" aria-label={`Sửa tài khoản ${account.email}`} onClick={() => setEditing(account)}>Sửa</button><button className="text-button" aria-label={`Đặt lại mật khẩu ${account.email}`} onClick={() => { setNotice(''); setResetting(account) }}>Đặt lại mật khẩu</button></div> : '—'}</td>
         </tr>)}</tbody>
       </table></div>}
       {!users.error && data && <Pagination page={data.number} size={data.size} total={data.totalElements} pages={data.totalPages} busy={users.isFetching} onChange={setPage} />}
