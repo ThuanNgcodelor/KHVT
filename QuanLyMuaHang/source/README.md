@@ -2,7 +2,7 @@
 
 Backend là Spring Boot REST API trên Java 21, chia module theo nghiệp vụ theo hướng DDD modular monolith. Cấu trúc hiện còn pha trộn module nghiệp vụ với entity/repository dùng chung; xem [bản đồ hệ thống hiện tại](../docs/HE_THONG_HIEN_TAI.md) để phân biệt thiết kế và code đang chạy.
 
-Frontend React/Vite đã có ở `frontend/`, hiện chủ yếu là giao diện khung và dữ liệu mẫu, chưa nối đầy đủ auth/CSRF và nghiệp vụ. Hướng dẫn cho AI nằm ở [AGENTS.md](../AGENTS.md), kèm [nguyên tắc trung thực](../docs/NGUYEN_TAC_TRUNG_THUC.md).
+Frontend React/Vite ở `frontend/` đã có login, đổi mật khẩu lần đầu, session/CSRF, layout và dashboard API; các UI CRUD còn chờ triển khai. Xem [cấu trúc và cách chạy frontend](frontend/README.md). Hướng dẫn cho AI nằm ở [AGENTS.md](../AGENTS.md), kèm [nguyên tắc trung thực](../docs/NGUYEN_TAC_TRUNG_THUC.md).
 
 ## Chạy local
 

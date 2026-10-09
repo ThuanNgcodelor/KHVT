@@ -60,7 +60,7 @@ Thay Google Apps Script/Google Sheet bằng hệ thống mua hàng có dữ li�
 
 Kiểm kê 2026-10-09: `source/` đã có code auth/personnel/catalog/pricing/procurement/import/export/dashboard. Compose hiện chỉ chạy MySQL và Redis với port localhost 3307/6380. Đã có log build thành công và 11 test qua, cùng kiểm tra khởi động/CSRF/admin login/logout trong phiên làm việc; đây chưa phải nghiệm thu đầy đủ các nghiệp vụ.
 
-Frontend React/Vite đã có giao diện khung, còn dùng dữ liệu demo và chưa nối đầy đủ API/auth. Cấu trúc backend chưa đồng nhất hoàn toàn theo thiết kế DDD trong plan. Xem [hệ thống hiện tại](../docs/HE_THONG_HIEN_TAI.md) và [AGENTS.md](../AGENTS.md) để biết code thực tế, bằng chứng kiểm thử và phần còn thiếu. Các checklist trong plan cần được xác minh theo acceptance, không tự đánh dấu hoàn thành từ việc đã có code.
+Frontend đã có login/đổi mật khẩu lần đầu/session/CSRF, dashboard API và layout tách pages/hooks/components. Build, 6 Vitest tests và 16 lượt Playwright dùng API giả lập đã qua; UI CRUD nghiệp vụ vẫn còn thiếu. Thư mục backend demo đã xóa theo yêu cầu người dùng. Cấu trúc backend chưa đồng nhất hoàn toàn theo thiết kế DDD trong plan. Xem [hệ thống hiện tại](../docs/HE_THONG_HIEN_TAI.md) và [AGENTS.md](../AGENTS.md) để biết code thực tế, bằng chứng kiểm thử và phần còn thiếu. Các checklist trong plan cần được xác minh theo acceptance, không tự đánh dấu hoàn thành từ việc đã có code.
 
 ## Global Definition of Done
 

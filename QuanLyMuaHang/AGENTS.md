@@ -22,11 +22,11 @@ If there is no `.codegraph/` directory, skip CodeGraph entirely — indexing is 
 ## Bản đồ nhanh
 
 - `source/`: ứng dụng chính, backend Spring Boot Java 21; `source/pom.xml` là điểm build.
-- `source/frontend/`: frontend React/TypeScript/Vite/Tailwind, hiện chủ yếu là giao diện khung và dữ liệu mẫu.
+- `source/frontend/`: React/TypeScript/Vite/Tailwind; auth/CSRF, layout theo component và dashboard API đã triển khai. Đọc `source/frontend/README.md` để biết pages/hooks và phần UI còn thiếu.
 - `source/src/main/resources/db/migration/`: schema MySQL do Flyway quản lý.
 - `source/src/test/`: test backend. Kết quả build và runtime local có thể nằm trong `source/target/runtime/`; thư mục `target/` là đầu ra sinh ra, không phải source.
 - `plan/`: phạm vi, nghiệp vụ, thiết kế UI, triển khai và acceptance.
-- `backend(Demo để lấy phần login)/`: dự án tham khảo riêng. Ứng dụng trong `source/` không dùng module này trong build hiện tại. Không thêm lại phụ thuộc vào nó.
+- Thư mục `backend(Demo để lấy phần login)/` đã xóa theo yêu cầu người dùng. Không thêm lại phụ thuộc vào dự án demo.
 
 ## Cách sửa backend
 
@@ -45,7 +45,7 @@ If there is no `.codegraph/` directory, skip CodeGraph entirely — indexing is 
 - Chưa có skill frontend chuyên biệt được lưu trong repository tại lần kiểm kê 2026-10-09. Hai tài liệu trên là hướng dẫn thiết kế, không phải `SKILL.md`. Chỉ báo đã áp dụng skill khi thực sự tìm thấy và đọc file của skill đó.
 - Base API nằm ở `source/frontend/src/config/baseApi.ts`; request đi qua `services/apiClient.ts`. Không hard-code host trong component.
 - Auth dùng session cookie HttpOnly và CSRF, không lưu token phiên trong localStorage. Sau login cần lấy lại CSRF token; tài khoản có mật khẩu tạm phải đổi mật khẩu.
-- Client hiện chưa triển khai đầy đủ auth/CSRF và giao diện nghiệp vụ. Không coi `credentials: include` là đã hoàn thành tích hợp đăng nhập.
+- Client đã có auth/CSRF, đổi mật khẩu lần đầu và dashboard API; UI CRUD nhân sự/tài khoản/PO/giá/import còn thiếu. Browser tests dùng API giả lập, không coi đó là nghiệm thu MySQL/Redis thật.
 - Tách page/component theo tính năng khi triển khai; không tiếp tục dồn toàn bộ tính năng vào `App.tsx`.
 - Nhãn trạng thái API, KPI và bảng phải phản ánh dữ liệu thật hoặc ghi rõ dữ liệu mẫu. Có loading, empty, error, 401/403 và trạng thái gửi form; kiểm tra keyboard và màn hình nhỏ.
 - Chạy `npm.cmd ci`, `npm.cmd run build`, `npm.cmd run dev` trong `source/frontend/` trên PowerShell; dùng `npm` trên shell phù hợp. Kiểm tra scripts và các test thực sự có trước khi tuyên bố đã chạy E2E.
