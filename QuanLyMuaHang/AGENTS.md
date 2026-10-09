@@ -42,7 +42,7 @@ If there is no `.codegraph/` directory, skip CodeGraph entirely — indexing is 
 ## Cách sửa frontend
 
 - Đọc `plan/05-react-vite-tailwind-ui.md` và `plan/12-react-vite-playwright-openai.md` trước khi sửa UI.
-- Chưa có skill frontend chuyên biệt được lưu trong repository tại lần kiểm kê 2026-10-09. Hai tài liệu trên là hướng dẫn thiết kế, không phải `SKILL.md`. Chỉ báo đã áp dụng skill khi thực sự tìm thấy và đọc file của skill đó.
+- Đọc và áp dụng [skill giao diện KHVT](skills/khvt-ui/SKILL.md) khi sửa frontend. Đây là skill riêng của repository, được tạo theo yêu cầu người dùng, không phải skill chính thức từ OpenAI. Người dùng đã yêu cầu bỏ màu cam; dùng palette xanh rêu/xanh ngọc của skill trừ khi có chỉ dẫn mới.
 - Base API nằm ở `source/frontend/src/config/baseApi.ts`; request đi qua `services/apiClient.ts`. Không hard-code host trong component.
 - Auth dùng session cookie HttpOnly và CSRF, không lưu token phiên trong localStorage. Sau login cần lấy lại CSRF token; tài khoản có mật khẩu tạm phải đổi mật khẩu.
 - Client đã có auth/CSRF, đổi mật khẩu lần đầu và dashboard API; UI CRUD nhân sự/tài khoản/PO/giá/import còn thiếu. Browser tests dùng API giả lập, không coi đó là nghiệm thu MySQL/Redis thật.

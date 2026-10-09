@@ -8,6 +8,9 @@ import { AppShell } from './app/AppShell'
 import { DashboardPage } from './features/dashboard/pages/DashboardPage'
 import { PageState } from './components/PageState'
 import { hasRole, type RoleCode } from './features/auth/types'
+import { EmployeesPage } from './features/personnel/pages/EmployeesPage'
+import { UnitsPage } from './features/personnel/pages/UnitsPage'
+import { UsersPage } from './features/identity-admin/pages/UsersPage'
 
 const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false, staleTime: 30_000 } } })
 
@@ -42,8 +45,12 @@ export function App() {
         <Route path="price-search" element={<PlannedPage title="Tra cứu giá" />} />
       </Route>
       <Route element={<RequireRole roles={['ADMIN', 'PLANNER']} />}><Route path="imports" element={<PlannedPage title="Nhập dữ liệu" />} /></Route>
-      <Route element={<RequireRole roles={['ADMIN', 'HR_MANAGER']} />}><Route path="admin/employees" element={<PlannedPage title="Quản lý nhân sự" />} /></Route>
-      <Route element={<RequireRole roles={['ADMIN']} />}><Route path="admin/users" element={<PlannedPage title="Quản lý tài khoản" />} /></Route>
+      <Route element={<RequireRole roles={['ADMIN', 'HR_MANAGER']} />}>
+        <Route path="admin/employees" element={<EmployeesPage />} />
+        <Route path="admin/departments" element={<UnitsPage key="departments" kind="departments" />} />
+        <Route path="admin/positions" element={<UnitsPage key="positions" kind="positions" />} />
+      </Route>
+      <Route element={<RequireRole roles={['ADMIN']} />}><Route path="admin/users" element={<UsersPage />} /></Route>
       <Route path="*" element={<PageState title="Không tìm thấy trang" message="Chọn một chức năng trong thanh điều hướng để tiếp tục." />} />
     </Route></Route>
   </Routes></AuthProvider></BrowserRouter></QueryClientProvider>

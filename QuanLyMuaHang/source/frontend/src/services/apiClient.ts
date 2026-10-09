@@ -73,7 +73,10 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
 
   if (response.status === 204) return undefined as T
 
-  const payload = (await response.json()) as T | ApiEnvelope<T>
+  // Some Spring controllers return 200 with no body (e.g. password reset).
+  const content = await response.text()
+  if (!content.trim()) return undefined as T
+  const payload = JSON.parse(content) as T | ApiEnvelope<T>
   if (payload && typeof payload === 'object' && 'data' in payload && 'error' in payload) {
     const envelope = payload as ApiEnvelope<T>
     if (envelope.error) throw new ApiError(response.status, envelope.error.message)

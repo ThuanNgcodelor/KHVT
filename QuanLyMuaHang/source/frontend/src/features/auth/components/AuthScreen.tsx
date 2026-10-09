@@ -2,6 +2,7 @@ import { Navigate } from 'react-router-dom'
 import { useAuthForm } from '../hooks/useAuthForm'
 import { PageState } from '../../../components/PageState'
 import { Brand } from '../../../components/layout/Brand'
+import { Footer } from '../../../components/layout/Footer'
 
 export function AuthScreen({ mode }: { mode: 'login' | 'change-password' }) {
   const { auth, changing, form, submit, showPassword, setShowPassword, serverError, loggingOut, logout, busy, errors } = useAuthForm(mode)
@@ -12,10 +13,11 @@ export function AuthScreen({ mode }: { mode: 'login' | 'change-password' }) {
   if (auth.user && !auth.user.mustChangePassword) return <Navigate to="/dashboard" replace />
   if (!changing && auth.user?.mustChangePassword) return <Navigate to="/change-password" replace />
 
-  return <main className="auth-layout">
-    <section className="auth-intro" aria-label="Quản lý mua hàng KHVT"><Brand /><h2>Công việc mua hàng,<br />trong một nơi.</h2><p>Tra cứu vật tư, theo dõi đơn mua và phối hợp công việc theo quyền được cấp.</p><span className="auth-footnote">Hệ thống nội bộ · Quản lý mua hàng KHVT</span></section>
+  return <div className="auth-layout">
+    <header className="auth-header"><Brand /><span>Phòng Kế hoạch Vật tư</span></header>
+    <main className="auth-content">
     <section className="auth-card" aria-labelledby="auth-title">
-      <p className="eyebrow">{changing ? 'Bảo vệ tài khoản' : 'Chào mừng bạn trở lại'}</p><h1 id="auth-title">{changing ? 'Đổi mật khẩu lần đầu' : 'Đăng nhập'}</h1><p className="auth-description">{changing ? 'Đặt mật khẩu riêng trước khi sử dụng các chức năng của hệ thống.' : 'Dùng tài khoản đã được quản trị viên cấp.'}</p>
+      <p className="eyebrow">Quản lý mua hàng KHVT</p><h1 id="auth-title">{changing ? 'Đổi mật khẩu lần đầu' : 'Đăng nhập'}</h1><p className="auth-description">{changing ? 'Đặt mật khẩu riêng trước khi sử dụng hệ thống.' : 'Nhập thông tin tài khoản được cấp để tiếp tục.'}</p>
       {changing && <p className="account-email">{auth.user?.email}</p>}
       <form noValidate onSubmit={form.handleSubmit(submit)}><fieldset disabled={busy}>
         {!changing && <div className="form-field"><label htmlFor="email">Email</label><input id="email" type="email" autoComplete="username" autoFocus {...form.register('email')} aria-invalid={!!errors.email} aria-describedby={errors.email ? 'email-error' : undefined} />{errors.email && <p id="email-error" className="field-error">{errors.email.message}</p>}</div>}
@@ -27,5 +29,7 @@ export function AuthScreen({ mode }: { mode: 'login' | 'change-password' }) {
       </fieldset></form>
       {changing && <button className="secondary-button auth-signout" type="button" disabled={busy} onClick={() => { void logout() }}>{loggingOut ? 'Đang đăng xuất…' : 'Đăng xuất'}</button>}
     </section>
-  </main>
+    </main>
+    <Footer />
+  </div>
 }
