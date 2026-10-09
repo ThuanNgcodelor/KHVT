@@ -40,10 +40,10 @@ async function ensureCsrf(): Promise<CsrfToken> {
   return pending
 }
 
-async function request<T>(path: string, init?: RequestInit): Promise<T> {
+async function fetchResponse(path: string, init?: RequestInit, accept = 'application/json'): Promise<Response> {
   const method = (init?.method ?? 'GET').toUpperCase()
   const headers = new Headers(init?.headers)
-  headers.set('Accept', 'application/json')
+  headers.set('Accept', accept)
   headers.set('X-Request-ID', crypto.randomUUID())
   if (init?.body && !(init.body instanceof FormData)) headers.set('Content-Type', 'application/json')
   if (!['GET', 'HEAD', 'OPTIONS'].includes(method)) {
@@ -71,6 +71,11 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
     throw new ApiError(response.status, detail?.message || fallback, detail?.code)
   }
 
+  return response
+}
+
+async function request<T>(path: string, init?: RequestInit): Promise<T> {
+  const response = await fetchResponse(path, init)
   if (response.status === 204) return undefined as T
 
   // Some Spring controllers return 200 with no body (e.g. password reset).
@@ -91,4 +96,24 @@ export const apiClient = {
     request<T>(path, { method: 'POST', body: body === undefined ? undefined : JSON.stringify(body) }),
   put: <T>(path: string, body: unknown) =>
     request<T>(path, { method: 'PUT', body: JSON.stringify(body) }),
+  upload: <T>(path: string, body: FormData) => request<T>(path, { method: 'POST', body }),
+  download: async (path: string, method: 'GET' | 'POST' = 'GET'): Promise<DownloadFile> => {
+    const response = await fetchResponse(path, { method }, 'application/pdf, application/vnd.openxmlformats-officedocument.spreadsheetml.sheet')
+    const disposition = response.headers.get('Content-Disposition') ?? ''
+    const encoded = disposition.match(/filename\*=UTF-8''([^;]+)/i)?.[1]
+    const plain = disposition.match(/filename="([^"]+)"|filename=([^;]+)/i)
+    let name = plain?.[1] ?? plain?.[2] ?? 'tai-lieu'
+    if (encoded) { try { name = decodeURIComponent(encoded) } catch { /* Keep the safe fallback. */ } }
+    const fileName = name.replace(/[\\/\u0000-\u001f]/g, '_').trim() || 'tai-lieu'
+    return { blob: await response.blob(), fileName, truncated: response.headers.get('X-Export-Truncated') === 'true' }
+  },
+}
+
+export type DownloadFile = { blob: Blob; fileName: string; truncated: boolean }
+export function saveDownload(file: DownloadFile) {
+  const url = URL.createObjectURL(file.blob)
+  const link = document.createElement('a')
+  link.href = url; link.download = file.fileName
+  document.body.append(link); link.click(); link.remove()
+  setTimeout(() => URL.revokeObjectURL(url), 30_000)
 }

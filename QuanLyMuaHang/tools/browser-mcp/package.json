@@ -1,0 +1,7 @@
+{
+  "name": "khvt-browser-mcp",
+  "private": true,
+  "type": "module",
+  "scripts": { "start": "playwright-mcp --config browser.config.json", "smoke": "node smoke.mjs" },
+  "dependencies": { "@playwright/mcp": "0.0.83" }
+}

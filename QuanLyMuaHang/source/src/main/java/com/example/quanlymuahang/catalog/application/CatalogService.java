@@ -8,6 +8,8 @@ import com.example.quanlymuahang.repository.SupplierRepository;
 import com.example.quanlymuahang.service.TextNormalizer;
 import com.example.quanlymuahang.sharedkernel.application.AuditRecorder;
 import com.example.quanlymuahang.sharedkernel.web.ApiException;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -27,6 +29,16 @@ public class CatalogService {
     public List<MaterialView> searchMaterials(String query) {
         String normalized = TextNormalizer.normalize(query);
         return materials.findTop50ByActiveTrueAndNormalizedNameContainingOrderByNameAsc(normalized).stream().map(MaterialView::from).toList();
+    }
+
+    @Transactional(readOnly = true)
+    public Page<MaterialView> materialPage(String query, Boolean active, MaterialCategory category, Pageable pageable) {
+        return materials.search(TextNormalizer.normalize(query), active, category, pageable).map(MaterialView::from);
+    }
+
+    @Transactional(readOnly = true)
+    public MaterialView getMaterial(long id) {
+        return MaterialView.from(materials.findById(id).orElseThrow(() -> ApiException.notFound("Không tìm thấy vật tư")));
     }
 
     @Transactional
@@ -56,6 +68,16 @@ public class CatalogService {
     public List<SupplierView> searchSuppliers(String query) {
         String normalized = TextNormalizer.normalize(query);
         return suppliers.findTop50ByActiveTrueAndNormalizedNameContainingOrderByNameAsc(normalized).stream().map(SupplierView::from).toList();
+    }
+
+    @Transactional(readOnly = true)
+    public Page<SupplierView> supplierPage(String query, Boolean active, Pageable pageable) {
+        return suppliers.search(TextNormalizer.normalize(query), active, pageable).map(SupplierView::from);
+    }
+
+    @Transactional(readOnly = true)
+    public SupplierView getSupplier(long id) {
+        return SupplierView.from(suppliers.findById(id).orElseThrow(() -> ApiException.notFound("Không tìm thấy nhà cung cấp")));
     }
 
     @Transactional
