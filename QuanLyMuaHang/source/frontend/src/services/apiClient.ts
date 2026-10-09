@@ -1,27 +1,74 @@
 import { buildApiUrl } from '../config/baseApi'
 import type { ApiEnvelope } from '../types/api'
 
+type CsrfToken = { headerName: string; token: string }
+let csrfToken: CsrfToken | null = null
+let csrfRequest: Promise<CsrfToken> | null = null
+let csrfGeneration = 0
+export const authEvents = new EventTarget()
+
 export class ApiError extends Error {
-  constructor(public readonly status: number, message: string) {
+  constructor(public readonly status: number, message: string, public readonly code?: string) {
     super(message)
     this.name = 'ApiError'
   }
 }
 
+export function resetCsrf() {
+  csrfGeneration += 1
+  csrfToken = null
+  csrfRequest = null
+}
+
+export async function refreshCsrf(): Promise<CsrfToken> {
+  resetCsrf()
+  return ensureCsrf()
+}
+
+async function ensureCsrf(): Promise<CsrfToken> {
+  if (csrfToken) return csrfToken
+  if (csrfRequest) return csrfRequest
+  const generation = csrfGeneration
+  const pending = request<CsrfToken>('/auth/csrf').then((token) => {
+    if (!token || typeof token.headerName !== 'string' || typeof token.token !== 'string') {
+      throw new ApiError(502, 'Không nhận được mã bảo vệ phiên. Hãy thử lại.')
+    }
+    if (generation === csrfGeneration) csrfToken = token
+    return token
+  }).finally(() => { if (csrfRequest === pending) csrfRequest = null })
+  csrfRequest = pending
+  return pending
+}
+
 async function request<T>(path: string, init?: RequestInit): Promise<T> {
+  const method = (init?.method ?? 'GET').toUpperCase()
+  const headers = new Headers(init?.headers)
+  headers.set('Accept', 'application/json')
+  headers.set('X-Request-ID', crypto.randomUUID())
+  if (init?.body && !(init.body instanceof FormData)) headers.set('Content-Type', 'application/json')
+  if (!['GET', 'HEAD', 'OPTIONS'].includes(method)) {
+    const token = await ensureCsrf()
+    headers.set(token.headerName, token.token)
+  }
   const response = await fetch(buildApiUrl(path), {
-    credentials: 'include',
-    headers: {
-      Accept: 'application/json',
-      ...(init?.body ? { 'Content-Type': 'application/json' } : {}),
-      ...init?.headers,
-    },
     ...init,
+    credentials: 'include',
+    headers,
   })
 
   if (!response.ok) {
-    const body = await response.text()
-    throw new ApiError(response.status, body || `API request failed (${response.status})`)
+    const payload = await response.json().catch(() => null) as
+      { code?: string; message?: string; error?: { code?: string; message?: string } } | null
+    const detail = payload?.error ?? payload
+    if (response.status === 401 && path !== '/auth/login' && path !== '/auth/me') {
+      resetCsrf()
+      authEvents.dispatchEvent(new Event('session-expired'))
+    }
+    if (response.status === 403) resetCsrf()
+    if (detail?.code === 'PASSWORD_CHANGE_REQUIRED') authEvents.dispatchEvent(new Event('password-change-required'))
+    const fallback = response.status === 401 ? 'Phiên đăng nhập đã hết hạn.'
+      : response.status === 403 ? 'Bạn không có quyền thực hiện thao tác này.' : 'Không thể xử lý yêu cầu. Hãy thử lại.'
+    throw new ApiError(response.status, detail?.message || fallback, detail?.code)
   }
 
   if (response.status === 204) return undefined as T
@@ -36,9 +83,9 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
 }
 
 export const apiClient = {
-  get: <T>(path: string) => request<T>(path),
-  post: <T>(path: string, body: unknown) =>
-    request<T>(path, { method: 'POST', body: JSON.stringify(body) }),
+  get: <T>(path: string, init?: Pick<RequestInit, 'signal'>) => request<T>(path, init),
+  post: <T>(path: string, body?: unknown) =>
+    request<T>(path, { method: 'POST', body: body === undefined ? undefined : JSON.stringify(body) }),
   put: <T>(path: string, body: unknown) =>
     request<T>(path, { method: 'PUT', body: JSON.stringify(body) }),
 }

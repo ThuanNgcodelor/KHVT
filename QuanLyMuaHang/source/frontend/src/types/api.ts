@@ -1,24 +1,19 @@
-export type DashboardKpi = {
-  label: string
-  value: number
-  hint: string
-}
-
 export type RecentOrder = {
+  id: number
   poNumber: string
-  supplier: string
-  status: string
-  total: string
+  orderDate: string | null
+  supplierName: string
+  currency: string
+  status: 'DRAFT' | 'EXPORTED' | 'CANCELLED'
+  grandTotal: number | null
 }
-
 export type DashboardResponse = {
-  purchaseOrders: DashboardKpi
-  materials: DashboardKpi
-  suppliers: DashboardKpi
+  purchaseOrdersThisMonth: number
+  activeMaterials: number
+  activeSuppliers: number
   recentOrders: RecentOrder[]
   generatedAt: string
 }
-
 export type ApiEnvelope<T> = {
   data: T
   error: null | { code: string; message: string }

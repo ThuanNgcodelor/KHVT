@@ -2,5 +2,5 @@ import { apiClient } from './apiClient'
 import type { DashboardResponse } from '../types/api'
 
 export const dashboardApi = {
-  getSummary: () => apiClient.get<DashboardResponse>('/dashboard'),
+  getSummary: (signal?: AbortSignal) => apiClient.get<DashboardResponse>('/dashboard', { signal }),
 }
