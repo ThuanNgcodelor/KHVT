@@ -41,6 +41,10 @@ public class UserAdministrationService {
 
     @Transactional
     public UserView create(CreateUser command, long actorId) {
+        if (command == null || command.email() == null || command.email().isBlank()
+                || command.displayName() == null || command.displayName().isBlank()
+                || command.initialPassword() == null || command.roleCodes() == null)
+            throw ApiException.badRequest("INVALID_USER", "Email, tên hiển thị, mật khẩu tạm và vai trò là bắt buộc");
         String email = UserAccountEntity.canonicalEmail(command.email());
         if (accounts.existsByEmail(email)) throw ApiException.conflict("EMAIL_EXISTS", "Email đã được sử dụng");
         if (command.initialPassword().length() < 12) throw ApiException.badRequest("WEAK_PASSWORD", "Mật khẩu tạm phải có ít nhất 12 ký tự");

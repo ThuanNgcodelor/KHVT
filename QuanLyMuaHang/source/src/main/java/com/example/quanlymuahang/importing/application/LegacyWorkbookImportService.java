@@ -47,6 +47,7 @@ import java.time.LocalDate;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.HashSet;
+import java.util.LinkedHashSet;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Locale;
@@ -132,7 +133,7 @@ public class LegacyWorkbookImportService {
 
         Map<String, Supplier> supplierByCode = new HashMap<>();
         Map<String, Supplier> supplierByName = new HashMap<>();
-        List<Supplier> changedSuppliers = new ArrayList<>();
+        Set<Supplier> changedSuppliers = new LinkedHashSet<>();
         for (Supplier entity : suppliers.findAll()) indexSupplier(entity, supplierByCode, supplierByName);
         for (StoredRow row : rows) {
             if (!row.sheet().equals("NCC") || row.status().equals("ERROR")) continue;
@@ -140,7 +141,7 @@ public class LegacyWorkbookImportService {
             String name = value(row.data(), "supplierName");
             Supplier entity = findSupplier(code, name, supplierByCode, supplierByName);
             if (entity == null) entity = new Supplier(name, TextNormalizer.normalize(name));
-            entity.update(code, name, TextNormalizer.normalize(name), value(row.data(), "address"), null, null, null, true);
+            entity.update(code == null ? entity.getCode() : code, name, TextNormalizer.normalize(name), value(row.data(), "address"), null, null, null, true);
             indexSupplier(entity, supplierByCode, supplierByName); changedSuppliers.add(entity);
         }
         for (StoredRow row : rows) {
@@ -159,7 +160,7 @@ public class LegacyWorkbookImportService {
 
         Map<String, Material> materialByCode = new HashMap<>();
         Map<String, Material> materialByName = new HashMap<>();
-        List<Material> changedMaterials = new ArrayList<>();
+        Set<Material> changedMaterials = new LinkedHashSet<>();
         for (Material entity : materials.findAll()) indexMaterial(entity, materialByCode, materialByName);
         for (StoredRow row : rows) {
             if (row.status().equals("ERROR") || !(row.sheet().equals("LICH_SU") || row.sheet().equals("DON_HANG"))) continue;
@@ -310,8 +311,8 @@ public class LegacyWorkbookImportService {
                 for (int col = 0; col < row.getLastCellNum(); col++) {
                     Cell cell = row.getCell(col);
                     String field = columns.get(col);
-                    String text = ("supplierCode".equals(field) || "materialCode".equals(field) || "poNumber".equals(field))
-                            ? formatter.formatCellValue(cell, evaluator).trim() : cellText(cell, formatter, evaluator);
+                    String text = cell == null ? "" : (("supplierCode".equals(field) || "materialCode".equals(field) || "poNumber".equals(field))
+                            ? formatter.formatCellValue(cell, evaluator).trim() : cellText(cell, formatter, evaluator));
                     if (text == null || text.isBlank()) continue;
                     if (field != null) {
                         mapped.put(field, text.trim()); raw.put(field, text.trim());
@@ -386,8 +387,8 @@ public class LegacyWorkbookImportService {
     private List<String> validateRow(String sheet, Map<String, String> data) {
         List<String> issues = new ArrayList<>();
         if (sheet.equals("NCC")) {
-            required(data, "supplierCode", "MISSING_SUPPLIER_CODE", "Mã NCC", issues);
             required(data, "supplierName", "MISSING_SUPPLIER_NAME", "Tên NCC", issues);
+            if (value(data, "supplierCode") == null) issues.add("WARNING:MISSING_SUPPLIER_CODE: Không có mã NCC; giữ nhà cung cấp theo tên chính xác nếu duy nhất");
         } else if (sheet.equals("LICH_SU")) {
             required(data, "materialName", "MISSING_MATERIAL_NAME", "Tên hàng", issues);
             required(data, "unitPrice", "MISSING_UNIT_PRICE", "Đơn giá", issues);
