@@ -28,7 +28,7 @@ public class ExcelExportService {
             workbook.setCompressTempFiles(true);
             Sheet sheet = workbook.createSheet("Lich su gia");
             CellStyle header = headerStyle(workbook);
-            addRow(sheet, 0, header, "Ngày mua", "Tên hàng/vật tư", "Mã hàng", "ĐVT", "Số lượng", "Đơn giá", "Loại tiền", "Nhà cung cấp", "Mã NCC", "Nguồn");
+            addRow(sheet, 0, header, "Ngày mua", "Tên hàng/vật tư", "Mã hàng", "ĐVT", "Số lượng", "Đơn giá", "Loại tiền", "Cơ sở tiền tệ", "Nhà cung cấp", "Mã NCC", "Nguồn", "Sheet nguồn");
             int rowNumber = 1;
             boolean truncated = false;
             for (int pageNumber = 0; pageNumber < 50; pageNumber++) {
@@ -40,12 +40,13 @@ public class ExcelExportService {
                     cell(row, 1, item.materialName()); cell(row, 2, item.materialCode()); cell(row, 3, item.unit());
                     cell(row, 4, item.quantity() == null ? safe(item.quantityText()) : item.quantity().stripTrailingZeros().toPlainString());
                     cell(row, 5, item.unitPrice() == null ? "" : item.unitPrice().toPlainString()); cell(row, 6, item.currency().name());
-                    cell(row, 7, item.supplierName()); cell(row, 8, item.supplierCode()); cell(row, 9, item.source());
+                    cell(row, 7, item.currencyBasis()); cell(row, 8, item.supplierName()); cell(row, 9, item.supplierCode());
+                    cell(row, 10, item.source()); cell(row, 11, item.sourceSheet());
                 }
                 if (truncated || !page.hasNext()) break;
                 if (pageNumber == 49) truncated = true;
             }
-            sheet.createFreezePane(0, 1); sheet.setAutoFilter(new org.apache.poi.ss.util.CellRangeAddress(0, Math.max(0, rowNumber - 1), 0, 9));
+            sheet.createFreezePane(0, 1); sheet.setAutoFilter(new org.apache.poi.ss.util.CellRangeAddress(0, Math.max(0, rowNumber - 1), 0, 11));
             workbook.write(output);
             if (!workbook.dispose()) throw new IllegalStateException("Không dọn được file tạm XLSX");
             return new ExportFile("lich-su-gia.xlsx", output.toByteArray(), truncated);

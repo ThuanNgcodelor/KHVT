@@ -24,12 +24,14 @@ public class PricingService {
 
     public record PriceView(Long id, LocalDate purchaseDate, String materialName, String materialCode, String unit,
                             BigDecimal quantity, String quantityText, BigDecimal unitPrice, CurrencyCode currency,
-                            String supplierName, String supplierCode, String source, Integer sourceRowNumber) {
+                            String currencyBasis, String supplierName, String supplierCode, String source,
+                            String sourceSheet, Integer sourceRowNumber) {
         static PriceView from(HistoricalPurchase h) {
             String supplier = h.getSupplier() != null ? h.getSupplier().getName() : h.getSupplierSnapshot();
             String code = h.getSupplier() != null ? h.getSupplier().getCode() : h.getSupplierCodeSnapshot();
             return new PriceView(h.getId(), h.getPurchaseDate(), h.getMaterialNameSnapshot(), h.getMaterialCodeSnapshot(), h.getUnit(),
-                    h.getQuantity(), h.getQuantityText(), h.getUnitPrice(), h.getCurrency(), supplier, code, h.getSource(), h.getSourceRowNumber());
+                    h.getQuantity(), h.getQuantityText(), h.getUnitPrice(), h.getCurrency(), h.getCurrencyBasis(), supplier, code,
+                    h.getSource(), h.getSourceSheet(), h.getSourceRowNumber());
         }
     }
 }
