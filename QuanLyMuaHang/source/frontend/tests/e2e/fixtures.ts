@@ -12,7 +12,7 @@ export const applicationModules: ApplicationModule[] = [
 const rolePermissions: Record<string, string[]> = {
   ADMIN: ['*'], HR_MANAGER: ['PERSONNEL_READ', 'PERSONNEL_MANAGE'],
   VIEWER: ['PO_READ', 'CATALOG_READ', 'PRICE_READ'],
-  PLANNER: ['PO_READ', 'PO_MANAGE', 'CATALOG_READ', 'CATALOG_MANAGE', 'PRICE_READ', 'OPERATIONAL_IMPORT'],
+  PLANNER: ['PO_READ', 'PO_MANAGE', 'CATALOG_READ', 'CATALOG_MANAGE', 'PRICE_READ', 'IMPORT_OPERATIONAL'],
 }
 export const roles: Role[] = [
   { code: 'ADMIN', name: 'Quản trị viên', description: 'Quản trị hệ thống', permissions: ['*'], moduleCodes: applicationModules.map((module) => module.code) },
@@ -114,7 +114,7 @@ export async function mockApi(page: Page, options: Options = {}) {
       }
     }
     if (path.startsWith('/api/admin/')) {
-      if (path === '/api/admin/roles') return allowed('USER_MANAGE') || allowed('ROLE_MANAGE')
+      if (path === '/api/admin/roles') return allowed('USER_READ')
         ? state.roleStatus === 200 ? reply(roles) : reply({ message: 'Chưa tải được vai trò.' }, state.roleStatus) : forbidden()
       if (!allowed('USER_READ') || (method !== 'GET' && !allowed('USER_MANAGE'))) return forbidden()
       if (method !== 'GET') state.writes.push({ path, method, body: request.postDataJSON() })
@@ -123,7 +123,7 @@ export async function mockApi(page: Page, options: Options = {}) {
       const accountPath = path.match(/^\/api\/admin\/users\/(\d+)(?:\/(reset-password))?$/)
       if (accountPath?.[2]) {
         state.accounts.find((account) => account.id === Number(accountPath[1]))!.mustChangePassword = true
-        return route.fulfill({ status: 204 })
+        return route.fulfill({ status: 200, body: '' })
       }
       if (path === '/api/admin/users' || accountPath) {
         const data = request.postDataJSON(), id = accountPath ? Number(accountPath[1]) : Math.max(...state.accounts.map((item) => item.id), 0) + 1

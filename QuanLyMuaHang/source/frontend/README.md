@@ -62,7 +62,9 @@ src/
     dashboardApi.ts
   config/baseApi.ts                base URL duy nhất
   types/api.ts                     kiểu dữ liệu API
-tests/e2e/auth.spec.ts              kiểm thử browser bằng API fixtures
+tests/e2e/auth.spec.ts              auth/cổng ứng dụng bằng API fixtures
+tests/e2e/personnel.spec.ts         nhân sự bằng API fixtures
+tests/e2e/accounts.spec.ts          tài khoản bằng API fixtures
 ```
 
 Page là điểm vào của một URL; component dựng giao diện; hook chứa logic trạng thái/đồng bộ; service gọi HTTP. Không cần tạo các tầng trống cho tính năng chưa làm.
@@ -86,7 +88,7 @@ API dùng cookie session HttpOnly, không lưu token đăng nhập trong localSt
 ## Phạm vi hiện có
 
 - Đăng nhập, đổi mật khẩu lần đầu, khôi phục phiên, đăng xuất.
-- Cổng chọn ứng dụng theo quyền sau đăng nhập: Mua hàng, Nhân sự, Quản trị. Nút Cổng ứng dụng để đổi ứng dụng; không có quyền thì hiển thị thông báo liên hệ admin.
+- Cổng chọn ứng dụng theo quyền sau đăng nhập: Mua hàng, Nhân sự, Quản trị. Nút Đổi ứng dụng để trở về cổng; không có quyền thì hiển thị thông báo liên hệ admin.
 - Layout dùng chung, menu riêng theo ứng dụng, keyboard focus, menu mobile. Palette xanh rêu/xanh ngọc; footer © Bản quyền thuộc về KHVT | Cung cấp bởi [ThuanNgcodelor](https://github.com/ThuanNgcodelor).
 - Dashboard Mua hàng lấy dữ liệu thật, có loading/error/retry/empty; không fallback demo. HR không có quyền Mua hàng thì không được vào dashboard và không gửi request tổng quan mua hàng.
 - Nhân sự: danh sách/tìm kiếm/lọc trạng thái/phân trang, tạo/sửa hồ sơ, ngừng/kích hoạt; tạo/sửa phòng ban và chức vụ.
@@ -105,10 +107,14 @@ npx.cmd playwright install chromium
 npm.cmd run test:e2e
 ```
 
-Kiểm thử cho thay đổi giao diện/cổng ứng dụng/nhân sự/tài khoản ngày 2026-10-10 đang tiến hành; chưa dùng kết quả cũ để xác nhận phần mới. Lịch sử ngày 2026-10-09: build thành công, 6 Vitest tests và 16 Playwright lượt chạy thành công (8 tình huống trên Chromium desktop và viewport mobile).
+Ngày 2026-10-10, build `tsc -b`/Vite cuối cùng và 7 Vitest tests đã qua. Auth/cổng ứng dụng có 10 tình huống trên hai viewport (20 trường hợp); nhân sự/tài khoản có 11 tình huống trên hai viewport (22 trường hợp). Lượt auth đầu qua 18/20; 2 lỗi khoảng trắng footer đã sửa và chạy lại qua. Đã xem ảnh desktop/mobile, sửa panel tài khoản bị co hẹp trên mobile rồi chạy lại 2 trường hợp tạo tài khoản qua; sau chỉnh heading/checkbox, 2 trường hợp bố cục cổng/nhân sự chạy lại cũng qua. Có **42 trường hợp browser riêng biệt đã qua** sau các lượt sửa/chạy lại; không cộng lượt chạy lại vào số trường hợp. Lịch sử ngày 2026-10-09 có 6 Vitest tests và 16 lượt Playwright qua, không dùng số cũ để xác nhận phần mới.
+
+Test mới kiểm tra auth/quyền/cổng ứng dụng, thêm/sửa/ngừng/kích hoạt nhân viên, phòng ban/chức vụ, thêm/sửa/reset tài khoản, giữ form khi lỗi API, phân trang, xác nhận và bàn phím/mobile. Unit regression kiểm tra API trả HTTP 200 với body rỗng khi reset mật khẩu. Log local ở `../target/runtime/frontend-build.log`, `frontend-unit.log`, `frontend-auth-e2e-new.log`, `frontend-auth-e2e-retry.log`, `frontend-crud-e2e.log`, `frontend-account-layout-retry.log` và `frontend-personnel-layout-retry.log`. Ảnh `ui-*` ở cùng thư mục dùng dữ liệu tổng hợp.
 
 Playwright dùng server riêng cổng 5190 và **API giả lập**, không xác nhận MySQL/Redis hay nghiệp vụ thật đã được nghiệm thu. Fixture dùng dữ liệu/tài khoản tổng hợp; kiểm tra cả đăng nhập bằng email miền nội bộ. Báo cáo/trace ở `test-results/` đã được ignore; không ghi mật khẩu thật vào test hoặc trace. Test với backend/MySQL/Redis thật phải được thực hiện riêng trên dữ liệu thử và ghi rõ phạm vi.
 
-Đã kiểm tra riêng qua browser với backend/MySQL/Redis local thật: đăng nhập admin bootstrap, chuyển tới trang đổi mật khẩu, reload vẫn giữ phiên, truy cập dashboard bị chuyển lại trang đổi mật khẩu, rồi logout thành công. Không đổi mật khẩu admin trong smoke test; chưa kiểm tra luồng ghi nghiệp vụ thật hay hoàn tất đổi mật khẩu bằng tài khoản này.
+Ngày 2026-10-10 đã khởi động lại frontend/backend; frontend HTTP 200, backend và Vite proxy health `UP`, MySQL/Redis healthy. Một lần thử login thật bằng thông tin bootstrap nạp riêng nhận HTTP 401, đã dừng không retry/đổi mật khẩu. Chưa xác định thông tin đăng nhập hiện hành; không báo auth thật mới đã qua hoặc suy ra người dùng đã đổi mật khẩu. CRUD browser vẫn dùng API giả lập.
+
+Ngày 2026-10-09 đã kiểm tra riêng qua browser với backend/MySQL/Redis local thật: đăng nhập admin bootstrap, chuyển tới trang đổi mật khẩu, reload vẫn giữ phiên, truy cập dashboard bị chuyển lại trang đổi mật khẩu, rồi logout thành công. Không đổi mật khẩu admin trong smoke test; chưa kiểm tra luồng ghi nghiệp vụ thật hay hoàn tất đổi mật khẩu bằng tài khoản này. Đây là bằng chứng lịch sử trước thay đổi indexed session, không xác nhận auth thật của runtime mới. Backend đã kiểm tra service thu hồi phiên bằng một test Redis thật riêng; xem [README backend](../README.md) để biết phạm vi và cách bật.
 
 Đọc [skill KHVT UI](../../skills/khvt-ui/SKILL.md) khi sửa frontend, kèm [plan 05](../../plan/05-react-vite-tailwind-ui.md) và [plan 12](../../plan/12-react-vite-playwright-openai.md). Skill được tạo riêng trong repository theo yêu cầu người dùng và được AGENTS.md tham chiếu; không phải skill chính thức của OpenAI hay skill đã cài vào catalog toàn cục.

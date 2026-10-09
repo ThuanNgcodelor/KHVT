@@ -27,7 +27,7 @@ export function UnitForm({ kind, unit, units, onClose, onSaved }: { kind: 'depar
     } catch { /* Show server error without losing input. */ }
   }
   return <Dialog title={`${unit ? 'Sửa' : 'Thêm'} ${label}`} onClose={onClose} busy={busy}>
-    <form noValidate onSubmit={form.handleSubmit(submit)}><fieldset disabled={busy}>
+    <form noValidate onSubmit={form.handleSubmit(submit)} onChange={() => setConfirmed(false)}><fieldset disabled={busy}>
       <Field id="unit-code" label={`Mã ${label}`} error={errors.code?.message}><input id="unit-code" {...form.register('code')} {...fieldA11y('unit-code', errors.code?.message)} /></Field>
       <Field id="unit-name" label={`Tên ${label} *`} error={errors.name?.message}><input id="unit-name" {...form.register('name')} {...fieldA11y('unit-name', errors.name?.message)} /></Field>
       {department && <Field id="unit-parent" label="Phòng ban cấp trên"><select id="unit-parent" {...form.register('parentId')}><option value="">Không có</option>{units.filter((item) => item.id !== unit?.id).map((item) => <option key={item.id} value={item.id}>{item.name}</option>)}</select></Field>}

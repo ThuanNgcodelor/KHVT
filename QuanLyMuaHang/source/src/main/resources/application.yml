@@ -25,7 +25,8 @@ spring:
     store-type: redis
     timeout: 30m
     redis:
-      namespace: qmh:session
+      repository-type: indexed
+      namespace: qmh:session:indexed
       flush-mode: on_save
   servlet:
     multipart:

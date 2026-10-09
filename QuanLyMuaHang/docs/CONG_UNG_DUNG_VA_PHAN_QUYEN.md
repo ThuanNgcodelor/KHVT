@@ -4,7 +4,7 @@ Ngày cập nhật: 2026-10-10. Tài liệu phân biệt phần đã có trong c
 
 ## Trải nghiệm sau đăng nhập
 
-Sau khi đăng nhập và hoàn tất đổi mật khẩu tạm, người dùng tới `/modules`. Trang này hiển thị các ứng dụng được cấp quyền dưới dạng ô có biểu tượng, tên và mô tả. Chọn một ô để vào khu vực làm việc; nút Cổng ứng dụng cho phép quay lại để đổi ứng dụng. Người không có quyền nào thấy thông báo liên hệ quản trị viên, không thấy ô giả hoặc ứng dụng chưa triển khai.
+Sau khi đăng nhập và hoàn tất đổi mật khẩu tạm, người dùng tới `/modules`. Trang này hiển thị các ứng dụng được cấp quyền dưới dạng ô có biểu tượng, tên và mô tả. Chọn một ô để vào khu vực làm việc; nút Đổi ứng dụng cho phép quay lại cổng. Người không có quyền nào thấy thông báo liên hệ quản trị viên, không thấy ô giả hoặc ứng dụng chưa triển khai.
 
 Ảnh người dùng cung cấp là tham khảo cho cách chọn ứng dụng. Giao diện KHVT dùng tên và biểu tượng của chính dự án, palette xanh rêu/xanh ngọc; không sao chép nhãn sản phẩm trong ảnh.
 
@@ -38,6 +38,8 @@ Thao tác hiện tại: mở Quản trị → Tài khoản → Thêm hoặc Sử
 `GET /api/admin/roles` trả `permissions` và `moduleCodes` cho từng vai trò. `moduleCodes` là kết quả registry tính từ permission của chính vai trò đó, giúp form mô tả ứng dụng đi kèm; nó không phải danh sách grant có thể sửa. Quyền cuối cùng của tài khoản được tính từ hợp permission của tất cả vai trò, rồi registry tính lại danh sách `modules` trong phiên.
 
 Hệ thống chưa có grant module riêng theo từng tài khoản, API tạo/sửa vai trò hoặc ma trận permission. Payload tạo/sửa tài khoản nhận `roleCodes`, không nhận `moduleCodes` hay grant ứng dụng. Frontend dùng danh sách `permissions` hiệu lực trong thông tin phiên để kiểm tra route/thao tác của các màn đã triển khai; tên vai trò được dùng để giải thích quyền được gán.
+
+Việc thu hồi phiên cần repository Redis có index theo principal. Cấu hình hiện đã chọn `RedisIndexedSessionRepository` qua `spring.session.redis.repository-type: indexed`, namespace `qmh:session:indexed`; repository mặc định trước đó không cung cấp index cần cho service. Khi chạy bản mới, người dùng phải đăng nhập lại; key phiên cũ được để hết TTL. Test Redis thật đã xác nhận service giữ phiên chỉ định, thu hồi các phiên của một principal và không ảnh hưởng principal khác bằng dữ liệu/namespace test riêng. Chưa kiểm tra xuyên suốt thao tác sửa quyền qua HTTP với hai phiên trình duyệt hoặc last-admin/MySQL; xem [bằng chứng kiểm thử](HE_THONG_HIEN_TAI.md).
 
 ## Hiển thị ứng dụng và quyền thao tác
 
@@ -90,7 +92,7 @@ Danh tính, đăng nhập, nhân sự, audit và cổng ứng dụng được d�
 - ADMIN, PLANNER, VIEWER và HR_MANAGER thấy đúng tập ứng dụng từ backend.
 - Login và hoàn tất đổi mật khẩu dẫn về cổng ứng dụng; reload giữ phiên, logout/hết phiên xóa cache riêng tư.
 - Người không có quyền không vào được route trực tiếp và API tương ứng vẫn trả 403.
-- Thay vai trò/khóa tài khoản/ngừng nhân viên không để phiên cũ tiếp tục dùng quyền đã thu hồi. Test servlet/H2 không xác nhận thu hồi session Redis thật.
+- Thay vai trò/khóa tài khoản/ngừng nhân viên không để phiên cũ tiếp tục dùng quyền đã thu hồi. Test servlet/H2 không xác nhận Redis; test Redis repository/service đã qua riêng nhưng kiểm tra HTTP hai phiên cho các thao tác này vẫn còn.
 - Cổng ứng dụng, bảng và dialog đọc được trên desktop/mobile, dùng được bằng bàn phím.
 
-Các kiểm tra trên là tiêu chí; chỉ đánh dấu đã chạy khi có báo cáo hoặc log tương ứng.
+Các kiểm tra trên là tiêu chí. MockMvc đã kiểm tra module/permission, custom role và role ngừng; browser API giả lập đã kiểm tra cổng, quyền route/menu và các màn nhân sự/tài khoản trên desktop/mobile. Test Redis repository/service dùng Redis thật nhưng không thay thế kiểm thử HTTP/MySQL. Phạm vi và log ngày 2026-10-10 ở [hệ thống hiện tại](HE_THONG_HIEN_TAI.md); không tự đánh dấu toàn bộ tiêu chí đã nghiệm thu.

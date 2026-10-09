@@ -2,7 +2,7 @@
 
 Backend là Spring Boot REST API trên Java 21, chia module theo nghiệp vụ theo hướng DDD modular monolith. Cấu trúc hiện còn pha trộn module nghiệp vụ với entity/repository dùng chung; xem [bản đồ hệ thống hiện tại](../docs/HE_THONG_HIEN_TAI.md) để phân biệt thiết kế và code đang chạy.
 
-Frontend React/Vite ở `frontend/` có login, đổi mật khẩu lần đầu, session/CSRF, cổng chọn ứng dụng, dashboard API và UI nhân sự/tài khoản. UI danh mục/giá/PO/import còn chờ triển khai; kiểm thử các thay đổi mới đang tiến hành. Xem [cấu trúc và cách chạy frontend](frontend/README.md). Hướng dẫn cho AI nằm ở [AGENTS.md](../AGENTS.md), kèm [nguyên tắc trung thực](../docs/NGUYEN_TAC_TRUNG_THUC.md) và [skill giao diện KHVT](../skills/khvt-ui/SKILL.md).
+Frontend React/Vite ở `frontend/` có login, đổi mật khẩu lần đầu, session/CSRF, cổng chọn ứng dụng, dashboard API và UI nhân sự/tài khoản. Build mới, 7 unit tests và 42 trường hợp browser desktop/mobile trên API giả lập đã qua sau sửa/chạy lại. UI danh mục/giá/PO/import chờ triển khai. Xem [cấu trúc và cách chạy frontend](frontend/README.md). Hướng dẫn cho AI nằm ở [AGENTS.md](../AGENTS.md), kèm [nguyên tắc trung thực](../docs/NGUYEN_TAC_TRUNG_THUC.md) và [skill giao diện KHVT](../skills/khvt-ui/SKILL.md).
 
 ## Chạy local
 
@@ -34,7 +34,35 @@ API mặc định ở `http://localhost:8080`. MySQL chỉ bind vào `127.0.0.1:
 
 ## Kiểm tra và đăng nhập API
 
-Chạy `mvn test` để chạy test unit và Spring context với H2 trong bộ nhớ; test không kết nối MySQL/Redis thật. Để chạy API local, MySQL và Redis phải healthy trước.
+Chạy `mvn test` để chạy test unit và Spring context với H2 trong bộ nhớ; bộ test thông thường không kết nối MySQL/Redis thật. Test Redis thật được bật riêng như bên dưới. Để chạy API local, MySQL và Redis phải healthy trước.
+
+Kết quả mới: Maven 3.9.11/JDK 21 chạy `mvn package` thành công lúc **2026-10-10 00:29:59 +07:00**, 32 test/0 failure/error/skipped; compile/JAR/repackage đều qua. Log local ở [backend-verified-build.log](target/runtime/backend-verified-build.log). Lần này có 31 unit/mock/H2 tests và một test Redis thật opt-in. Test API kiểm tra modules/permissions/role bằng H2/MockHttpSession; test Redis kiểm tra Boot indexed repository và service thu hồi/giữ phiên với dữ liệu tổng hợp. Chưa xác nhận HTTP hai phiên, last-admin hoặc CRUD MySQL.
+
+Sau build, backend cổng 8080 và Vite cổng 5173 đã khởi động lại; MySQL/Redis Compose healthy tại thời điểm kiểm tra ngày 2026-10-10. Backend `/actuator/health` trả HTTP 200/`UP`, frontend trả 200 và health qua Vite proxy trả `UP`. Smoke login thật thử một lần bằng thông tin bootstrap nạp riêng nhận HTTP 401, đã dừng không retry/đổi mật khẩu. Chưa xác định thông tin đăng nhập hiện hành; không suy ra người dùng đã đổi mật khẩu hoặc báo auth thật mới đã qua. Health không thay thế kiểm thử nghiệp vụ.
+
+Test Redis thật sử dụng namespace UUID `qmh:test:session:<uuid>`, chỉ dọn key do test tạo, không dùng tài khoản thật hoặc `FLUSHDB`. Bật khi Redis của dự án đã chạy và `REDIS_PASSWORD` đã được nạp riêng vào môi trường. Trên Bash:
+
+```bash
+export QMH_RUN_REDIS_TESTS=true
+export QMH_TEST_REDIS_HOST=127.0.0.1
+export QMH_TEST_REDIS_PORT=6380
+export QMH_TEST_REDIS_PASSWORD="$REDIS_PASSWORD"
+mvn -Dtest=RedisSessionRevocationIntegrationTest test
+unset QMH_RUN_REDIS_TESTS QMH_TEST_REDIS_HOST QMH_TEST_REDIS_PORT QMH_TEST_REDIS_PASSWORD
+```
+
+Trên PowerShell, với `REDIS_PASSWORD` đã nạp vào môi trường:
+
+```powershell
+$env:QMH_RUN_REDIS_TESTS = 'true'
+$env:QMH_TEST_REDIS_HOST = '127.0.0.1'
+$env:QMH_TEST_REDIS_PORT = '6380'
+$env:QMH_TEST_REDIS_PASSWORD = $env:REDIS_PASSWORD
+mvn.cmd '-Dtest=RedisSessionRevocationIntegrationTest' test
+Remove-Item Env:QMH_RUN_REDIS_TESTS, Env:QMH_TEST_REDIS_HOST, Env:QMH_TEST_REDIS_PORT, Env:QMH_TEST_REDIS_PASSWORD
+```
+
+Để chạy cả bộ test và đóng gói có Redis thật, thay lệnh test trong khối trên bằng `mvn package` (PowerShell: `mvn.cmd package`). Không bật biến `QMH_RUN_REDIS_TESTS` thì test Redis được bỏ qua. Profile H2 loại `SessionAutoConfiguration`; test opt-in nạp cấu hình chính để kiểm tra đúng repository được cấu hình cho runtime.
 
 Đăng nhập dùng session cookie `QMHSESSION` và CSRF, không dùng JWT:
 
@@ -44,6 +72,8 @@ Chạy `mvn test` để chạy test unit và Spring context với H2 trong bộ 
 4. `GET /api/auth/me`, `POST /api/auth/change-password`, `POST /api/auth/logout`.
 
 Frontend và API khác origin phải dùng credentials; cấu hình `APP_FRONTEND_URL` đúng origin. Profile `prod` bật cờ Secure cho session cookie, nên chỉ dùng khi request đi qua HTTPS.
+
+Redis session hiện cấu hình `repository-type: indexed` và namespace `qmh:session:indexed` để tìm/thu hồi các phiên theo principal. Cấu hình trước dùng repository không có index nên service thu hồi không tìm được repository cần dùng. Namespace mới tách key indexed khỏi phiên cũ: sau khi chạy bản mới, người dùng phải đăng nhập lại; key cũ để hết TTL, không xóa Redis/database để chuyển cấu hình.
 
 ## API đã có
 

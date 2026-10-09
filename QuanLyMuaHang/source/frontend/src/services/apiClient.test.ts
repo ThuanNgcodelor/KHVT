@@ -67,4 +67,10 @@ describe('cookie and CSRF requests', () => {
     fetchMock.mockResolvedValueOnce(new Response('<html>internal details</html>', { status: 502 }))
     await expect(apiClient.get('/dashboard')).rejects.toThrow('Không thể xử lý yêu cầu. Hãy thử lại.')
   })
+
+  it('accepts Spring password-reset responses with an empty 200 body', async () => {
+    fetchMock.mockResolvedValueOnce(json({ headerName: 'X-XSRF-TOKEN', token: 'fixture' }))
+      .mockResolvedValueOnce(new Response('', { status: 200 }))
+    await expect(apiClient.post<void>('/admin/users/20/reset-password', { temporaryPassword: 'synthetic-new-password' })).resolves.toBeUndefined()
+  })
 })

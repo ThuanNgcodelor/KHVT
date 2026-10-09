@@ -37,7 +37,7 @@ If there is no `.codegraph/` directory, skip CodeGraph entirely — indexing is 
 - Sửa theo luồng thực tế. Nếu thay đổi cấu trúc, thực hiện từng module, cập nhật imports và test; không di chuyển toàn bộ code cùng lúc khi chỉ sửa một tính năng.
 - DTO trả ra API không chứa mật khẩu/hash. Quyền phải được kiểm tra ở backend.
 - Flyway quản lý schema. Không sửa migration đã áp dụng thành công trên database đang dùng; bổ sung migration mới. Khi migration thất bại, kiểm tra trạng thái và dữ liệu trước khi sửa hoặc phục hồi.
-- Chạy `mvn test` hoặc `mvn package` trong `source/` bằng JDK 21 và Maven 3.9+. POM có cấu hình Mockito agent cho test. Test context dùng H2; không coi đó là kiểm chứng MySQL/Redis thật.
+- Chạy `mvn test` hoặc `mvn package` trong `source/` bằng JDK 21 và Maven 3.9+. POM có cấu hình Mockito agent cho test. Test context thường dùng H2/servlet session, không coi đó là kiểm chứng MySQL/Redis thật. `RedisSessionRevocationIntegrationTest` chỉ chạy khi `QMH_RUN_REDIS_TESTS=true`, dùng biến `QMH_TEST_REDIS_*` và namespace UUID riêng; không flush Redis.
 
 ## Cách sửa frontend
 
@@ -55,6 +55,7 @@ If there is no `.codegraph/` directory, skip CodeGraph entirely — indexing is 
 
 - Không hiển thị, commit hay đưa nội dung `.env`, mật khẩu, hash, session cookie hoặc CSRF token vào chat, tài liệu, log/audit. Chỉ đọc bí mật khi tác vụ cần.
 - MySQL/Redis local dùng Compose project `qmh-local`, cổng loopback 3307/6380. Compose hiện chỉ chứa hai dịch vụ này.
+- Session dùng Redis indexed repository với namespace `qmh:session:indexed` để thu hồi theo tài khoản. Cấu hình namespace cũ đã đổi; cookie cũ cần đăng nhập lại, keys cũ để hết TTL. Không chuyển về repository mặc định khi service cần `FindByIndexNameSessionRepository`.
 - Không xóa volume hoặc reset database có dữ liệu để giải quyết lỗi khởi động. Thao tác phá hủy cần phạm vi rõ ràng, kiểm tra dữ liệu và bản sao lưu.
 - Không truy cập database hoặc secrets của dự án demo để chạy ứng dụng chính.
 - Legacy workbook: preview -> kiểm tra số dòng/cảnh báo -> commit khi đã có quyền và điều kiện dữ liệu phù hợp. Không tự commit workbook thật chỉ để chứng minh API hoạt động.
