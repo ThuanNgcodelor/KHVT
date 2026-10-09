@@ -6,6 +6,7 @@ import jakarta.persistence.GeneratedValue;
 import jakarta.persistence.GenerationType;
 import jakarta.persistence.Id;
 import jakarta.persistence.Table;
+import jakarta.persistence.PreUpdate;
 
 import java.time.Instant;
 
@@ -29,6 +30,15 @@ public class Supplier {
     @Column(length = 1000)
     private String address;
 
+    @Column(name = "tax_code", length = 50)
+    private String taxCode;
+
+    @Column(length = 50)
+    private String phone;
+
+    @Column(length = 320)
+    private String email;
+
     @Column(nullable = false)
     private boolean active = true;
 
@@ -48,6 +58,14 @@ public class Supplier {
         this.updatedAt = this.createdAt;
     }
 
+    @PreUpdate
+    void onUpdate() { this.updatedAt = Instant.now(); }
+
+    public void update(String code, String name, String normalizedName, String address, String taxCode, String phone, String email, boolean active) {
+        this.code = code; this.name = name; this.normalizedName = normalizedName; this.address = address;
+        this.taxCode = taxCode; this.phone = phone; this.email = email; this.active = active;
+    }
+
     public Long getId() { return id; }
     public String getCode() { return code; }
     public void setCode(String code) { this.code = code; }
@@ -57,6 +75,9 @@ public class Supplier {
     public void setNormalizedName(String normalizedName) { this.normalizedName = normalizedName; }
     public String getAddress() { return address; }
     public void setAddress(String address) { this.address = address; }
+    public String getTaxCode() { return taxCode; }
+    public String getPhone() { return phone; }
+    public String getEmail() { return email; }
     public boolean isActive() { return active; }
     public void setActive(boolean active) { this.active = active; }
     public Instant getCreatedAt() { return createdAt; }

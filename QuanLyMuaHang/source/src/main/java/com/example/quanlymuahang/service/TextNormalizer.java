@@ -1,6 +1,7 @@
 package com.example.quanlymuahang.service;
 
 import java.text.Normalizer;
+import java.util.Locale;
 
 public final class TextNormalizer {
 
@@ -16,7 +17,7 @@ public final class TextNormalizer {
                 .replaceAll("\\p{M}", "")
                 .replace('đ', 'd')
                 .replace('Đ', 'D')
-                .toLowerCase()
+                .toLowerCase(Locale.ROOT)
                 .replaceAll("\\s+", " ")
                 .trim();
     }

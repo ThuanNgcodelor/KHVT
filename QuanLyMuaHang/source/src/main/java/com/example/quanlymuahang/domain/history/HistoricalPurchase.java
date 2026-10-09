@@ -27,7 +27,7 @@ public class HistoricalPurchase {
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
 
-    @Column(name = "purchase_date", nullable = false)
+    @Column(name = "purchase_date")
     private LocalDate purchaseDate;
 
     @ManyToOne(fetch = FetchType.LAZY)
@@ -36,6 +36,9 @@ public class HistoricalPurchase {
 
     @Column(name = "supplier_snapshot", length = 500)
     private String supplierSnapshot;
+
+    @Column(name = "supplier_code_snapshot", length = 50)
+    private String supplierCodeSnapshot;
 
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "material_id")
@@ -46,6 +49,9 @@ public class HistoricalPurchase {
 
     @Column(name = "material_name_snapshot", nullable = false, length = 500)
     private String materialNameSnapshot;
+
+    @Column(name = "material_name_normalized_snapshot", length = 500)
+    private String materialNameNormalizedSnapshot;
 
     @Column(length = 100)
     private String unit;
@@ -66,6 +72,9 @@ public class HistoricalPurchase {
     @Column(nullable = false, length = 30)
     private String source;
 
+    @Column(name = "currency_basis", nullable = false, length = 30)
+    private String currencyBasis = "SOURCE";
+
     @Column(name = "source_row_number")
     private Integer sourceRowNumber;
 
@@ -80,12 +89,16 @@ public class HistoricalPurchase {
     public void setSupplier(Supplier supplier) { this.supplier = supplier; }
     public String getSupplierSnapshot() { return supplierSnapshot; }
     public void setSupplierSnapshot(String supplierSnapshot) { this.supplierSnapshot = supplierSnapshot; }
+    public String getSupplierCodeSnapshot() { return supplierCodeSnapshot; }
+    public void setSupplierCodeSnapshot(String value) { this.supplierCodeSnapshot = value; }
     public Material getMaterial() { return material; }
     public void setMaterial(Material material) { this.material = material; }
     public String getMaterialCodeSnapshot() { return materialCodeSnapshot; }
     public void setMaterialCodeSnapshot(String value) { this.materialCodeSnapshot = value; }
     public String getMaterialNameSnapshot() { return materialNameSnapshot; }
     public void setMaterialNameSnapshot(String value) { this.materialNameSnapshot = value; }
+    public String getMaterialNameNormalizedSnapshot() { return materialNameNormalizedSnapshot; }
+    public void setMaterialNameNormalizedSnapshot(String value) { this.materialNameNormalizedSnapshot = value; }
     public String getUnit() { return unit; }
     public void setUnit(String unit) { this.unit = unit; }
     public BigDecimal getQuantity() { return quantity; }
@@ -98,6 +111,8 @@ public class HistoricalPurchase {
     public void setCurrency(CurrencyCode currency) { this.currency = currency; }
     public String getSource() { return source; }
     public void setSource(String source) { this.source = source; }
+    public String getCurrencyBasis() { return currencyBasis; }
+    public void setCurrencyBasis(String currencyBasis) { this.currencyBasis = currencyBasis; }
     public Integer getSourceRowNumber() { return sourceRowNumber; }
     public void setSourceRowNumber(Integer value) { this.sourceRowNumber = value; }
     public MaterialCategory getCategory() { return category; }

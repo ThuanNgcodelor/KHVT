@@ -51,7 +51,7 @@ public class PurchaseOrder {
     @Column(nullable = false, length = 3)
     private CurrencyCode currency = CurrencyCode.VND;
 
-    @Column(name = "vat_percent", nullable = false, precision = 5, scale = 2)
+    @Column(name = "vat_percent", precision = 5, scale = 2)
     private BigDecimal vatPercent = BigDecimal.ZERO;
 
     @Column(length = 1000)

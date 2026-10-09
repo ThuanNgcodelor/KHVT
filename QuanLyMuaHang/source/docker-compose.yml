@@ -1,3 +1,5 @@
+name: qmh-local
+
 services:
   mysql:
     image: mysql:8.4
@@ -5,10 +7,10 @@ services:
     environment:
       MYSQL_DATABASE: quanlymuahang
       MYSQL_USER: app
-      MYSQL_PASSWORD: ${DB_PASSWORD:-change_me_app}
-      MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD:-change_me_root}
+      MYSQL_PASSWORD: ${DB_PASSWORD:?Set DB_PASSWORD in source/.env}
+      MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD:?Set MYSQL_ROOT_PASSWORD in source/.env}
     ports:
-      - "3306:3306"
+      - "127.0.0.1:3307:3306"
     volumes:
       - mysql_data:/var/lib/mysql
     healthcheck:
@@ -16,36 +18,22 @@ services:
       interval: 5s
       timeout: 5s
       retries: 20
-
-  app:
-    build: .
+  redis:
+    image: redis:7.4-alpine
     restart: unless-stopped
-    depends_on:
-      mysql:
-        condition: service_healthy
+    command: ["sh", "-c", "exec redis-server --appendonly yes --requirepass \"$${REDIS_PASSWORD}\""]
     environment:
-      SPRING_PROFILES_ACTIVE: ${SPRING_PROFILES_ACTIVE:-prod}
-      SPRING_DATASOURCE_URL: jdbc:mysql://mysql:3306/quanlymuahang
-      SPRING_DATASOURCE_USERNAME: app
-      SPRING_DATASOURCE_PASSWORD: ${DB_PASSWORD:-change_me_app}
-      APP_TIMEZONE: ${APP_TIMEZONE:-Asia/Ho_Chi_Minh}
-      APP_FRONTEND_URL: ${APP_FRONTEND_URL:-http://localhost:5173}
+      REDIS_PASSWORD: ${REDIS_PASSWORD:?Set REDIS_PASSWORD in source/.env}
     ports:
-      - "8080:8080"
+      - "127.0.0.1:6380:6379"
     volumes:
-      - app_files:/data/files
-
-  frontend:
-    build:
-      context: ./frontend
-      args:
-        VITE_API_BASE_URL: ${VITE_API_BASE_URL:-/api}
-    restart: unless-stopped
-    depends_on:
-      - app
-    ports:
-      - "3000:80"
+      - redis_data:/data
+    healthcheck:
+      test: ["CMD-SHELL", "redis-cli -a \"$${REDIS_PASSWORD}\" ping | grep -q PONG"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
 
 volumes:
   mysql_data:
-  app_files:
+  redis_data:

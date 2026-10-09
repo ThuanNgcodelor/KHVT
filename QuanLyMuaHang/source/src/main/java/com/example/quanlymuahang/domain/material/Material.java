@@ -8,6 +8,7 @@ import jakarta.persistence.GeneratedValue;
 import jakarta.persistence.GenerationType;
 import jakarta.persistence.Id;
 import jakarta.persistence.Table;
+import jakarta.persistence.PreUpdate;
 
 import java.time.Instant;
 
@@ -52,6 +53,14 @@ public class Material {
         this.normalizedName = normalizedName;
         this.createdAt = Instant.now();
         this.updatedAt = this.createdAt;
+    }
+
+    @PreUpdate
+    void onUpdate() { this.updatedAt = Instant.now(); }
+
+    public void update(String code, String name, String normalizedName, MaterialCategory category, String defaultUnit, boolean active) {
+        this.code = code; this.name = name; this.normalizedName = normalizedName; this.category = category;
+        this.defaultUnit = defaultUnit; this.active = active;
     }
 
     public Long getId() { return id; }
