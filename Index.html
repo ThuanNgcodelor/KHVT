@@ -1,0 +1,769 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+<meta charset="UTF-8">
+<base target="_top">
+<style>
+:root{--navy:#1F3864;--blue:#2E74B5;--orange:#E36C0A;--grey:#f4f6f9;--border:#dde3ec;--green:#1e7e34;--red:#c0392b}
+*{box-sizing:border-box;margin:0;padding:0}
+body{font-family:'Segoe UI',Arial,sans-serif;background:var(--grey);color:#222;font-size:14px}
+header{background:var(--navy);color:#fff;padding:12px 20px;display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:8px}
+header h1{font-size:16px}
+header .sub{font-size:11px;opacity:.8}
+nav{background:#fff;border-bottom:2px solid var(--border);display:flex;padding:0 20px}
+nav button{border:none;background:none;padding:12px 18px;font-size:14px;font-weight:600;color:#555;cursor:pointer;border-bottom:3px solid transparent}
+nav button.active{color:var(--navy);border-bottom-color:var(--orange)}
+main{padding:16px 20px;max-width:1400px;margin:0 auto}
+.tab{display:none}.tab.active{display:block}
+.card{background:#fff;border:1px solid var(--border);border-radius:8px;padding:14px;margin-bottom:14px}
+input,textarea{padding:8px 10px;border:1px solid var(--border);border-radius:6px;font-size:14px;font-family:inherit}
+input:focus,textarea:focus{outline:2px solid var(--blue)}
+.btn{background:var(--navy);color:#fff;border:none;padding:9px 16px;border-radius:6px;font-weight:600;cursor:pointer;font-size:13px}
+.btn.orange{background:var(--orange)}.btn.light{background:#e8edf5;color:var(--navy)}
+.btn.danger{background:#fff;color:var(--red);border:1px solid var(--red);padding:3px 9px}
+.btn:disabled{opacity:.45;cursor:not-allowed}
+table{width:100%;border-collapse:collapse;font-size:13px}
+th{background:var(--navy);color:#fff;padding:8px 6px;text-align:left;font-size:11.5px;white-space:nowrap}
+td{padding:6px;border-bottom:1px solid var(--border);vertical-align:middle}
+tr:nth-child(even) td{background:#fafbfd}
+.num{text-align:right;white-space:nowrap}
+.item-row{background:#fff;border:1px solid var(--border);border-radius:8px;margin-bottom:10px;overflow:hidden}
+.item-head{padding:12px 14px;cursor:pointer;display:flex;justify-content:space-between;align-items:center;gap:10px;flex-wrap:wrap}
+.item-head:hover{background:#f6f9fd}
+.item-title{font-weight:700;color:var(--navy)}
+.item-meta{font-size:12px;color:#666;margin-top:3px}
+.price{font-weight:700;color:var(--orange);white-space:nowrap;font-size:15px}
+.badge{display:inline-block;padding:2px 8px;border-radius:10px;font-size:11px;font-weight:600}
+.up{background:#e8f5e9;color:var(--green)}.down{background:#fdecea;color:var(--red)}.flat{background:#eef1f5;color:#555}
+.new{background:#fff3e0;color:#b26a00}
+.hist{display:none;border-top:1px solid var(--border);padding:10px 14px;background:#fbfcfe}
+.hint{font-size:12px;color:#888;margin-top:6px}
+h2{color:var(--navy);font-size:15px;margin-bottom:10px}
+.import-grid{display:grid;grid-template-columns:1fr 1fr;gap:14px}
+@media(max-width:900px){.import-grid{grid-template-columns:1fr}}
+.dropzone{border:2px dashed var(--blue);border-radius:8px;padding:16px;text-align:center;background:#f6f9fd;cursor:pointer}
+.ac-wrap{position:relative}
+.ac-list{position:absolute;top:100%;left:0;right:0;background:#fff;border:1px solid var(--border);border-radius:0 0 8px 8px;box-shadow:0 6px 16px rgba(0,0,0,.12);max-height:340px;overflow-y:auto;z-index:50;display:none}
+.ac-item{padding:9px 12px;cursor:pointer;border-bottom:1px solid #f0f3f8}
+.ac-item:hover{background:#eef4fb}
+.ac-item .n{font-weight:600;color:var(--navy)}
+.ac-item .m{font-size:11.5px;color:#777}
+.cart-input{width:100%;min-width:80px;padding:6px 8px}
+.cur{background:#fffbe6;border-color:#e6c200}
+.match-weak{color:#b26a00;font-size:11px}
+.toolbar{display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin:10px 0}
+.export-bar{background:#f0f5ec;border:1px solid #cfe3c8;border-radius:8px;padding:12px;display:flex;gap:10px;flex-wrap:wrap;align-items:end;margin-top:12px}
+.export-bar label{font-size:11px;font-weight:700;color:#555;display:block;margin-bottom:3px;text-transform:uppercase}
+.toast{position:fixed;bottom:20px;right:20px;background:var(--navy);color:#fff;padding:12px 18px;border-radius:8px;box-shadow:0 4px 14px rgba(0,0,0,.3);display:none;z-index:99;max-width:440px}
+.toast a{color:#ffd28a}
+.small{font-size:11.5px;color:#777}
+.modal-bg{position:fixed;inset:0;background:rgba(0,0,0,.45);z-index:150;display:flex;align-items:center;justify-content:center}
+.modal{background:#fff;border-radius:10px;padding:18px;max-width:760px;width:94%;max-height:82vh;overflow-y:auto}
+#loading{position:fixed;inset:0;background:rgba(244,246,249,.95);display:flex;align-items:center;justify-content:center;flex-direction:column;gap:12px;z-index:200;font-weight:600;color:var(--navy)}
+.spin{width:36px;height:36px;border:4px solid var(--border);border-top-color:var(--orange);border-radius:50%;animation:sp 1s linear infinite}
+@keyframes sp{to{transform:rotate(360deg)}}
+</style>
+</head>
+<body>
+<div id="loading"><div class="spin"></div>Đang tải dữ liệu mua hàng từ Google Sheet...</div>
+<header>
+  <div>
+    <h1>MUA HÀNG — PHÒNG KẾ HOẠCH VẬT TƯ</h1>
+    <div class="sub">Công ty CP Phân bón &amp; Hóa chất Cần Thơ · bản dùng chung cả phòng</div>
+  </div>
+  <div class="sub" id="dataInfo"></div>
+</header>
+<nav>
+  <button class="active" data-tab="mua">🛒 Mua hàng</button>
+  <button data-tab="tra">🔎 Tra cứu giá</button>
+</nav>
+<main>
+
+<div class="tab active" id="tab-mua">
+  <div class="card">
+    <div class="import-grid">
+      <div>
+        <h2>1️⃣ Import phiếu yêu cầu vật tư / báo giá NCC</h2>
+        <div class="dropzone" onclick="document.getElementById('fileInp').click()">
+          📂 Bấm chọn file .xls / .xlsx / .csv / <b>.pdf</b><br><span class="small">Phiếu CVT (Excel) hoặc <b>file báo giá NCC (PDF)</b> — tự bóc Tên hàng, Quy cách, ĐVT, Số lượng, Đơn giá</span>
+        </div>
+        <input type="file" id="fileInp" accept=".xls,.xlsx,.csv,.pdf" style="display:none" onchange="handleFile(this.files[0]);this.value=''">
+      </div>
+      <div>
+        <h2>📋 Hoặc dán từ Excel</h2>
+        <textarea id="pasteBox" rows="3" style="width:100%" placeholder="Copy các dòng (Tên vật tư – ĐVT – Số lượng) rồi dán vào đây..."></textarea>
+        <div class="toolbar"><button class="btn light" onclick="handlePaste()">↩ Nhận dữ liệu dán</button></div>
+      </div>
+    </div>
+    <hr style="border:none;border-top:1px solid var(--border);margin:12px 0">
+    <h2>2️⃣ Hoặc gõ tên nguyên liệu — tự gợi ý</h2>
+    <div class="ac-wrap">
+      <input id="acInp" style="width:100%;font-size:15px;padding:11px" placeholder="Gõ tên nguyên liệu (không cần dấu)..." autocomplete="off">
+      <div class="ac-list" id="acList"></div>
+    </div>
+  </div>
+
+  <div class="card">
+    <h2>3️⃣ Danh sách chuẩn bị mua — điền <span style="background:#fffbe6;padding:0 6px;border-radius:4px">Giá hiện tại + NCC hiện tại</span> rồi xuất đơn</h2>
+    <div class="toolbar" style="background:#fff7ec;border:1px solid #f0d9b8;border-radius:8px;padding:10px 12px;margin:0 0 10px">
+      <label style="font-weight:700;color:#555;text-transform:uppercase;font-size:11px">💱 Loại tiền</label>
+      <select id="e-cur" onchange="onCurChange()" style="padding:8px 10px;border:1px solid var(--border);border-radius:6px;font-size:14px;font-weight:700;color:var(--navy)">
+        <option value="VND" selected>VND — Việt Nam Đồng</option>
+        <option value="USD">USD — Đô la Mỹ</option>
+      </select>
+      <span class="small">Áp dụng cho <b>Giá hiện tại</b> &amp; đơn hàng xuất ra (đơn giá, thành tiền, VAT theo loại tiền này)</span>
+    </div>
+    <div style="overflow-x:auto"><table>
+      <thead><tr>
+        <th><input type="checkbox" id="chkAll" checked onchange="toggleAll(this.checked)"></th>
+        <th>#</th><th style="min-width:220px">TÊN HÀNG / VẬT TƯ</th><th>QUY CÁCH</th><th>ĐVT</th><th style="width:110px">SL MUA<div class="small" style="font-weight:400;text-transform:none">số hoặc chữ</div></th>
+        <th class="num">GIÁ GẦN NHẤT</th><th style="min-width:150px">NCC GẦN NHẤT</th>
+        <th style="width:110px">GIÁ HIỆN TẠI</th><th style="min-width:170px">NCC HIỆN TẠI</th><th></th>
+      </tr></thead>
+      <tbody id="cartBody"></tbody>
+    </table></div>
+    <div class="hint">💡 Cột <b>SL MUA</b> nhận cả chữ — VD sắt thép báo giá theo kg nhưng mua theo mét thì ghi <b>"Qua cân thực tế"</b>. Dòng ghi chữ vẫn lên đơn hàng bình thường, chỉ không cộng vào tổng tiền tạm tính.</div>
+    <div class="toolbar">
+      <button class="btn light" onclick="copyLastAll()">⤵ Lấy giá & NCC gần nhất điền vào cột hiện tại (dòng đã chọn)</button>
+      <button class="btn danger" onclick="clearCart()">Xóa toàn bộ danh sách</button>
+    </div>
+    <div class="export-bar" style="background:#eef3fb;border-color:#cdd9ec">
+      <div style="min-width:230px"><label>✏️ Sửa đơn đã in — nhập số PO rồi gọi lại</label>
+        <input id="editPoInp" style="width:170px" placeholder="VD: PO-260709-01" onkeypress="if(event.key==='Enter')recallPO()"></div>
+      <div><button class="btn light" onclick="recallPO()" style="padding:9px 14px">↺ Gọi lại PO để sửa</button></div>
+      <div id="editBanner" style="display:none;flex:1;min-width:200px;color:#b26a00;font-weight:700"></div>
+    </div>
+    <div class="export-bar">
+      <div><label>Số PO (tự cấp theo ngày)</label><input id="e-po" style="width:130px;background:#f0f0f0" readonly></div>
+      <div><label>Ghi chú</label><input id="e-ghichu" style="width:170px" placeholder="Ghi chú (nếu có)..."></div>
+      <div style="flex:1;min-width:180px"><label>Địa chỉ NCC (tự nhớ)</label><input id="e-addr" style="width:100%"></div>
+      <div><label>VAT</label>
+        <select id="e-vat" style="width:210px;padding:8px 10px;border:1px solid var(--border);border-radius:6px;font-size:14px">
+          <option value="5">5% (VAT)</option>
+          <option value="8">8% (VAT)</option>
+          <option value="10">10% (VAT)</option>
+          <option value="0">Hóa đơn trực tiếp (không VAT)</option>
+        </select></div>
+      <div><label>Người lập</label><input id="e-nguoilap" style="width:120px" placeholder="Tên bạn"></div>
+      <div><button class="btn orange" id="btnExport" onclick="exportPO()" style="padding:11px 20px">🖨 XUẤT ĐƠN HÀNG (PDF)</button></div>
+    </div>
+    <div class="hint">Chọn ✓ các dòng cần mua (<b>nhiều NCC khác nhau cũng được</b>) → bấm xuất — app <b>tự tách mỗi NCC 1 đơn hàng</b>, số PO tăng dần. PDF tự tải về và lưu Drive "Don hang KHVT". Giao dịch ghi thẳng vào Sheet — <b>cả phòng thấy ngay</b>.</div>
+  </div>
+</div>
+
+<div class="tab" id="tab-tra">
+  <div class="card">
+    <input id="q" type="search" placeholder="Gõ tên vật tư cần tra giá..." style="width:100%;font-size:16px;padding:12px">
+    <div class="hint">Tìm không phân biệt dấu. Gồm cả đơn mọi người trong phòng vừa xuất (★). Bấm nút ⟳ trên góc phải để tải dữ liệu mới nhất.</div>
+  </div>
+  <div id="results"></div>
+</div>
+
+</main>
+<div class="toast" id="toast"></div>
+<datalist id="nccList"></datalist>
+<div id="lock" class="modal-bg" style="display:none">
+  <div class="modal" style="max-width:380px;text-align:center">
+    <h2 style="margin-bottom:6px">🔒 Nhập mã truy cập</h2>
+    <div class="hint" style="margin-bottom:10px">Mã do Trưởng phòng KHVT cung cấp</div>
+    <input id="lockCode" type="password" style="width:100%;text-align:center;font-size:16px" onkeypress="if(event.key==='Enter')submitCode()">
+    <div id="lockErr" class="hint" style="color:var(--red);min-height:18px"></div>
+    <button class="btn orange" onclick="submitCode()" style="width:100%;padding:11px">Vào app</button>
+  </div>
+</div>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
+<script>if(window.pdfjsLib){pdfjsLib.GlobalWorkerOptions.workerSrc='https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';}</script>
+<script>
+let DATA = [], NCC_ADDR = {}, NCC_CODE = {}, INDEX = {}, ITEMS = [];
+const fmt = n => Math.round(n).toLocaleString('vi-VN');
+/* ===== SL MUA: cho phép ghi CHỮ (VD "Qua cân thực tế", "Theo thực tế giao") ===== */
+/* qty có thể là số HOẶC chuỗi chữ. qtyIsText: có ký tự không phải số/dấu phân cách */
+const qtyIsText = v => typeof v !== 'number' && /[^\d.,\s]/.test(String(v == null ? '' : v));
+const qtyNum = v => (typeof v === 'number' ? (v || 0) : (qtyIsText(v) ? 0 : parseNum(v)));
+/* hiển thị: chữ giữ nguyên, số format kiểu VN */
+const fmtQ = v => qtyIsText(v) ? String(v) : (String(v == null ? '' : v).trim() === '' ? '' : Number(qtyNum(v)).toLocaleString('vi-VN', { maximumFractionDigits: 2 }));
+/* ===== Loại tiền (USD/VND) — mặc định VND ===== */
+let CUR = 'VND';
+try { CUR = localStorage.getItem('khvt_cur') || 'VND'; } catch (e) {}
+const symOf = c => (c === 'USD' ? '$' : 'đ');
+/* Định dạng theo loại tiền: VND làm tròn, USD giữ tối đa 2 số lẻ */
+const fmtC = (n, c) => (c === 'USD'
+  ? Number(n || 0).toLocaleString('en-US', { minimumFractionDigits: 0, maximumFractionDigits: 2 })
+  : Math.round(n || 0).toLocaleString('vi-VN'));
+function onCurChange() {
+  CUR = document.getElementById('e-cur').value === 'USD' ? 'USD' : 'VND';
+  try { localStorage.setItem('khvt_cur', CUR); } catch (e) {}
+  renderCart();
+}
+try { document.getElementById('e-cur').value = CUR; } catch (e) {}
+const norm = s => (s||'').toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g,'').replace(/đ/g,'d').replace(/\s+/g,' ').trim();
+const esc = s => String(s??'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+const vnDate = d => d ? d.split('-').reverse().join('/') : '';
+function toast(msg, ms=4000) { const t = document.getElementById('toast'); t.innerHTML = msg; t.style.display = 'block'; clearTimeout(t._tm); t._tm = setTimeout(() => t.style.display = 'none', ms); }
+
+/* ===== Ma truy cap ===== */
+function getStoredCode() { try { return localStorage.getItem('khvt_code') || ''; } catch(e) { return ''; } }
+function showLock(msg) {
+  document.getElementById('loading').style.display = 'none';
+  document.getElementById('lock').style.display = 'flex';
+  document.getElementById('lockErr').textContent = msg || '';
+  document.getElementById('lockCode').focus();
+}
+function submitCode() {
+  const c = document.getElementById('lockCode').value.trim();
+  if (!c) return;
+  try { localStorage.setItem('khvt_code', c); } catch(e) {}
+  document.getElementById('lock').style.display = 'none';
+  loadData();
+}
+
+/* ===== Tai du lieu tu server ===== */
+function loadData() {
+  if (!getStoredCode()) { showLock(); return; }
+  document.getElementById('loading').style.display = 'flex';
+  google.script.run.withSuccessHandler(res => {
+    DATA = res.hist; NCC_ADDR = res.ncc; NCC_CODE = res.nccCode || {};
+    window._poNext = res.poNext;
+    if (!window._editPO) document.getElementById('e-po').value = res.poNext;
+    rebuildAll();
+    document.getElementById('loading').style.display = 'none';
+  }).withFailureHandler(err => {
+    if ((err.message || '').indexOf('Sai mã truy cập') >= 0) {
+      try { localStorage.removeItem('khvt_code'); } catch(e) {}
+      showLock('Mã không đúng — nhập lại');
+    } else {
+      document.getElementById('loading').innerHTML = '⚠ Lỗi tải dữ liệu: ' + esc(err.message);
+    }
+  }).getAllData(getStoredCode());
+}
+function rebuildAll() {
+  DATA.sort((a,b) => (a.d||'').localeCompare(b.d||''));
+  INDEX = {};
+  for (const r of DATA) { r._n = norm(r.i); (INDEX[r.i] = INDEX[r.i] || []).push(r); }
+  ITEMS = Object.keys(INDEX).map(n => ({ name: n, _n: norm(n), last: INDEX[n][INDEX[n].length-1] }));
+  document.getElementById('dataInfo').innerHTML = DATA.length.toLocaleString('vi-VN') + ' giao dịch &nbsp; <button class="btn light" onclick="loadData()" style="padding:4px 10px">⟳ Tải lại</button>';
+  document.getElementById('nccList').innerHTML = [...new Set(DATA.map(r => r.n))].sort().map(n => `<option value="${esc(n)}">`).join('');
+}
+loadData();
+
+/* ===== Fuzzy match ===== */
+function fuzzyFind(name) {
+  const qn = norm(name);
+  if (!qn) return null;
+  let c = ITEMS.filter(it => it._n === qn);
+  if (!c.length) c = ITEMS.filter(it => it._n.includes(qn) || qn.includes(it._n));
+  let quality = 'good';
+  if (!c.length) {
+    const toks = qn.split(' ').filter(t => t.length > 1);
+    c = ITEMS.filter(it => toks.every(t => it._n.includes(t)));
+    if (!c.length && toks.length > 2) {
+      let best = null, bs = 0;
+      for (const it of ITEMS) {
+        const s = toks.filter(t => it._n.includes(t)).length / toks.length;
+        if (s > bs || (s === bs && best && it.last.d > best.last.d)) { bs = s; best = it; }
+      }
+      if (bs >= 0.75) { c = [best]; quality = 'weak'; }
+    }
+  }
+  if (!c.length) return null;
+  c.sort((a,b) => b.last.d.localeCompare(a.last.d));
+  return { item: c[0], quality };
+}
+
+/* ===== Tabs ===== */
+document.querySelectorAll('nav button').forEach(b => b.onclick = () => {
+  document.querySelectorAll('nav button').forEach(x => x.classList.remove('active'));
+  document.querySelectorAll('.tab').forEach(x => x.classList.remove('active'));
+  b.classList.add('active');
+  document.getElementById('tab-' + b.dataset.tab).classList.add('active');
+});
+
+/* ===== CART (rieng tung nguoi, luu tren may) ===== */
+let cart = [];
+try { cart = JSON.parse(localStorage.getItem('khvt_cart_gs') || '[]'); } catch(e) {}
+function saveCart() { try { localStorage.setItem('khvt_cart_gs', JSON.stringify(cart)); } catch(e) {} }
+
+function addCartRow(name, unit, qty, spec, price) {
+  const f = fuzzyFind(name);
+  const row = { id: Date.now() + Math.random(), name: name.trim(), spec: (spec||'').trim(), unit: (unit||'').trim(), qty: qty || 1, checked: true, curP: (price != null && +price > 0) ? String(Math.round(+price)) : '', curN: '', match: null };
+  if (f) {
+    const l = f.item.last;
+    row.match = { name: f.item.name, d: l.d, p: l.p, n: l.n, u: l.u, mh: l.mh || '', quality: f.quality, cur: l.cur || 'VND' };
+    if (!row.unit) row.unit = l.u;
+  }
+  cart.push(row);
+}
+
+function renderCart() {
+  const b = document.getElementById('cartBody');
+  b.innerHTML = cart.length ? cart.map((r, i) => {
+    const m = r.match;
+    let lastCol = '<span class="badge new">Chưa mua lần nào</span>', nccCol = '—';
+    if (m) {
+      const diff = m.name !== r.name ? `<div class="match-weak" title="${esc(m.name)}">≈ ${esc(m.name.length > 40 ? m.name.slice(0,40)+'…' : m.name)}${m.quality==='weak' ? ' (gần đúng)' : ''}</div>` : '';
+      lastCol = `<b>${fmtC(m.p, m.cur)}</b> ${symOf(m.cur)}/${esc(m.u)}<div class="small">${vnDate(m.d)}</div>${diff}`;
+      nccCol = `<span title="${esc(m.n)}">${esc(m.n.length > 34 ? m.n.slice(0,34)+'…' : m.n)}</span>`;
+    }
+    return `<tr>
+      <td><input type="checkbox" ${r.checked?'checked':''} onchange="cart[${i}].checked=this.checked;saveCart()"></td>
+      <td>${i+1}</td>
+      <td><input class="cart-input" value="${esc(r.name)}" onchange="editName(${i},this.value)"></td>
+      <td><input class="cart-input" style="min-width:70px" value="${esc(r.spec)}" onchange="cart[${i}].spec=this.value;saveCart()"></td>
+      <td><input class="cart-input" style="min-width:50px;width:60px" value="${esc(r.unit)}" onchange="cart[${i}].unit=this.value;saveCart()"></td>
+      <td><input class="cart-input" style="min-width:90px;width:110px" value="${esc(r.qty)}" title="Nhập số hoặc chữ, VD: Qua cân thực tế" placeholder="số hoặc chữ" onchange="setQty(${i},this.value)"></td>
+      <td class="num">${lastCol}</td>
+      <td>${nccCol}</td>
+      <td><input class="cart-input cur" type="number" step="any" value="${r.curP}" placeholder="giá (${CUR})" onchange="cart[${i}].curP=this.value;saveCart()"></td>
+      <td><input class="cart-input cur" list="nccList" value="${esc(r.curN)}" placeholder="NCC mới" onchange="cart[${i}].curN=this.value;saveCart();prefillAddr()"></td>
+      <td><button class="btn danger" onclick="cart.splice(${i},1);saveCart();renderCart()">✕</button></td>
+    </tr>`;
+  }).join('') : '<tr><td colspan="11" style="text-align:center;color:#999;padding:24px">Chưa có vật tư — import file, dán từ Excel hoặc gõ tên ở trên</td></tr>';
+}
+/* SL: số thì lưu dạng số (để tính tiền), có chữ thì lưu nguyên văn */
+function setQty(i, v) {
+  const t = String(v == null ? '' : v).trim();
+  cart[i].qty = (t === '') ? 0 : (/[^\d.,\s]/.test(t) ? t : parseNum(t));
+  saveCart();
+}
+function editName(i, v) { cart[i].name = v; const f = fuzzyFind(v); cart[i].match = f ? { name: f.item.name, d: f.item.last.d, p: f.item.last.p, n: f.item.last.n, u: f.item.last.u, mh: f.item.last.mh || '', quality: f.quality, cur: f.item.last.cur || 'VND' } : null; saveCart(); renderCart(); }
+function toggleAll(v) { cart.forEach(r => r.checked = v); saveCart(); renderCart(); }
+function clearCart() { if (cart.length && confirm('Xóa toàn bộ danh sách chuẩn bị mua?')) { cart = []; saveCart(); renderCart(); } }
+function copyLastAll() { cart.forEach(r => { if (r.checked && r.match) { r.curP = r.match.p; r.curN = r.match.n; } }); saveCart(); renderCart(); prefillAddr(); toast('Đã điền giá & NCC gần nhất — chỉnh lại nếu có giá mới'); }
+renderCart();
+
+/* ===== Import Excel / PDF / Paste ===== */
+function handleFile(file) {
+  if (!file) return;
+  const ext = (file.name.split('.').pop() || '').toLowerCase();
+  if (ext === 'pdf') { handlePdf(file); return; }
+  const rd = new FileReader();
+  rd.onload = e => {
+    try {
+      const wb = XLSX.read(e.target.result, { type: 'array' });
+      const aoa = XLSX.utils.sheet_to_json(wb.Sheets[wb.SheetNames[0]], { header: 1, defval: '' });
+      importRows(aoa, file.name);
+    } catch (err) { alert('Không đọc được file: ' + err.message); }
+  };
+  rd.readAsArrayBuffer(file);
+}
+
+/* ---- Số kiểu VN: 690.000 = 690000 ; 1,5 = 1.5 ---- */
+function parseNum(s) {
+  s = String(s == null ? '' : s).replace(/[^\d.,]/g, '').trim();
+  if (!s) return 0;
+  if (s.indexOf(',') >= 0 && s.indexOf('.') >= 0) s = s.replace(/\./g, '').replace(',', '.');
+  else if (/^\d{1,3}(\.\d{3})+$/.test(s)) s = s.replace(/\./g, '');   // 690.000 -> 690000 (kiểu VN)
+  else if (/^\d{1,3}(,\d{3})+$/.test(s)) s = s.replace(/,/g, '');      // 1,000 / 340,000 -> nguyên (kiểu Anh)
+  else if (/,/.test(s)) s = s.replace(/,/g, '.');                      // 1,5 -> 1.5
+  return parseFloat(s) || 0;
+}
+function isNumStr(s) { return /\d/.test(String(s == null ? '' : s)) && parseNum(s) > 0; }
+const UNITS = new Set(['kg','g','gram','tan','ta','yen','l','lit','ml','m','met','m2','m3','cm','mm','cai','chiec','bo','bao','thung','hop','chai','can','phi','cuon','tam','vien','goi','lo','kien','pallet','ket','lon','tuyp','ong','pcs','pc','doi','cap','tui','bich','ream','ram','xap','kw','kwh','%','md','md.','md2','md3','pc.']);
+const isUnit = s => UNITS.has(norm(s));
+function importRows(aoa, src) {
+  let hdr = -1, cName = 1, cSpec = 2, cUnit = 3, cQty = 4;
+  for (let i = 0; i < Math.min(aoa.length, 15); i++) {
+    const cells = aoa[i].map(c => norm(String(c)));
+    const iN = cells.findIndex(c => c.includes('ten vat tu') || c.includes('ten hang'));
+    if (iN >= 0) {
+      hdr = i; cName = iN;
+      const iU = cells.findIndex(c => c === 'dvt' || c.includes('don vi'));
+      const iQ = cells.findIndex(c => c.includes('so luong'));
+      const iS = cells.findIndex(c => c.includes('qui cach') || c.includes('quy cach'));
+      if (iU >= 0) cUnit = iU; if (iQ >= 0) cQty = iQ; if (iS >= 0) cSpec = iS;
+      break;
+    }
+  }
+  let added = 0;
+  for (let i = hdr + 1; i < aoa.length; i++) {
+    const r = aoa[i];
+    const name = String(r[cName] || '').trim();
+    const qty = parseFloat(String(r[cQty]).replace(/,/g, ''));
+    if (!name || !isFinite(qty) || qty <= 0) continue;
+    if (norm(name).includes('ten vat tu')) continue;
+    addCartRow(name, String(r[cUnit] || '').trim(), qty, String(r[cSpec] || '').trim());
+    added++;
+  }
+  saveCart(); renderCart();
+  toast(added ? `✅ Đã nhận <b>${added}</b> vật tư từ ${esc(src)}` : '⚠ Không tìm thấy dòng vật tư hợp lệ');
+}
+function handlePaste() {
+  const lines = document.getElementById('pasteBox').value.split('\n');
+  let added = 0;
+  for (const line of lines) {
+    const p = parsePasteLine(line);
+    if (!p) continue;
+    addCartRow(p.name, p.unit, p.qty, p.spec);
+    added++;
+  }
+  if (added) { document.getElementById('pasteBox').value = ''; saveCart(); renderCart(); }
+  toast(added ? `✅ Đã nhận ${added} dòng` : '⚠ Gõ mỗi dòng: <b>Tên hàng &nbsp; ĐVT &nbsp; Số lượng</b> (cách nhau bằng dấu cách hoặc Tab). Có thể gõ mỗi dòng chỉ tên hàng.');
+}
+/* Nhận cả: Tab (copy Excel) · nhiều dấu cách · 1 dấu cách · chỉ tên hàng */
+function parsePasteLine(line) {
+  if (!line || !line.trim()) return null;
+  let cells = line.split('\t').map(s => s.trim());
+  if (cells.length > 1) return parseCells(cells);
+  cells = line.trim().split(/\s{2,}/).map(s => s.trim());
+  if (cells.length > 1) return parseCells(cells);
+  // 1 dấu cách: bóc số lượng ở cuối + đơn vị ngắn trước nó
+  const toks = line.trim().split(/\s+/);
+  let qty = 0, unit = '';
+  if (toks.length >= 2 && isNumStr(toks[toks.length - 1])) {
+    qty = parseNum(toks.pop());
+    if (toks.length >= 2 && isUnit(toks[toks.length - 1])) unit = toks.pop();
+  }
+  const name = toks.join(' ').trim();
+  if (!name) return null;
+  return { name, spec: '', unit, qty: qty > 0 ? qty : 1 };
+}
+function parseCells(cells) {
+  cells = cells.filter(Boolean);
+  if (cells.length > 3 && /^\d{1,3}$/.test(cells[0])) cells = cells.slice(1); // bỏ cột STT nếu có
+  const name = (cells[0] || '').trim();
+  if (!name) return null;
+  let qty = 0, unit = '', spec = '';
+  const last = cells[cells.length - 1];
+  if (isNumStr(last)) qty = parseNum(last);
+  if (cells.length >= 3) unit = (cells[cells.length - 2] || '').trim();
+  if (cells.length >= 4) spec = (cells[1] || '').trim();
+  return { name, spec, unit, qty: qty > 0 ? qty : 1 };
+}
+
+/* ===== Đọc PDF báo giá (không cần API — PDF dạng chữ) ===== */
+async function handlePdf(file) {
+  if (typeof pdfjsLib === 'undefined') { alert('Thư viện đọc PDF chưa tải xong, đợi vài giây rồi thử lại.'); return; }
+  toast('⏳ Đang đọc file PDF...');
+  try {
+    const buf = await file.arrayBuffer();
+    const pdf = await pdfjsLib.getDocument({ data: buf }).promise;
+    let rows = [];
+    for (let p = 1; p <= pdf.numPages; p++) {
+      const page = await pdf.getPage(p);
+      const vp = page.getViewport({ scale: 1 });
+      const tc = await page.getTextContent();
+      const its = tc.items.map(it => ({ t: (it.str || '').trim(), x: it.transform[4], xr: it.transform[4] + (it.width || 0), y: vp.height - it.transform[5] })).filter(o => o.t);
+      rows = rows.concat(groupRows(its, p));
+    }
+    const parsed = parsePdfTable(rows);
+    if (!parsed.length) {
+      toast('⚠ Không bóc được dòng hàng từ PDF. Nếu file là ảnh scan (không phải PDF xuất từ Excel/Word) thì cần OCR — tạm thời gõ tay hoặc dán vào ô bên phải.', 8000);
+      return;
+    }
+    parsed.forEach(r => addCartRow(r.name, r.unit, r.qty || 1, r.spec, r.price || null));
+    saveCart(); renderCart();
+    toast(`✅ Đã bóc <b>${parsed.length}</b> mặt hàng từ ${esc(file.name)} — <b>kiểm tra lại số lượng & đơn giá</b> trước khi xuất`, 8000);
+  } catch (err) { alert('Không đọc được PDF: ' + err.message); }
+}
+function groupRows(items, pageNo) {
+  items.sort((a, b) => a.y - b.y || a.x - b.x);
+  const rows = []; let cur = null;
+  for (const it of items) {
+    if (!cur || Math.abs(it.y - cur.y) > 4) { cur = { y: it.y, page: pageNo, cells: [] }; rows.push(cur); }
+    cur.cells.push(it);
+  }
+  rows.forEach(r => r.cells.sort((a, b) => a.x - b.x));
+  return rows;
+}
+/* Gom token tiêu đề thành cụm cột (theo khoảng cách x) rồi phân loại */
+function headerCols(cells) {
+  const phrases = []; let cur = null;
+  for (const c of cells) {
+    if (!cur || c.x - cur.xr > 12) { cur = { x: c.x, xr: c.xr, toks: [c.t] }; phrases.push(cur); }
+    else { cur.xr = c.xr; cur.toks.push(c.t); }
+  }
+  const cols = {};
+  phrases.forEach(ph => {
+    const n = norm(ph.toks.join(' '));
+    let k = null;
+    if (n === 'stt' || n === 'tt' || n === 'so tt') k = 'stt';
+    else if (n.includes('ma hang') || n === 'ma' || n.includes('ma vt') || n.includes('ma so')) k = 'code';
+    else if (n.includes('ten hang') || n.includes('ten vat tu') || n === 'ten' || n.includes('ten san pham') || n.includes('dien giai') || n.includes('noi dung') || n.includes('san pham') || n.includes('hang hoa') || n.includes('vat lieu') || n.includes('nguyen lieu') || n.includes('vat tu')) k = 'name';
+    else if (n.includes('quy cach') || n.includes('qui cach') || n.includes('mo ta') || n.includes('quy cach')) k = 'spec';
+    else if (n === 'dvt' || n.includes('don vi')) k = 'unit';
+    else if (n === 'sl' || n === 'sl.' || n.includes('so luong')) k = 'qty';
+    else if (n.includes('don gia') || n.includes('gia ban')) k = 'price';
+    else if (n.includes('thanh tien')) k = 'total';
+    else if (n.includes('ghi chu')) k = 'note';
+    if (k && !cols[k]) cols[k] = { x: ph.x, xr: ph.xr };
+  });
+  return cols;
+}
+function parsePdfTable(rows) {
+  let hi = -1, cols = null;
+  for (let i = 0; i < rows.length; i++) {
+    const jn = norm(rows[i].cells.map(c => c.t).join(' '));
+    if ((jn.includes('ten hang') || jn.includes('ten vat tu') || jn.includes('hang hoa') || jn.includes('dien giai') || jn.includes('vat lieu') || jn.includes('nguyen lieu') || jn.includes('vat tu')) &&
+        (jn.includes('so luong') || /\bsl\b/.test(jn) || jn.includes('don gia') || jn.includes('dvt') || jn.includes('don vi'))) {
+      cols = headerCols(rows[i].cells);
+      if (cols.name) { hi = i; break; }
+    }
+  }
+  if (hi < 0 || !cols) return [];
+  // Bỏ các dòng tiêu đề bị xuống hàng ngay dưới header (VD "Hàng Hóa") — dòng không chứa chữ số
+  while (hi + 1 < rows.length && !rows[hi + 1].cells.some(c => /\d/.test(c.t))) hi++;
+  // biên trái của tên hàng = mép phải cột code/stt ; biên phải = mép trái cột kế tiếp (spec/unit/qty)
+  const leftFence = (cols.code && cols.code.xr) || (cols.stt && cols.stt.xr) || -1e9;
+  const afterName = [cols.spec, cols.unit, cols.qty, cols.price].filter(Boolean).sort((a, b) => a.x - b.x)[0];
+  const rightFence = afterName ? afterName.x - 2 : 1e9;
+  // các cột phải để gán token số (gồm total/note làm "bể chứa" tránh lẫn vào đơn giá)
+  const rc = [];
+  ['spec', 'unit', 'qty', 'price', 'total', 'note'].forEach(k => { if (cols[k]) rc.push({ k, cx: (cols[k].x + cols[k].xr) / 2 }); });
+  const out = [];
+  for (let i = hi + 1; i < rows.length; i++) {
+    const cells = rows[i].cells;
+    const jn = norm(cells.map(c => c.t).join(' '));
+    if (/tong cong|thue vat|cong chua vat|tong tien|thanh toan|bang chu/.test(jn)) break;
+    const nameToks = [], bucket = { spec: [], unit: [], qty: [], price: [] };
+    for (const c of cells) {
+      const cx = (c.x + c.xr) / 2;
+      if (cx < leftFence) continue;                 // cột STT / mã hàng → bỏ
+      if (cx < rightFence) { nameToks.push(c.t); continue; } // vùng tên hàng
+      let best = rc[0], bd = 1e9;
+      rc.forEach(p => { const d = Math.abs(cx - p.cx); if (d < bd) { bd = d; best = p; } });
+      if (best && bucket[best.k]) bucket[best.k].push(c.t);
+    }
+    let name = nameToks.join(' ').replace(/^\s*\d{1,3}\s+(?=\p{L})/u, '').trim();
+    const spec = bucket.spec.join(' ').trim();
+    const unit = bucket.unit.join(' ').trim();
+    const qty = parseNum(bucket.qty.join(''));
+    const price = parseNum(bucket.price.join(''));
+    if (!name) {
+      // dòng tên hàng bị xuống hàng → nối vào mặt hàng trước
+      if (out.length && spec && !unit && !qty && !price) out[out.length - 1].spec = (out[out.length - 1].spec + ' ' + spec).trim();
+      continue;
+    }
+    if (out.length && !unit && !qty && !price && !spec) { out[out.length - 1].name += ' ' + name; continue; }
+    out.push({ name, spec, unit, qty, price });
+  }
+  return out;
+}
+
+/* ===== Autocomplete ===== */
+const acInp = document.getElementById('acInp'), acList = document.getElementById('acList');
+let acTimer;
+acInp.addEventListener('input', () => { clearTimeout(acTimer); acTimer = setTimeout(showAC, 150); });
+document.addEventListener('click', e => { if (!e.target.closest('.ac-wrap')) acList.style.display = 'none'; });
+function showAC() {
+  const kws = norm(acInp.value).split(' ').filter(Boolean);
+  if (!kws.length) { acList.style.display = 'none'; return; }
+  const hits = ITEMS.filter(it => kws.every(k => it._n.includes(k))).sort((a,b) => b.last.d.localeCompare(a.last.d)).slice(0, 12);
+  if (!hits.length) { acList.innerHTML = '<div class="ac-item"><span class="m">Không có trong lịch sử — Enter để thêm mới</span></div>'; acList.style.display = 'block'; return; }
+  acList.innerHTML = hits.map(it =>
+    `<div class="ac-item" onclick="pickAC('${esc(it.name).replace(/'/g, '&#39;')}')">
+      <div class="n">${esc(it.name)}</div>
+      <div class="m">${vnDate(it.last.d)} · <b style="color:var(--orange)">${fmtC(it.last.p, it.last.cur)} ${symOf(it.last.cur)}/${esc(it.last.u)}</b> · ${esc(it.last.n)}</div>
+    </div>`).join('');
+  acList.style.display = 'block';
+}
+function pickAC(name) {
+  const el = document.createElement('textarea'); el.innerHTML = name;
+  addCartRow(el.value, '', 1, '');
+  saveCart(); renderCart();
+  acInp.value = ''; acList.style.display = 'none'; acInp.focus();
+}
+acInp.addEventListener('keypress', e => { if (e.key === 'Enter' && acInp.value.trim()) { addCartRow(acInp.value.trim(), '', 1, ''); saveCart(); renderCart(); acInp.value = ''; acList.style.display = 'none'; } });
+
+/* ===== Xuat don hang ===== */
+/* Từ chung trong tên công ty — bỏ khi so khớp NCC để không lệch vì cách viết (TM vs Thương Mại, DV vs Dịch Vụ...) */
+const NCC_STOP = new Set(['cong','ty','tnhh','tm','dv','dvtm','tmdv','mtv','co','cp','phan','thuong','mai','dich','vu','san','xuat','xnk','mot','thanh','vien','va','sx','pte','ltd']);
+function nccToks(s) { return norm(s).split(' ').filter(t => t && !NCC_STOP.has(t)); }
+/* Tra địa chỉ theo tên NCC: khớp đúng → khớp bỏ dấu → khớp theo token đặc trưng (fuzzy) */
+function resolveAddr(name) {
+  if (!name) return '';
+  const nm = String(name).trim();
+  if (NCC_ADDR[nm]) return NCC_ADDR[nm];
+  const keys = Object.keys(NCC_ADDR);
+  const exact = keys.find(k => norm(k) === norm(nm));
+  if (exact && NCC_ADDR[exact]) return NCC_ADDR[exact];
+  const nt = nccToks(nm); if (!nt.length) return '';
+  let best = '', bestScore = 0;
+  keys.forEach(k => {
+    if (!NCC_ADDR[k]) return;
+    const kt = nccToks(k); if (!kt.length) return;
+    const kset = new Set(kt);
+    const inter = nt.filter(t => kset.has(t)).length;
+    const score = inter / Math.max(nt.length, kt.length);
+    if (inter >= Math.min(nt.length, kt.length) && score > bestScore) { bestScore = score; best = NCC_ADDR[k]; }
+  });
+  return bestScore >= 0.6 ? best : '';
+}
+function lookupAddr(ncc) { return resolveAddr(ncc); }
+/* Điền địa chỉ theo NCC đang chọn — LUÔN theo NCC hiện tại, KHÔNG giữ lại địa chỉ NCC trước đó */
+function prefillAddr() {
+  const rows = cart.filter(r => r.checked && r.curN.trim());
+  const el = document.getElementById('e-addr');
+  if (!rows.length) return;
+  const ncc = rows[0].curN.trim();
+  if ((el.dataset.ncc || '') === ncc && el.value.trim()) return; // đã đúng NCC (kể cả địa chỉ tự gõ) thì giữ
+  el.value = resolveAddr(ncc);   // tìm được thì điền; không thì để TRỐNG (tuyệt đối không lấy địa chỉ NCC khác)
+  el.dataset.ncc = ncc;
+}
+/* Bắt lỗi phiên/mã truy cập: tự hiện màn hình nhập lại mã thay vì báo lỗi cụt */
+function handleAuthErr(err, prefix) {
+  const m = (err && err.message) || '';
+  if (m.indexOf('Sai mã truy cập') >= 0) { try { localStorage.removeItem('khvt_code'); } catch (e) {} showLock('Phiên hết hạn — nhập lại mã rồi thao tác lại'); }
+  else alert((prefix || '') + m);
+}
+/* ===== Gọi lại + sửa PO đã tạo ===== */
+function recallPO() {
+  const po = document.getElementById('editPoInp').value.trim();
+  if (!po) { alert('Nhập số PO cần sửa (VD: PO-260709-01)'); return; }
+  document.getElementById('loading').style.display = 'flex';
+  google.script.run.withSuccessHandler(res => {
+    document.getElementById('loading').style.display = 'none';
+    if (!res) { toast('⚠ Không tìm thấy ' + esc(po) + ' trong DON_HANG'); return; }
+    cart = res.rows.map(r => {
+      const row = { id: Date.now() + Math.random(), name: r.name, spec: r.spec || '', unit: r.unit || '', qty: qtyIsText(r.qty) ? String(r.qty) : (+r.qty || 1), checked: true, curP: (r.price ? String(Math.round(r.price)) : ''), curN: res.ncc || '', match: null };
+      const f = fuzzyFind(r.name);
+      if (f) { const l = f.item.last; row.match = { name: f.item.name, d: l.d, p: l.p, n: l.n, u: l.u, mh: l.mh || '', quality: f.quality, cur: l.cur || 'VND' }; }
+      return row;
+    });
+    window._editPO = { po: res.po, ncc: res.ncc, maNCC: res.maNCC };
+    document.getElementById('e-po').value = res.po;
+    document.getElementById('e-ghichu').value = res.ghiChu || '';
+    const elA = document.getElementById('e-addr');
+    elA.value = res.addr || ''; elA.dataset.ncc = res.ncc || '';
+    document.getElementById('e-nguoilap').value = res.nguoiLap || '';
+    document.getElementById('e-vat').value = String(res.vat);
+    CUR = (String(res.cur || 'VND').toUpperCase() === 'USD') ? 'USD' : 'VND';
+    try { localStorage.setItem('khvt_cur', CUR); } catch (e) {}
+    document.getElementById('e-cur').value = CUR;
+    saveCart(); renderCart(); showEditBanner();
+    toast('✅ Đã gọi lại <b>' + esc(res.po) + '</b> — sửa xong bấm XUẤT ĐƠN HÀNG để cập nhật (giữ nguyên số PO)', 8000);
+  }).withFailureHandler(err => { document.getElementById('loading').style.display = 'none'; handleAuthErr(err, 'Lỗi gọi PO: '); }).getPO(getStoredCode(), po);
+}
+function showEditBanner() {
+  const b = document.getElementById('editBanner');
+  if (window._editPO) { b.style.display = 'block'; b.innerHTML = '✏️ Đang sửa ' + esc(window._editPO.po) + ' — <a href="#" onclick="cancelEdit();return false" style="color:var(--red)">Hủy sửa</a>'; }
+  else { b.style.display = 'none'; b.innerHTML = ''; }
+}
+function cancelEdit() { window._editPO = null; document.getElementById('editPoInp').value = ''; document.getElementById('e-po').value = window._poNext || ''; showEditBanner(); toast('Đã hủy chế độ sửa'); }
+function exportPO() {
+  const rows = cart.filter(r => r.checked);
+  if (!rows.length) { alert('Chưa chọn dòng nào'); return; }
+  const miss = rows.filter(r => !(+r.curP > 0) || !r.curN.trim());
+  if (miss.length) { alert('Còn ' + miss.length + ' dòng chưa điền Giá hiện tại / NCC hiện tại:\n- ' + miss.map(r => r.name).slice(0,5).join('\n- ')); return; }
+  // Chế độ sửa PO cũ: 1 đơn, giữ nguyên số PO
+  const elAddr = document.getElementById('e-addr');
+  if (window._editPO) {
+    const ncc = rows[0].curN.trim();
+    const addr = resolveAddr(ncc) || ((elAddr.dataset.ncc || '') === ncc ? elAddr.value.trim() : '');
+    window._plans = [{ ncc: ncc, rows: rows, po: window._editPO.po, editPO: window._editPO.po, addr: addr, done: false, busy: false }];
+    doExportGroup(0); return;
+  }
+  const groups = {};
+  rows.forEach(r => { const k = r.curN.trim(); (groups[k] = groups[k] || []).push(r); });
+  const names = Object.keys(groups);
+  window._plans = names.map(n => {
+    let addr = resolveAddr(n);
+    if (!addr && (elAddr.dataset.ncc || '') === n) addr = elAddr.value.trim();
+    return { ncc: n, rows: groups[n], po: '', editPO: '', addr: addr, done: false, busy: false };
+  });
+  if (window._plans.length === 1) { doExportGroup(0); return; }
+  renderExportModal();
+}
+function renderExportModal() {
+  const p = window._plans;
+  let el = document.getElementById('exModal');
+  if (!el) { el = document.createElement('div'); el.id = 'exModal'; el.className = 'modal-bg'; document.body.appendChild(el); }
+  el.innerHTML = `<div class="modal"><h2>Xuất ${p.length} đơn hàng — mỗi NCC 1 đơn</h2>
+    <div class="hint" style="margin-bottom:12px">Bấm lần lượt từng nút 🖨 — mỗi đơn tạo 1 file PDF riêng tải về máy. Sửa được địa chỉ NCC trước khi xuất (app sẽ nhớ vào Sheet).</div>` +
+    p.map((g, i) => `<div style="border:1px solid var(--border);border-radius:8px;padding:10px;margin-bottom:10px;${g.done ? 'opacity:.55' : ''}">
+      <div style="display:flex;justify-content:space-between;gap:10px;align-items:center;flex-wrap:wrap">
+        <div style="flex:1;min-width:220px"><b>${g.po ? esc(g.po) : 'PO tự cấp theo ngày'}</b> — ${esc(g.ncc)}<div class="small">${g.rows.length} mặt hàng · ${fmtC(g.rows.reduce((s, r) => s + qtyNum(r.qty) * +r.curP, 0), CUR)} ${symOf(CUR)} chưa VAT${g.rows.some(r => qtyIsText(r.qty)) ? ' <i>(chưa gồm dòng SL ghi chữ)</i>' : ''}</div></div>
+        <button class="btn ${g.done ? 'light' : 'orange'}" ${g.done || g.busy ? 'disabled' : ''} onclick="doExportGroup(${i})">${g.done ? '✓ Đã xuất' : g.busy ? '⏳ Đang tạo...' : '🖨 Xuất đơn này'}</button>
+      </div>
+      <input class="cart-input" style="margin-top:8px" placeholder="Địa chỉ NCC (để trống nếu chưa có — điền sẽ được nhớ)" value="${esc(g.addr)}" onchange="window._plans[${i}].addr=this.value" ${g.done ? 'disabled' : ''}>
+    </div>`).join('') +
+    `<div style="text-align:right"><button class="btn light" onclick="document.getElementById('exModal').remove()">Đóng</button></div></div>`;
+}
+function doExportGroup(gi) {
+  const g = window._plans[gi];
+  if (!g || g.done || g.busy) return;
+  g.busy = true;
+  const payload = {
+    editPO: g.editPO || '',
+    code: getStoredCode(),
+    ghiChu: document.getElementById('e-ghichu').value.trim(),
+    addr: g.addr,
+    vatPct: +document.getElementById('e-vat').value || 0,
+    cur: CUR,
+    ncc: g.ncc,
+    maNCC: NCC_CODE[g.ncc] || NCC_CODE[Object.keys(NCC_CODE).find(k => norm(k) === norm(g.ncc))] || '',
+    nguoiLap: document.getElementById('e-nguoilap').value.trim(),
+    rows: g.rows.map(r => ({ name: r.name, spec: r.spec, unit: r.unit, qty: qtyIsText(r.qty) ? String(r.qty).trim() : qtyNum(r.qty), price: +r.curP,
+      maHang: (r.match && r.match.quality !== 'weak' && r.match.mh) || '' }))
+  };
+  const btn = document.getElementById('btnExport');
+  btn.disabled = true; btn.textContent = '⏳ Đang tạo PDF...';
+  if (document.getElementById('exModal')) renderExportModal();
+  google.script.run.withSuccessHandler(res => {
+    btn.disabled = false; btn.textContent = '🖨 XUẤT ĐƠN HÀNG (PDF)';
+    const a = document.createElement('a');
+    a.href = 'data:application/pdf;base64,' + res.pdfBase64;
+    a.download = res.fileName; a.click();
+    window._poNext = res.poNext; document.getElementById('e-po').value = res.poNext;
+    g.po = res.po;
+    if (g.addr) NCC_ADDR[g.ncc] = g.addr;
+    if (payload.editPO) DATA = DATA.filter(x => x.po !== res.po); // sửa: bỏ dòng cũ cùng PO
+    const dd = new Date().toISOString().slice(0,10);
+    payload.rows.forEach(r => DATA.push({ d: dd, mn: payload.maNCC, n: g.ncc, mh: r.maHang, i: r.name, u: r.unit, q: r.qty, p: r.price, src: 'app', po: res.po, cur: payload.cur }));
+    rebuildAll();
+    const ids = new Set(g.rows.map(r => r.id));
+    cart = cart.filter(r => !ids.has(r.id));
+    g.busy = false; g.done = true;
+    saveCart(); renderCart();
+    if (document.getElementById('exModal')) renderExportModal();
+    if (payload.editPO) { window._editPO = null; document.getElementById('editPoInp').value = ''; showEditBanner(); }
+    toast(`✅ Đã ${payload.editPO ? 'cập nhật' : 'xuất'} <b>${esc(res.po)}</b> — ${esc(g.ncc)}. PDF đã tải về & lưu Drive (<a href="${res.fileUrl}" target="_blank">mở</a>).`, 7000);
+  }).withFailureHandler(err => {
+    g.busy = false;
+    btn.disabled = false; btn.textContent = '🖨 XUẤT ĐƠN HÀNG (PDF)';
+    if (document.getElementById('exModal')) renderExportModal();
+    handleAuthErr(err, 'Lỗi xuất đơn: ');
+  }).exportPO(payload);
+}
+
+/* ===== Tra cuu ===== */
+const q = document.getElementById('q'), results = document.getElementById('results');
+let timer;
+q.addEventListener('input', () => { clearTimeout(timer); timer = setTimeout(search, 200); });
+function search() {
+  const kws = norm(q.value).split(' ').filter(Boolean);
+  results.innerHTML = '';
+  if (!kws.length) return;
+  const names = ITEMS.filter(it => kws.every(k => it._n.includes(k))).sort((a,b) => b.last.d.localeCompare(a.last.d));
+  if (!names.length) { results.innerHTML = '<div class="card">Không tìm thấy.</div>'; return; }
+  const shown = names.slice(0, 50);
+  let html = `<div class="hint" style="margin-bottom:10px">Tìm thấy <b>${names.length}</b> mặt hàng${names.length > 50 ? ' (hiện 50 mới nhất)' : ''}</div>`;
+  shown.forEach((it, idx) => {
+    const rows = INDEX[it.name];
+    const last = rows[rows.length-1], prev = rows.length > 1 ? rows[rows.length-2] : null;
+    let badge = '';
+    if (prev && prev.p > 0) {
+      const pct = (last.p - prev.p) / prev.p * 100;
+      badge = Math.abs(pct) < 0.5 ? '<span class="badge flat">giá ổn định</span>' : pct > 0 ? `<span class="badge up">▲ +${pct.toFixed(1)}%</span>` : `<span class="badge down">▼ ${pct.toFixed(1)}%</span>`;
+    }
+    html += `<div class="item-row">
+      <div class="item-head" onclick="toggleHist(${idx})">
+        <div style="flex:1;min-width:250px">
+          <div class="item-title">${esc(it.name)} ${last.src === 'app' ? '<span class="badge new">★ từ app</span>' : ''}</div>
+          <div class="item-meta">Gần nhất: <b>${vnDate(last.d)}</b> · ${esc(last.n)} · SL ${fmtQ(last.q)} ${esc(last.u)} · ${rows.length} lần mua</div>
+        </div>
+        <div style="text-align:right"><div class="price">${fmtC(last.p, last.cur)} ${symOf(last.cur)}/${esc(last.u)}</div><div>${badge}</div></div>
+      </div>
+      <div class="hist" id="hist-${idx}">
+        <table><thead><tr><th>Ngày</th><th>Nhà cung cấp</th><th class="num">SL</th><th class="num">Đơn giá (VNĐ)</th><th class="num">Thành tiền</th><th></th></tr></thead><tbody>
+        ${rows.slice().reverse().map(r => `<tr><td>${vnDate(r.d)}</td><td>${esc(r.n)}</td><td class="num">${fmtQ(r.q)} ${esc(r.u)}</td><td class="num"><b>${fmtC(r.p, r.cur)} ${symOf(r.cur)}</b></td><td class="num">${qtyIsText(r.q) ? '—' : fmtC(qtyNum(r.q)*r.p, r.cur)}</td><td>${r.src === 'app' ? '★ ' + esc(r.po || '') : ''}</td></tr>`).join('')}
+        </tbody></table>
+      </div>
+    </div>`;
+  });
+  results.innerHTML = html;
+}
+function toggleHist(i) { const el = document.getElementById('hist-' + i); el.style.display = el.style.display === 'block' ? 'none' : 'block'; }
+</script>
+</body>
+</html>

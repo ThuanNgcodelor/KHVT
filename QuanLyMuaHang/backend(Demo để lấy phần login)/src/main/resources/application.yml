@@ -1,0 +1,72 @@
+spring:
+  application:
+    name: booking-system
+
+  datasource:
+    url: jdbc:mysql://${DB_HOST:localhost}:${DB_PORT:3306}/${DB_NAME:booking_db}?useSSL=false&serverTimezone=UTC&allowPublicKeyRetrieval=true
+    username: ${DB_USER:booking_user}
+    password: ${DB_PASSWORD:Thuan@417}
+    driver-class-name: com.mysql.cj.jdbc.Driver
+
+  jpa:
+    hibernate:
+      ddl-auto: update
+    show-sql: true
+    properties:
+      hibernate:
+        format_sql: true
+        dialect: org.hibernate.dialect.MySQLDialect
+
+  data:
+    redis:
+      host: ${REDIS_HOST:localhost}
+      port: ${REDIS_PORT:6379}
+
+  mail:
+    host: smtp.gmail.com
+    port: 587
+    username: ${MAIL_USERNAME:cfcbooking2026@gmail.com}
+    password: ${MAIL_PASSWORD:umog doyp uqwr nelz}
+    properties:
+      mail:
+        smtp:
+          auth: true
+          starttls:
+            enable: true
+
+  security:
+    oauth2:
+      client:
+        registration:
+          google:
+            client-id: 443356692274-i2sq4m48gttjfeu1h15m20b5pcdogvq3.apps.googleusercontent.com
+
+server:
+  port: 8080
+
+app:
+  frontend-url: ${FRONTEND_URL:https://cfcbooking.io.vn}
+  cors:
+    allowed-origins: ${CORS_ALLOWED_ORIGINS:http://localhost:5173,https://cfcbooking.io.vn,http://localhost:4173}
+  webpush:
+    public-key: ${VAPID_PUBLIC_KEY:BFwbQniOuTkPW1sJdfEZqVvy13WyBMeahljrDSJg4z6Zgu3RFwHMiCZaFDA1JA4oUyFZNrUfuHlPmSRVGz8GqW0}
+    private-key: ${VAPID_PRIVATE_KEY:1mNGHwAflCQQiu8ABAbeVpQjU6qihaxSKL6QiDGi3w4}
+    subject: https://cfcbooking.io.vn
+
+
+jwt:
+  secret: ${JWT_SECRET:dGhpc2lzYXZlcnlzZWNyZXRrZXl0aGF0aXNhdGxlYXN0MzJieXRlcw==}
+  access:
+    expiration: ${JWT_ACCESS_EXPIRATION:28800000}   # 8 tiếng (8 * 60 * 60 * 1000)
+  refresh:
+    expiration: ${JWT_REFRESH_EXPIRATION:7776000000} # 90 ngày
+
+cfc:
+  word-editor:
+    enabled: ${WORD_EDITOR_ENABLED:true}
+    document-server-url: ${WORD_EDITOR_DOCUMENT_SERVER_URL:https://docs.cfcbooking.io.vn}
+    backend-url: ${WORD_EDITOR_BACKEND_URL:https://api.cfcbooking.io.vn}
+    jwt-secret: ${WORD_EDITOR_JWT_SECRET:9c8ee5cf50436847a8c93b9b84696591c95c82e63f145be11676f0ee31829a60}
+  telegram:
+    bot-token: ${TELEGRAM_BOT_TOKEN:8906847113:AAF9HAKLRHqxzzzEQgZhoYW0ph48H67OiUk}
+    webhook-secret: ${TELEGRAM_WEBHOOK_SECRET:5aa83a2c57d9d975c77485db1975f8d9}

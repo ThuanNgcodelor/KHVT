@@ -1,0 +1,11 @@
+{
+  "name": "quan-ly-mua-hang-web-assets",
+  "private": true,
+  "scripts": {
+    "css:build": "tailwindcss -i ./src/main/resources/static/css/tailwind.input.css -o ./src/main/resources/static/css/tailwind.css --minify",
+    "css:watch": "tailwindcss -i ./src/main/resources/static/css/tailwind.input.css -o ./src/main/resources/static/css/tailwind.css --watch"
+  },
+  "devDependencies": {
+    "tailwindcss": "^3.4.17"
+  }
+}

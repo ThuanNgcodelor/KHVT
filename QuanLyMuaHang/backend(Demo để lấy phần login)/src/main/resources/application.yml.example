@@ -1,0 +1,76 @@
+spring:
+  application:
+    name: booking-system
+
+  datasource:
+    url: jdbc:mysql://${DB_HOST:localhost}:${DB_PORT:3306}/${DB_NAME:booking_db}?useSSL=false&serverTimezone=UTC&allowPublicKeyRetrieval=true
+    username: ${DB_USER:booking_user}
+    password: ${DB_PASSWORD:your_password_here}
+    driver-class-name: com.mysql.cj.jdbc.Driver
+
+  jpa:
+    hibernate:
+      ddl-auto: update
+    show-sql: true
+    properties:
+      hibernate:
+        format_sql: true
+        dialect: org.hibernate.dialect.MySQLDialect
+
+  data:
+    redis:
+      host: ${REDIS_HOST:localhost}
+      port: ${REDIS_PORT:6379}
+
+  mail:
+    host: smtp.gmail.com
+    port: 587
+    username: ${MAIL_USERNAME:}
+    password: ${MAIL_PASSWORD:}
+    properties:
+      mail:
+        smtp:
+          auth: true
+          starttls:
+            enable: true
+
+  security:
+    oauth2:
+      client:
+        registration:
+          google:
+            client-id: ${GOOGLE_CLIENT_ID:}
+
+server:
+  port: 8080
+
+app:
+  frontend-url: ${FRONTEND_URL:http://localhost:5173}
+  hr:
+    attendance:
+      production:
+        enabled: ${HR_PRODUCTION_ATTENDANCE_ENABLED:true}
+        shadow-mode: ${HR_PRODUCTION_ATTENDANCE_SHADOW_MODE:true}
+  cors:
+    allowed-origins: ${CORS_ALLOWED_ORIGINS:http://localhost:5173}
+  webpush:
+    public-key: ${VAPID_PUBLIC_KEY:}
+    private-key: ${VAPID_PRIVATE_KEY:}
+    subject: ${FRONTEND_URL:http://localhost:5173}
+
+jwt:
+  secret: ${JWT_SECRET:dGhpc2lzYXZlcnlzZWNyZXRrZXl0aGF0aXNhdGxlYXN0MzJieXRlcw==}
+  access:
+    expiration: ${JWT_ACCESS_EXPIRATION:28800000}   # 8 tiếng (8 * 60 * 60 * 1000)
+  refresh:
+    expiration: ${JWT_REFRESH_EXPIRATION:7776000000} # 90 ngày
+
+cfc:
+  word-editor:
+    enabled: ${WORD_EDITOR_ENABLED:false}
+    document-server-url: ${WORD_EDITOR_DOCUMENT_SERVER_URL:}
+    backend-url: ${WORD_EDITOR_BACKEND_URL:}
+    jwt-secret: ${WORD_EDITOR_JWT_SECRET:}
+  telegram:
+    bot-token: ${TELEGRAM_BOT_TOKEN:}
+    webhook-secret: ${TELEGRAM_WEBHOOK_SECRET:}
