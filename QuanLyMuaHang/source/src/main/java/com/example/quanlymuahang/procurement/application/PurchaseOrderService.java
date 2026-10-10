@@ -135,24 +135,33 @@ public class PurchaseOrderService {
         return view;
     }
 
-    @Transactional
+    @Transactional(readOnly = true)
     public PdfFile pdf(long id, long actorId) {
         PurchaseOrder order = order(id);
-        return pdfForRevision(order, order.getRevision(), actorId);
+        return storedPdf(order.getId(), order.getRevision());
+    }
+
+    @Transactional(readOnly = true)
+    public PdfFile pdf(long id, int revisionNumber, long actorId) {
+        order(id);
+        return storedPdf(id, revisionNumber);
     }
 
     @Transactional
-    public PdfFile pdf(long id, int revisionNumber, long actorId) {
+    public OrderView issue(long id, long actorId) {
         PurchaseOrder order = order(id);
-        if (revisionNumber == order.getRevision()) return pdfForRevision(order, revisionNumber, actorId);
-        PurchaseOrderRevision revision = revisions.findByPurchaseOrderIdAndRevision(id, revisionNumber)
-                .orElseThrow(() -> ApiException.notFound("Không tìm thấy revision của đơn mua"));
-        try {
-            OrderView snapshot = objectMapper.readValue(revision.getSnapshotJson(), OrderView.class);
-            return generatePdf(order, snapshot, revisionNumber, actorId, false);
-        } catch (JsonProcessingException exception) {
-            throw new IllegalStateException("Không thể đọc snapshot PDF của revision", exception);
-        }
+        if (order.getStatus() == PurchaseOrderStatus.CANCELLED)
+            throw ApiException.conflict("PO_CANCELLED", "Đơn đã hủy không thể phát hành");
+        pdfForRevision(order, order.getRevision(), actorId);
+        return OrderView.from(order);
+    }
+
+    private PdfFile storedPdf(long id, int revision) {
+        GeneratedDocument document = documents.findByPurchaseOrderIdAndRevisionAndDocumentType(id, revision, "PO_PDF")
+                .orElseThrow(() -> ApiException.conflict("PDF_NOT_ISSUED", "Phiên bản này chưa có PDF được phát hành"));
+        Path path = safeStoredPath(document.getStorageKey());
+        if (!Files.isRegularFile(path)) throw ApiException.conflict("PDF_FILE_MISSING", "Tệp PDF đã lưu bị thiếu; người có quyền cần phát hành lại");
+        return readPdf(document, path);
     }
 
     private PdfFile pdfForRevision(PurchaseOrder order, int revision, long actorId) {
@@ -331,7 +340,9 @@ public class PurchaseOrderService {
     public List<RevisionView> revisions(long id) {
         order(id);
         return revisions.findAllByPurchaseOrderIdOrderByRevisionDesc(id).stream()
-                .map(revision -> new RevisionView(revision.getRevision(), revision.getChangedBy(), revision.getChangeReason(), revision.getCreatedAt()))
+                .map(revision -> new RevisionView(revision.getRevision(), revision.getChangedBy(), revision.getChangeReason(), revision.getCreatedAt(),
+                        documents.findByPurchaseOrderIdAndRevisionAndDocumentType(id, revision.getRevision(), "PO_PDF")
+                                .map(document -> Files.isRegularFile(safeStoredPath(document.getStorageKey()))).orElse(false)))
                 .toList();
     }
 

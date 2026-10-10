@@ -76,6 +76,12 @@ public class PurchaseOrderController {
         return pdfResponse(file);
     }
 
+    @PostMapping("/{id}/issue")
+    @PreAuthorize("hasAuthority('*') or hasAuthority('PO_CREATE') or hasAuthority('PO_EDIT')")
+    public PurchaseOrderService.OrderView issue(@PathVariable long id, Authentication authentication) {
+        return service.issue(id, actor(authentication));
+    }
+
     @GetMapping("/{id}/revisions")
     @PreAuthorize("hasAuthority('*') or hasAuthority('PO_READ')")
     public List<PurchaseOrderService.RevisionView> revisions(@PathVariable long id) { return service.revisions(id); }

@@ -55,7 +55,8 @@ export function PriceSearchPage() {
       </tr>)}</tbody></table></div>}
       {!history.error && data && <Pagination page={data.number} size={data.size} total={data.totalElements} pages={data.totalPages} busy={history.isFetching} onChange={setPage} />}
     </section>
-    {latest && <Dialog title="Giá mua gần nhất" description="Bản ghi có ngày mua gần nhất, cùng vật tư và loại tiền. Kiểm tra báo giá hiện tại trước khi dùng." onClose={() => setLatest(null)}>
+    {latest && <Dialog title="Giá mua gần nhất" onClose={() => setLatest(null)}>
+      <p className="dialog-description">Bản ghi có ngày mua gần nhất, cùng vật tư và loại tiền. Kiểm tra báo giá hiện tại trước khi dùng.</p>
       <dl className="record-info"><dt>Vật tư</dt><dd>{latest.materialName}</dd><dt>Ngày mua</dt><dd>{latest.purchaseDate}</dd><dt>Đơn giá</dt><dd>{money(latest)} {latest.currency} / {latest.unit || 'Chưa có ĐVT'}</dd><dt>Nhà cung cấp</dt><dd>{latest.supplierName || 'Chưa xác định'}</dd></dl>
       {latest.currencyBasis === 'ASSUMED_LEGACY' && <p className="field-help">Loại tiền của bản ghi cũ đang được giả định là VND.</p>}
       <div className="dialog-actions"><button className="secondary-button" onClick={() => setLatest(null)}>Đóng</button>{user && hasPermission(user, 'PO_CREATE') && latest.unitPrice != null && <button className="primary-button" onClick={() => draftFrom(latest)}>Lập đơn từ giá này</button>}</div>

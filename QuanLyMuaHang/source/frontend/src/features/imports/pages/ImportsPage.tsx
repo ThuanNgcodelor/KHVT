@@ -24,7 +24,7 @@ export function ImportsPage() {
       if (!fromPaste && !file) throw new Error('Chọn tệp trước khi preview.')
       if (mode === 'legacy') { if (file!.size > 25 * 1024 * 1024) throw new Error('Workbook không được vượt quá 25 MB.'); setPreview(await importApi.legacy(file!)) }
       else { if (!fromPaste && file!.size > 10 * 1024 * 1024) throw new Error('Tệp yêu cầu mua không được vượt quá 10 MB.'); const result = fromPaste ? await importApi.paste(paste) : await importApi.operational(file!); setDraft(result); setSelected(result.items.map((_, index) => index)) }
-    } catch (failure) { setError(errorMessage(failure)) } finally { setBusy(false) }
+    } catch (failure) { setError(failure instanceof Error && !(failure.name === 'ApiError') ? failure.message : errorMessage(failure)) } finally { setBusy(false) }
   }
   async function commit() {
     if (!preview) return
@@ -58,6 +58,6 @@ export function ImportsPage() {
       {!canCommit && !report && <p className="field-help">Lô đã xử lý hoặc còn lỗi/xung đột; chưa thể commit.</p>}
       {report && <div role="status"><h3>Kết quả commit</h3><p>{report.message}</p><p>{report.historyRowsImported} dòng lịch sử · {report.purchaseOrdersImported} PO · {report.committedRows} dòng xử lý</p></div>}
     </section>}
-    {confirm && <ConfirmDialog title="Ghi dữ liệu workbook?" description={`Lô ${preview?.batchId} sẽ ghi dữ liệu vào database đang kết nối. Chỉ tiếp tục sau khi đã đối chiếu và đáp ứng điều kiện dữ liệu đã xác nhận.`} confirmLabel="Commit dữ liệu" pending={busy} onCancel={() => setConfirm(false)} onConfirm={() => { void commit() }} />}
+    {confirm && <ConfirmDialog title="Ghi dữ liệu workbook?" message={`Lô ${preview?.batchId} sẽ ghi dữ liệu vào database đang kết nối. Chỉ tiếp tục sau khi đã đối chiếu và đáp ứng điều kiện dữ liệu đã xác nhận.`} confirmLabel="Commit dữ liệu" busy={busy} error={error} onClose={() => setConfirm(false)} onConfirm={() => { void commit() }} />}
   </>
 }
