@@ -1,0 +1,7 @@
+:root { font-family: Arial, sans-serif; color: #1f3864; background: #f4f6f9; }
+body { margin: 0; }
+.container { max-width: 960px; margin: 48px auto; padding: 0 20px; }
+.muted { color: #667085; }
+.card-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 16px; margin-top: 24px; }
+.card { display: block; padding: 24px; border-radius: 10px; background: white; border: 1px solid #dde3ec; color: #1f3864; text-decoration: none; }
+.card:hover { border-color: #e36c0a; }

@@ -1,0 +1,22 @@
+spring:
+  autoconfigure:
+    # Ordinary H2/MockMvc tests use servlet sessions; Redis has an opt-in test.
+    exclude: org.springframework.boot.autoconfigure.session.SessionAutoConfiguration
+  datasource:
+    url: jdbc:h2:mem:quanlymuahang;MODE=MySQL;DB_CLOSE_DELAY=-1
+    username: sa
+    password:
+    driver-class-name: org.h2.Driver
+  jpa:
+    hibernate:
+      ddl-auto: create-drop
+  flyway:
+    enabled: false
+  data:
+    redis:
+      host: localhost
+      port: 6379
+
+DB_PASSWORD: test-password
+REDIS_PASSWORD: ""
+

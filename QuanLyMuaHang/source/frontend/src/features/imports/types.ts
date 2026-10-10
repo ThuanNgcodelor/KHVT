@@ -1,0 +1,4 @@
+import type { ImportedOrderItem } from '../procurement/types'
+export type DraftPreview = { fileName: string; sourceType: string; confidence: number; items: ImportedOrderItem[]; warnings: { sourceRow: number; warnings: string[] }[]; message: string }
+export type LegacyPreview = { batchId: number; fileName: string; sha256: string; status: string; summary: { rowsPerSheet: Record<string, number>; errorRows: number; warningRows: number; legacyPurchaseOrderGroups: number; totalRows: number; note: string }; rowIssues: { sheet: string; rowNumber: number; status: string; issues: string[] }[]; duplicate: boolean; message: string | null }
+export type LegacyCommit = { batchId: number; status: string; committedRows: number; errorRows: number; warningRows: number; supplierRowsProcessed: number; materialRowsProcessed: number; historyRowsImported: number; purchaseOrdersImported: number; message: string }
