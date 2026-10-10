@@ -7,11 +7,18 @@ import { ChangePasswordPage } from './features/auth/pages/ChangePasswordPage'
 import { AppShell } from './app/AppShell'
 import { DashboardPage } from './features/dashboard/pages/DashboardPage'
 import { PageState } from './components/PageState'
-import { hasEveryPermission } from './features/auth/types'
+import { hasEveryPermission, hasPermission } from './features/auth/types'
 import { EmployeesPage } from './features/personnel/pages/EmployeesPage'
 import { UnitsPage } from './features/personnel/pages/UnitsPage'
 import { UsersPage } from './features/identity-admin/pages/UsersPage'
 import { ModulesPage } from './features/portal/pages/ModulesPage'
+import { MaterialsPage } from './features/catalog/pages/MaterialsPage'
+import { SuppliersPage } from './features/catalog/pages/SuppliersPage'
+import { PriceSearchPage } from './features/pricing/pages/PriceSearchPage'
+import { ImportsPage } from './features/imports/pages/ImportsPage'
+import { PurchaseOrdersPage } from './features/procurement/pages/PurchaseOrdersPage'
+import { PurchaseOrderFormPage } from './features/procurement/pages/PurchaseOrderFormPage'
+import { PurchaseOrderDetailPage } from './features/procurement/pages/PurchaseOrderDetailPage'
 
 const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false, staleTime: 30_000 } } })
 
@@ -30,8 +37,10 @@ function RequirePermissions({ permissions }: { permissions: string[] }) {
     : <PageState title="Bạn không có quyền truy cập" message="Liên hệ quản trị viên nếu bạn cần sử dụng chức năng này." />
 }
 
-function PlannedPage({ title }: { title: string }) {
-  return <PageState title={title} message="Giao diện chức năng này đang được triển khai. Hiện chưa có thao tác ghi dữ liệu trên màn hình này." />
+function RequireAnyPermission({ permissions }: { permissions: string[] }) {
+  const { user } = useAuth()
+  return user && permissions.some((permission) => hasPermission(user, permission)) ? <Outlet />
+    : <PageState title="Bạn không có quyền truy cập" message="Liên hệ quản trị viên nếu cần sử dụng chức năng này." />
 }
 function RequireModule({ code }: { code: string }) {
   const { user } = useAuth()
@@ -50,10 +59,14 @@ export function App() {
       <Route element={<RequireModule code="PURCHASING" />}>
       <Route path="dashboard" element={<DashboardPage />} />
       <Route element={<RequirePermissions permissions={['PO_READ']} />}>
-        <Route path="purchase-orders" element={<PlannedPage title="Đơn mua hàng" />} />
+        <Route path="purchase-orders" element={<PurchaseOrdersPage />} />
+        <Route path="purchase-orders/:id" element={<PurchaseOrderDetailPage />} />
       </Route>
-      <Route element={<RequirePermissions permissions={['PRICE_READ']} />}><Route path="price-search" element={<PlannedPage title="Tra cứu giá" />} /></Route>
-      <Route element={<RequirePermissions permissions={['IMPORT_OPERATIONAL']} />}><Route path="imports" element={<PlannedPage title="Nhập dữ liệu" />} /></Route>
+      <Route element={<RequirePermissions permissions={['PO_CREATE']} />}><Route path="purchase-orders/new" element={<PurchaseOrderFormPage key="new" />} /></Route>
+      <Route element={<RequirePermissions permissions={['PO_EDIT']} />}><Route path="purchase-orders/:id/edit" element={<PurchaseOrderFormPage key="edit" />} /></Route>
+      <Route element={<RequirePermissions permissions={['CATALOG_READ']} />}><Route path="catalog/materials" element={<MaterialsPage />} /><Route path="catalog/suppliers" element={<SuppliersPage />} /></Route>
+      <Route element={<RequirePermissions permissions={['PRICE_READ']} />}><Route path="price-search" element={<PriceSearchPage />} /></Route>
+      <Route element={<RequireAnyPermission permissions={['IMPORT_OPERATIONAL', 'IMPORT_LEGACY']} />}><Route path="imports" element={<ImportsPage />} /></Route>
       </Route>
       <Route element={<RequireModule code="PERSONNEL" />}>
       <Route element={<RequirePermissions permissions={['PERSONNEL_READ']} />}>

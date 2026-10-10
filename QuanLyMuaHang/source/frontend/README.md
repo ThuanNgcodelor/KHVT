@@ -57,6 +57,10 @@ src/
       hooks/useUsers.ts           query và mutation quản trị tài khoản
       userAdminApi.ts
       types.ts
+    catalog/                       vật tư/NCC: pages, forms, hooks, API, types
+    pricing/                       lịch sử/giá gần nhất, lọc và XLSX
+    procurement/                   danh sách/giỏ/lập/sửa/chi tiết PO và tài liệu
+    imports/                       preview yêu cầu, dữ liệu dán, workbook cũ
   services/
     apiClient.ts                   cookies, CSRF và lỗi HTTP tập trung
     dashboardApi.ts
@@ -65,6 +69,7 @@ src/
 tests/e2e/auth.spec.ts              auth/cổng ứng dụng bằng API fixtures
 tests/e2e/personnel.spec.ts         nhân sự bằng API fixtures
 tests/e2e/accounts.spec.ts          tài khoản bằng API fixtures
+tests/e2e/purchasing.spec.ts        danh mục/giá/PO/import bằng API fixtures
 ```
 
 Page là điểm vào của một URL; component dựng giao diện; hook chứa logic trạng thái/đồng bộ; service gọi HTTP. Không cần tạo các tầng trống cho tính năng chưa làm.
@@ -94,7 +99,13 @@ API dùng cookie session HttpOnly, không lưu token đăng nhập trong localSt
 - Nhân sự: danh sách/tìm kiếm/lọc trạng thái/phân trang, tạo/sửa hồ sơ, ngừng/kích hoạt; tạo/sửa phòng ban và chức vụ.
 - Tài khoản: danh sách/phân trang, tạo/sửa, liên kết nhân viên hoạt động, gán role và trạng thái, reset mật khẩu tạm. Admin cấp Mua hàng qua PLANNER/VIEWER, Nhân sự qua HR_MANAGER; một người có thể có nhiều role. Thay quyền/trạng thái/reset thu hồi phiên theo backend.
 - API role trả `permissions` và `moduleCodes` suy ra theo registry để giải thích ứng dụng của từng vai trò. Form lưu `roleCodes`; không gửi grant hoặc moduleCodes. Danh sách ứng dụng của phiên được backend tính lại từ hợp permission.
-- Trang PO/giá/import hiện báo đang triển khai, chưa có CRUD UI. Chưa có CRUD role/permission, grant module độc lập, luồng xin/duyệt quyền hay Bán hàng. Xem [mô hình phân quyền và mở rộng](../../docs/CONG_UNG_DUNG_VA_PHAN_QUYEN.md).
+- Danh mục vật tư/NCC: tìm mã/tên, lọc trạng thái/phân loại, phân trang từ backend, thêm/sửa và xác nhận ngừng/kích hoạt. Danh sách gợi ý đang hoạt động dùng riêng khi lập đơn.
+- Giá: lịch sử theo từ khóa/mã/tên, loại tiền và phân loại; xem giá gần nhất đúng mã hoặc tên chính xác và cùng loại tiền; chuyển sang lập đơn và tải XLSX theo bộ lọc. Dữ liệu legacy hiển thị cơ sở giả định VND.
+- PO: danh sách/bộ lọc/phân trang, giỏ dòng hàng thủ công hoặc từ danh mục/giá/import, số lượng số hoặc chữ, chọn NCC từng dòng, kiểm tra nhóm NCC rồi lưu từng bản nháp. Sửa có lý do/tăng revision, hủy có xác nhận, phát hành PDF qua POST riêng, tải PDF hiện tại/phiên bản cũ và XLSX.
+- Import: file yêu cầu Excel/CSV/PDF text hoặc dán dữ liệu → preview → chọn dòng → lập đơn; workbook cũ → preview số dòng/cảnh báo/checksum → xác nhận đã đối chiếu và database thử/backup → commit. Preview không tự tạo PO hoặc lịch sử giá. PDF scan chưa có OCR.
+- Chưa có CRUD role/permission, grant module độc lập, luồng xin/duyệt quyền hay Bán hàng. Xem [mô hình phân quyền và mở rộng](../../docs/CONG_UNG_DUNG_VA_PHAN_QUYEN.md).
+
+Giỏ chưa lưu chỉ nằm trong bộ nhớ trang, reload có thể mất; bản nháp đã lưu nằm trong danh sách PO. Mỗi đơn tối đa 200 dòng. Khi mất kết nối sau request lưu, kiểm tra danh sách trước khi gửi lại vì backend chưa có idempotency key. Xem [đối chiếu với Index.html/Mã.js](../../docs/DOI_CHIEU_UNG_DUNG_CU.md).
 
 Hồ sơ nhân viên và tài khoản đăng nhập là hai đối tượng riêng. Ngừng nhân viên vô hiệu hóa tài khoản liên kết; kích hoạt nhân viên không tự khôi phục tài khoản. Khi cần mở lại, admin kiểm tra trạng thái tài khoản riêng. Bộ lọc hiện là mã/tên và trạng thái nhân viên; chưa có bộ lọc phòng ban hay search tài khoản vì API danh sách tài khoản hiện chỉ phân trang.
 
@@ -107,13 +118,17 @@ npx.cmd playwright install chromium
 npm.cmd run test:e2e
 ```
 
-Ngày 2026-10-10, build `tsc -b`/Vite cuối cùng và 7 Vitest tests đã qua. Auth/cổng ứng dụng có 10 tình huống trên hai viewport (20 trường hợp); nhân sự/tài khoản có 11 tình huống trên hai viewport (22 trường hợp). Lượt auth đầu qua 18/20; 2 lỗi khoảng trắng footer đã sửa và chạy lại qua. Đã xem ảnh desktop/mobile, sửa panel tài khoản bị co hẹp trên mobile rồi chạy lại 2 trường hợp tạo tài khoản qua; sau chỉnh heading/checkbox, 2 trường hợp bố cục cổng/nhân sự chạy lại cũng qua. Có **42 trường hợp browser riêng biệt đã qua** sau các lượt sửa/chạy lại; không cộng lượt chạy lại vào số trường hợp. Lịch sử ngày 2026-10-09 có 6 Vitest tests và 16 lượt Playwright qua, không dùng số cũ để xác nhận phần mới.
+Ngày 2026-10-10, build `tsc -b`/Vite cuối cùng và 7 Vitest tests đã qua. Playwright một worker chạy 58 trường hợp: 56 qua lượt đầu, hai selector NCC đã sửa/chạy lại qua; sau chỉnh breadcrumb, 16 trường hợp mua hàng chạy lại đều qua. Có **58 trường hợp browser riêng biệt đã qua**, gồm 20 auth/cổng, 22 nhân sự/tài khoản, 16 danh mục/giá/PO/import trên desktop/mobile; không cộng lượt chạy lại. Log `frontend-purchasing-final-build.log`, `frontend-purchasing-unit.log`, `frontend-purchasing-browser.log`, `frontend-purchasing-browser-retry.log`, `frontend-purchasing-final-browser.log` trong `../target/runtime/`. Bundle hiện hơn 500 kB nên Vite có cảnh báo kích thước; build không thất bại, chưa tối ưu tách route thành chunk.
 
-Test mới kiểm tra auth/quyền/cổng ứng dụng, thêm/sửa/ngừng/kích hoạt nhân viên, phòng ban/chức vụ, thêm/sửa/reset tài khoản, giữ form khi lỗi API, phân trang, xác nhận và bàn phím/mobile. Unit regression kiểm tra API trả HTTP 200 với body rỗng khi reset mật khẩu. Log local ở `../target/runtime/frontend-build.log`, `frontend-unit.log`, `frontend-auth-e2e-new.log`, `frontend-auth-e2e-retry.log`, `frontend-crud-e2e.log`, `frontend-account-layout-retry.log` và `frontend-personnel-layout-retry.log`. Ảnh `ui-*` ở cùng thư mục dùng dữ liệu tổng hợp.
+Test kiểm tra auth/quyền/cổng, CRUD nhân sự/tài khoản, lỗi/giữ form/phân trang/xác nhận, quyền đọc/ghi danh mục và giá, nhóm NCC tạo PO riêng/số lượng chữ, phát hành PDF tách khỏi tải, operational preview chuyển giỏ, workbook ack/commit, bố cục mobile. Unit regression kiểm tra HTTP 200 body rỗng. Đã xem ảnh `ui-po-form-*` desktop/mobile; bảng giỏ cuộn ngang trong vùng bảng, không làm trang tràn viewport. Ảnh chỉ dùng dữ liệu tổng hợp.
+
+[MCP trình duyệt](../../tools/browser-mcp/README.md) đã chạy initialize/tools/list/browser navigation và luồng mua hàng qua server stdio thật, với API fixture tổng hợp. Đây là kiểm tra MCP/UI khác với driver HTTP/MySQL/Redis.
 
 Playwright dùng server riêng cổng 5190 và **API giả lập**, không xác nhận MySQL/Redis hay nghiệp vụ thật đã được nghiệm thu. Fixture dùng dữ liệu/tài khoản tổng hợp; kiểm tra cả đăng nhập bằng email miền nội bộ. Báo cáo/trace ở `test-results/` đã được ignore; không ghi mật khẩu thật vào test hoặc trace. Test với backend/MySQL/Redis thật phải được thực hiện riêng trên dữ liệu thử và ghi rõ phạm vi.
 
-Ngày 2026-10-10 đã khởi động lại frontend/backend; frontend HTTP 200, backend và Vite proxy health `UP`, MySQL/Redis healthy. Một lần thử login thật bằng thông tin bootstrap nạp riêng nhận HTTP 401, đã dừng không retry/đổi mật khẩu. Chưa xác định thông tin đăng nhập hiện hành; không báo auth thật mới đã qua hoặc suy ra người dùng đã đổi mật khẩu. CRUD browser vẫn dùng API giả lập.
+Runtime chính hiện bị chặn Docker/WSL crash; backend 8080 chưa lên lại. Driver HTTP đã chạy một phần trên schema MySQL/Redis thử riêng (không dùng tài khoản người dùng), chưa hoàn tất browser/workbook trên MySQL. Workbook thật đã preview/commit trên H2 riêng với báo cáo số dòng, không coi đó là MySQL/Flyway/Redis. Xem [bằng chứng hiện hành](../../docs/HE_THONG_HIEN_TAI.md) và [hướng dẫn test local](../../tools/local-test/README.md).
+
+Lịch sử trước UI mua hàng ngày 2026-10-10: backend/frontend health từng UP; một lần thử login bằng cấu hình bootstrap của database ứng dụng nhận 401 và đã dừng, không đổi mật khẩu. Không suy ra người dùng đã đổi mật khẩu hoặc reset tài khoản đó để chạy test. Các log cũ không chứng minh runtime còn hoạt động.
 
 Ngày 2026-10-09 đã kiểm tra riêng qua browser với backend/MySQL/Redis local thật: đăng nhập admin bootstrap, chuyển tới trang đổi mật khẩu, reload vẫn giữ phiên, truy cập dashboard bị chuyển lại trang đổi mật khẩu, rồi logout thành công. Không đổi mật khẩu admin trong smoke test; chưa kiểm tra luồng ghi nghiệp vụ thật hay hoàn tất đổi mật khẩu bằng tài khoản này. Đây là bằng chứng lịch sử trước thay đổi indexed session, không xác nhận auth thật của runtime mới. Backend đã kiểm tra service thu hồi phiên bằng một test Redis thật riêng; xem [README backend](../README.md) để biết phạm vi và cách bật.
 

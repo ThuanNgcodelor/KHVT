@@ -1,6 +1,7 @@
 package com.example.quanlymuahang.exporting.application;
 
 import com.example.quanlymuahang.domain.common.CurrencyCode;
+import com.example.quanlymuahang.domain.material.MaterialCategory;
 import com.example.quanlymuahang.pricing.application.PricingService;
 import com.example.quanlymuahang.procurement.application.PurchaseOrderService;
 import org.apache.poi.ss.usermodel.CellStyle;
@@ -24,6 +25,10 @@ public class ExcelExportService {
     public ExcelExportService(PricingService pricing, PurchaseOrderService purchaseOrders) { this.pricing = pricing; this.purchaseOrders = purchaseOrders; }
 
     public ExportFile exportPriceHistory(String query, CurrencyCode currency) {
+        return exportPriceHistory(query, currency, null);
+    }
+
+    public ExportFile exportPriceHistory(String query, CurrencyCode currency, MaterialCategory category) {
         try (SXSSFWorkbook workbook = new SXSSFWorkbook(200); ByteArrayOutputStream output = new ByteArrayOutputStream()) {
             workbook.setCompressTempFiles(true);
             Sheet sheet = workbook.createSheet("Lich su gia");
@@ -32,7 +37,7 @@ public class ExcelExportService {
             int rowNumber = 1;
             boolean truncated = false;
             for (int pageNumber = 0; pageNumber < 50; pageNumber++) {
-                Page<PricingService.PriceView> page = pricing.search(query, currency, PageRequest.of(pageNumber, 1000));
+                Page<PricingService.PriceView> page = pricing.search(query, currency, category, PageRequest.of(pageNumber, 1000));
                 for (PricingService.PriceView item : page.getContent()) {
                     if (rowNumber > 50_000) { truncated = true; break; }
                     Row row = sheet.createRow(rowNumber++);

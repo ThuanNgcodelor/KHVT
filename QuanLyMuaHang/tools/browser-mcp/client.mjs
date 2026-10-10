@@ -4,10 +4,9 @@ import { fileURLToPath } from 'node:url'
 
 // Exercise the real MCP stdio protocol; do not record tool arguments or replies
 // because authenticated pages can contain business data and credentials.
-export async function connectBrowserMcp() {
-  const cli = fileURLToPath(new URL('./node_modules/@playwright/mcp/cli.js', import.meta.url))
-  const config = fileURLToPath(new URL('./browser.config.json', import.meta.url))
-  const child = spawn(process.execPath, [cli, '--config', config], { stdio: ['pipe', 'pipe', 'pipe'], windowsHide: true })
+export async function connectBrowserMcp({ initPage, diagnostics = false } = {}) {
+  const cli = fileURLToPath(new URL('./start.mjs', import.meta.url))
+  const child = spawn(process.execPath, [cli, ...(initPage ? ['--init-page',initPage] : [])], { stdio: ['pipe', 'pipe', 'pipe'], windowsHide: true, env:{...process.env,NODE_OPTIONS:'--max-old-space-size=128 --max-semi-space-size=2'} })
   const pending = new Map()
   let sequence = 0
   child.stderr.resume()
@@ -39,7 +38,7 @@ export async function connectBrowserMcp() {
     info, request,
     call: async (name, args = {}) => {
       const result = await request('tools/call', { name, arguments: args })
-      if (result.isError) throw new Error(`MCP tool failed: ${name}`)
+      if (result.isError) throw new Error(`MCP tool failed: ${name}${diagnostics ? '\n' + JSON.stringify(result.content).slice(0,2500) : ''}`)
       return result
     },
     close: async () => { try { await request('tools/call', { name: 'browser_close', arguments: {} }) } finally { child.stdin.end(); child.kill() } },

@@ -2,7 +2,7 @@
 
 Backend là Spring Boot REST API trên Java 21, chia module theo nghiệp vụ theo hướng DDD modular monolith. Cấu trúc hiện còn pha trộn module nghiệp vụ với entity/repository dùng chung; xem [bản đồ hệ thống hiện tại](../docs/HE_THONG_HIEN_TAI.md) để phân biệt thiết kế và code đang chạy.
 
-Frontend React/Vite ở `frontend/` có login, đổi mật khẩu lần đầu, session/CSRF, cổng chọn ứng dụng, dashboard API và UI nhân sự/tài khoản. Build mới, 7 unit tests và 42 trường hợp browser desktop/mobile trên API giả lập đã qua sau sửa/chạy lại. UI danh mục/giá/PO/import chờ triển khai. Xem [cấu trúc và cách chạy frontend](frontend/README.md). Hướng dẫn cho AI nằm ở [AGENTS.md](../AGENTS.md), kèm [nguyên tắc trung thực](../docs/NGUYEN_TAC_TRUNG_THUC.md) và [skill giao diện KHVT](../skills/khvt-ui/SKILL.md).
+Frontend React/Vite ở `frontend/` có auth/session/CSRF, cổng chọn ứng dụng, dashboard, nhân sự/tài khoản, danh mục vật tư/NCC, tra cứu giá, lập/sửa/hủy PO, PDF/XLSX và import preview/commit. Xem [cấu trúc và cách chạy frontend](frontend/README.md), [đối chiếu Index.html/Mã.js](../docs/DOI_CHIEU_UNG_DUNG_CU.md) và [bằng chứng kiểm thử hiện hành](../docs/HE_THONG_HIEN_TAI.md). Hướng dẫn cho AI nằm ở [AGENTS.md](../AGENTS.md), kèm [nguyên tắc trung thực](../docs/NGUYEN_TAC_TRUNG_THUC.md) và [skill giao diện KHVT](../skills/khvt-ui/SKILL.md).
 
 ## Chạy local
 
@@ -32,13 +32,21 @@ mvn spring-boot:run
 
 API mặc định ở `http://localhost:8080`. MySQL chỉ bind vào `127.0.0.1:3307`, Redis vào `127.0.0.1:6380`. Khi cần dừng riêng stack local này: `docker compose stop mysql redis`.
 
+Trên Windows PowerShell, từ thư mục repository có thể dùng:
+
+```powershell
+./tools/start-local.ps1
+```
+
+Script nạp `.env` riêng, kiểm tra Docker và chờ MySQL/Redis healthy, chọn JDK 21/Maven, build JAR rồi chạy Java/Vite cửa sổ ẩn với heap giới hạn. `-SkipBuild` dùng JAR đã build; không thay cho chạy test. Nếu cổng đang có tiến trình chưa xác nhận, script dừng với thông báo; frontend do launcher tạo có PID/command đúng có thể được dùng lại ở API 8080. PID và log riêng trong `source/target/runtime/`. Script đã qua kiểm tra cú pháp PowerShell 5.1 và từ chối chạy đúng khi Docker offline; nhánh khởi động thành công còn chờ phục hồi Docker.
+
 ## Kiểm tra và đăng nhập API
 
 Chạy `mvn test` để chạy test unit và Spring context với H2 trong bộ nhớ; bộ test thông thường không kết nối MySQL/Redis thật. Test Redis thật được bật riêng như bên dưới. Để chạy API local, MySQL và Redis phải healthy trước.
 
-Kết quả mới: Maven 3.9.11/JDK 21 chạy `mvn package` thành công lúc **2026-10-10 00:29:59 +07:00**, 32 test/0 failure/error/skipped; compile/JAR/repackage đều qua. Log local ở [backend-verified-build.log](target/runtime/backend-verified-build.log). Lần này có 31 unit/mock/H2 tests và một test Redis thật opt-in. Test API kiểm tra modules/permissions/role bằng H2/MockHttpSession; test Redis kiểm tra Boot indexed repository và service thu hồi/giữ phiên với dữ liệu tổng hợp. Chưa xác nhận HTTP hai phiên, last-admin hoặc CRUD MySQL.
+Kết quả mới: Maven 3.9.11/JDK 21 `mvn package` **BUILD SUCCESS lúc 2026-10-10 09:53:20 +07:00**; 37 test liệt kê, 36 thực thi qua, một test Redis opt-in bỏ qua. Lần này bật `QMH_TEST_WORKBOOK`: preview/commit H2 file UUID, đối chiếu 10.561 dòng lịch sử/262 PO, hai commit đồng thời chỉ một thành công, preview sau commit giữ cảnh báo/nhóm PO; file gốc không đổi. Driver HTTP/MySQL/Redis riêng đã qua một phần gồm hai phiên/last-admin/CRUD/PO nhưng chưa hoàn tất lượt workbook/MCP vì Docker crash. Log hiện hành và giới hạn xem [hệ thống hiện tại](../docs/HE_THONG_HIEN_TAI.md); cách tái chạy tại [tools/local-test](../tools/local-test/README.md).
 
-Sau build, backend cổng 8080 và Vite cổng 5173 đã khởi động lại; MySQL/Redis Compose healthy tại thời điểm kiểm tra ngày 2026-10-10. Backend `/actuator/health` trả HTTP 200/`UP`, frontend trả 200 và health qua Vite proxy trả `UP`. Smoke login thật thử một lần bằng thông tin bootstrap nạp riêng nhận HTTP 401, đã dừng không retry/đổi mật khẩu. Chưa xác định thông tin đăng nhập hiện hành; không suy ra người dùng đã đổi mật khẩu hoặc báo auth thật mới đã qua. Health không thay thế kiểm thử nghiệp vụ.
+Runtime chính hiện chưa khởi động lại được vì Docker/WSL crash, MySQL/Redis offline. Lịch sử trước UI mua hàng: health từng UP; thử login database ứng dụng một lần bằng cấu hình bootstrap nhận 401 và đã dừng, không reset mật khẩu. Các test sau dùng tài khoản tổng hợp/database riêng, không xác nhận mật khẩu hiện hành của người dùng. Health và test không thay nghiệm thu nghiệp vụ.
 
 Test Redis thật sử dụng namespace UUID `qmh:test:session:<uuid>`, chỉ dọn key do test tạo, không dùng tài khoản thật hoặc `FLUSHDB`. Bật khi Redis của dự án đã chạy và `REDIS_PASSWORD` đã được nạp riêng vào môi trường. Trên Bash:
 
@@ -79,8 +87,8 @@ Redis session hiện cấu hình `repository-type: indexed` và namespace `qmh:s
 
 - Danh tính: `/api/auth/*`; quản trị tài khoản/vai trò: `/api/admin/users`, `/api/admin/roles`, `/api/admin/audit`.
 - Nhân sự: `/api/personnel/employees`, `/api/personnel/departments`, `/api/personnel/positions`; de/activate nhân viên sẽ vô hiệu hóa phiên đăng nhập liên kết.
-- Danh mục: `/api/catalog/materials`, `/api/catalog/suppliers`; tra cứu giá: `/api/prices`.
-- Đơn mua: `/api/purchase-orders` (tạo, sửa/revision, hủy, danh sách, PDF và PDF revision); Excel export: `/api/exports/prices.xlsx`, `/api/exports/purchase-orders/{id}.xlsx`.
+- Danh mục: `/api/catalog/materials`, `/api/catalog/suppliers` (gợi ý active); thêm `/page` cho bộ lọc/phân trang và `/{id}` cho chi tiết. Tra cứu giá: `/api/prices`, `/api/prices/latest`; lịch sử/XLSX hỗ trợ `category`.
+- Đơn mua: `/api/purchase-orders` (tạo, sửa/revision, hủy, danh sách). Phát hành qua `POST /api/purchase-orders/{id}/issue`, cần PO_CREATE hoặc PO_EDIT và CSRF; `GET /{id}/pdf`/`GET /{id}/revisions/{revision}/pdf` chỉ đọc tài liệu đã có, không phát hành/ghi giá. Chưa có PDF trả 409. Excel export: `/api/exports/prices.xlsx`, `/api/exports/purchase-orders/{id}.xlsx`.
 - Import workbook legacy: `POST /api/imports/legacy/preview` rồi `POST /api/imports/legacy/{batchId}/commit`.
 - Import yêu cầu mua/báo giá thành draft để người dùng rà lại: `/api/imports/operational/preview` và `/api/imports/operational/paste`. Luồng draft không ghi lịch sử giá hay tạo PO; PDF scan không có OCR.
 - Health check: `/actuator/health`.
@@ -99,7 +107,7 @@ Hãy sao lưu workbook và database trước lần commit đầu tiên trên d�
 
 ## PDF và file sinh ra
 
-PDF PO nhúng font Unicode. Mặc định dùng DejaVu Sans tại `/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf`; đổi `APP_PDF_FONT_PATH` nếu hệ điều hành đặt font ở nơi khác. File PDF lưu trong `FILE_STORAGE_ROOT` (mặc định `./data/files`); cần backup thư mục này cùng database.
+PDF PO nhúng font Unicode, có thông tin công ty/NCC, bảng hàng hóa, tổng tiền/VAT, ghi chú và ba vị trí ký; hàng dài tự xuống dòng/ngắt trang. Thông tin công ty được chuyển từ mẫu legacy, cần bộ phận nghiệp vụ rà lại trước dùng chính thức. Mặc định dùng DejaVu Sans tại `/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf`; đổi `APP_PDF_FONT_PATH` nếu hệ điều hành đặt font ở nơi khác (Windows đã thử `C:/Windows/Fonts/arial.ttf`). File PDF lưu trong `FILE_STORAGE_ROOT` (mặc định `./data/files`); cần backup thư mục này cùng database.
 
 ## Triển khai sau này
 

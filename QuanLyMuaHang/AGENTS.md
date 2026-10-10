@@ -22,7 +22,7 @@ If there is no `.codegraph/` directory, skip CodeGraph entirely — indexing is 
 ## Bản đồ nhanh
 
 - `source/`: ứng dụng chính, backend Spring Boot Java 21; `source/pom.xml` là điểm build.
-- `source/frontend/`: React/TypeScript/Vite/Tailwind; auth/CSRF, cổng ứng dụng, dashboard, nhân sự và tài khoản theo pages/hooks/components. Đọc `source/frontend/README.md` để biết phần UI đã có và giới hạn kiểm thử.
+- `source/frontend/`: React/TypeScript/Vite/Tailwind; auth/CSRF, cổng ứng dụng, dashboard, nhân sự/tài khoản, danh mục/giá/PO/import theo pages/hooks/components. Đọc `source/frontend/README.md` để biết phần UI đã có và giới hạn kiểm thử.
 - `source/src/main/resources/db/migration/`: schema MySQL do Flyway quản lý.
 - `source/src/test/`: test backend. Kết quả build và runtime local có thể nằm trong `source/target/runtime/`; thư mục `target/` là đầu ra sinh ra, không phải source.
 - `plan/`: phạm vi, nghiệp vụ, thiết kế UI, triển khai và acceptance.
@@ -45,7 +45,10 @@ If there is no `.codegraph/` directory, skip CodeGraph entirely — indexing is 
 - Đọc và áp dụng [skill giao diện KHVT](skills/khvt-ui/SKILL.md) khi sửa frontend. Đây là skill riêng của repository, được tạo theo yêu cầu người dùng, không phải skill chính thức từ OpenAI. Người dùng đã yêu cầu bỏ màu cam; dùng palette xanh rêu/xanh ngọc của skill trừ khi có chỉ dẫn mới.
 - Base API nằm ở `source/frontend/src/config/baseApi.ts`; request đi qua `services/apiClient.ts`. Không hard-code host trong component.
 - Auth dùng session cookie HttpOnly và CSRF, không lưu token phiên trong localStorage. Sau login cần lấy lại CSRF token; tài khoản có mật khẩu tạm phải đổi mật khẩu.
-- Client có auth/CSRF, đổi mật khẩu lần đầu, dashboard và UI nhân viên/phòng ban/chức vụ/tài khoản. UI PO/giá/import còn là trang chờ; catalog/role/permission/audit UI chưa có. Browser tests dùng API giả lập, không coi đó là nghiệm thu MySQL/Redis thật.
+- Client có auth/CSRF, dashboard, nhân sự/tài khoản, vật tư/NCC, giá, giỏ/PO/revisions/PDF/XLSX và import preview/commit. Role/permission/audit UI chưa có. Browser tests và MCP UI smoke dùng API giả lập; test API/database thật chạy riêng. Đọc `docs/DOI_CHIEU_UNG_DUNG_CU.md` khi sửa luồng từ Index.html/Mã.js.
+- Phát hành PO dùng POST `/{id}/issue` có quyền ghi và CSRF. GET PDF chỉ đọc artifact đã có; không cho người chỉ đọc phát hành/ghi giá. Khi sửa dòng hàng, flush orphan deletes trước khi gắn dòng thay thế để tránh trùng `(purchase_order_id,line_no)`; thao tác sửa/hủy/phát hành khóa bản ghi PO trong transaction.
+- Legacy commit khóa bản ghi lô trong transaction trước khi kiểm tra status; không bỏ khóa làm hai request cùng lô nhập trùng. Preview trùng checksum phải giữ số nhóm PO/cảnh báo từ staging, kể cả sau commit; không trả số 0 giả.
+- Browser MCP ở `tools/browser-mcp/`, hướng dẫn kết nối tại README cùng thư mục; cấu hình VS Code trong `.vscode/mcp.json`. Test thật tạo schema/namespace UUID riêng ở `tools/local-test/run.mjs`; không log bí mật. Workbook H2 opt-in là kiểm tra bổ sung, không thay kiểm chứng MySQL/Flyway/Redis.
 - Sau login/đổi mật khẩu tạm, vào `/modules`. Danh sách ứng dụng và permission hiệu lực do backend trả trong thông tin phiên; frontend kiểm tra `modules` và `permissions`, không suy ra quyền chỉ từ tên role. Admin hiện cấp ứng dụng qua vai trò; chưa có grant độc lập hoặc xin/duyệt quyền. Đọc [cổng ứng dụng và phân quyền](docs/CONG_UNG_DUNG_VA_PHAN_QUYEN.md) trước khi thêm module hoặc thay mô hình quyền.
 - Tách page/component theo tính năng khi triển khai; không tiếp tục dồn toàn bộ tính năng vào `App.tsx`.
 - Nhãn trạng thái API, KPI và bảng phải phản ánh dữ liệu thật hoặc ghi rõ dữ liệu mẫu. Có loading, empty, error, 401/403 và trạng thái gửi form; kiểm tra keyboard và màn hình nhỏ.

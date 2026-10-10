@@ -121,7 +121,7 @@ public class LegacyWorkbookImportService {
 
     @Transactional
     public CommitResult commit(long batchId, long actorId) {
-        ImportBatch batch = batches.findById(batchId).orElseThrow(() -> ApiException.notFound("Không tìm thấy lô import"));
+        ImportBatch batch = batches.findLockedById(batchId).orElseThrow(() -> ApiException.notFound("Không tìm thấy lô import"));
         if (!MODE.equals(batch.getMode())) throw ApiException.badRequest("INVALID_IMPORT_MODE", "Lô import không phải workbook legacy");
         if (batch.getStatus() != ImportBatchStatus.PREVIEW) throw ApiException.conflict("IMPORT_ALREADY_PROCESSED", "Lô import đã được xử lý trước đó");
         List<StoredRow> rows = jdbc.query("SELECT sheet_name,`row_number`,mapped_json,status,issues_json FROM import_rows WHERE batch_id=? ORDER BY sheet_name,`row_number`",
@@ -469,10 +469,19 @@ public class LegacyWorkbookImportService {
     }
 
     private PreviewResult result(ImportBatch batch, boolean duplicate, String message) {
-        List<Map<String, Object>> rawRows = jdbc.query("SELECT sheet_name,status FROM import_rows WHERE batch_id=?", (rs, n) -> Map.of("sheet", rs.getString(1), "status", rs.getString(2)), batch.getId());
-        Map<String, Integer> counts = rawRows.stream().collect(Collectors.groupingBy(row -> (String) row.get("sheet"), LinkedHashMap::new, Collectors.summingInt(row -> 1)));
-        Summary summary = new Summary(counts, batch.getErrorRows(), 0, 0, batch.getTotalRows(), "CONFIG không được import.");
-        return new PreviewResult(batch.getId(), batch.getFileName(), batch.getSha256(), batch.getStatus().name(), summary, List.of(), duplicate, message);
+        List<LegacyRow> rows = jdbc.query("SELECT sheet_name,`row_number`,mapped_json,issues_json FROM import_rows WHERE batch_id=? ORDER BY CASE sheet_name WHEN 'NCC' THEN 1 WHEN 'LICH_SU' THEN 2 WHEN 'DON_HANG' THEN 3 ELSE 4 END,`row_number`", (rs, n) -> {
+            List<String> issues;
+            try { issues = mapper.readValue(rs.getString(4), new TypeReference<List<String>>() {}); }
+            catch (JsonProcessingException exception) { throw new IllegalStateException("Cảnh báo staging JSON bị lỗi", exception); }
+            String status = issues.stream().anyMatch(issue -> issue.startsWith("ERROR:")) ? "ERROR" : issues.isEmpty() ? "READY" : "WARNING";
+            return new LegacyRow(rs.getString(1), rs.getInt(2), Map.of(), readJson(rs.getString(3)), status, issues);
+        }, batch.getId());
+        Map<String, List<LegacyRow>> bySheet = rows.stream().collect(Collectors.groupingBy(LegacyRow::sheet, LinkedHashMap::new, Collectors.toList()));
+        int errors = (int) rows.stream().filter(row -> row.status().equals("ERROR")).count();
+        int warnings = (int) rows.stream().filter(row -> row.status().equals("WARNING")).count();
+        return new PreviewResult(batch.getId(), batch.getFileName(), batch.getSha256(), batch.getStatus().name(),
+                summary(new WorkbookData(bySheet, rows), errors, warnings), rows.stream().filter(row -> !row.issues().isEmpty()).limit(30)
+                .map(row -> new RowIssue(row.sheet(), row.rowNumber(), row.status(), row.issues())).toList(), duplicate, message);
     }
 
     private String cellText(Cell cell, DataFormatter formatter, FormulaEvaluator evaluator) {

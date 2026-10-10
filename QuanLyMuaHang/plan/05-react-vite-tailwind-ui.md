@@ -53,7 +53,7 @@ Mỗi feature sở hữu page, hook, service, schema validation và tests liên 
 - /admin/roles: ma trận permission; chỉ ADMIN.
 - /admin/audit: tra cứu audit; không có chức năng sửa/xóa.
 
-Các route trên là phạm vi thiết kế. Code hiện có auth/cổng/dashboard/nhân viên/phòng ban/chức vụ/tài khoản; PO/giá/import còn là trang chờ, CRUD catalog/role/permission/audit UI chưa có. Danh sách nhân viên hiện lọc mã/tên và trạng thái; tài khoản hiện phân trang, chưa có API search/filter. Không dựng control rồi lọc riêng một trang để giả là đã hỗ trợ tìm kiếm toàn bộ.
+Các route trên là phạm vi thiết kế. Code hiện có auth/cổng/dashboard/nhân sự/tài khoản, danh mục vật tư/NCC, giá, PO/giỏ/PDF/XLSX và import preview/commit. CRUD role/permission/audit UI chưa có. Danh mục/giá/PO phân trang và lọc từ backend; nhân viên hiện lọc mã/tên và trạng thái, tài khoản hiện phân trang nhưng chưa có API search/filter. Không dựng control rồi lọc riêng một trang để giả là đã hỗ trợ tìm kiếm toàn bộ. Bằng chứng hiện hành tại `docs/HE_THONG_HIEN_TAI.md`, đối chiếu ứng dụng cũ tại `docs/DOI_CHIEU_UNG_DUNG_CU.md`; có UI không tự đánh dấu nghiệm thu.
 
 ## Thiết kế kiểu hệ thống quản lý
 

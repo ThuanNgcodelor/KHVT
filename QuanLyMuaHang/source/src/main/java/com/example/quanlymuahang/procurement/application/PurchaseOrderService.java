@@ -107,14 +107,19 @@ public class PurchaseOrderService {
     @Transactional
     public OrderView update(long id, OrderCommand command, long actorId) {
         validate(command);
-        PurchaseOrder order = order(id);
+        PurchaseOrder order = orderForMutation(id);
         if (order.getStatus() == PurchaseOrderStatus.CANCELLED) throw ApiException.conflict("PO_CANCELLED", "Đơn mua đã hủy không thể sửa");
         Supplier supplier = suppliers.findById(command.supplierId()).orElseThrow(() -> ApiException.notFound("Không tìm thấy nhà cung cấp"));
         order.setOrderDate(command.orderDate() == null ? order.getOrderDate() : command.orderDate());
         order.setSupplier(supplier); order.setSupplierNameSnapshot(supplier.getName()); order.setSupplierAddressSnapshot(supplier.getAddress());
         order.setCurrency(command.currency()); order.setVatPercent(command.vatPercent()); order.setNote(clean(command.note()));
         order.setPreparedBy(clean(command.preparedBy())); order.setUpdatedBy(actorId);
-        order.replaceItems(buildItems(command.items()));
+        List<PurchaseOrderItem> replacement = buildItems(command.items());
+        // Flush orphan deletions before inserts reuse (purchase_order_id, line_no).
+        // Both phases remain in this transaction and roll back together on failure.
+        order.replaceItems(List.of());
+        orders.flush();
+        order.replaceItems(replacement);
         order.setRevision(order.getRevision() + 1);
         order.setStatus(PurchaseOrderStatus.DRAFT);
         orders.saveAndFlush(order);
@@ -126,7 +131,7 @@ public class PurchaseOrderService {
 
     @Transactional
     public OrderView cancel(long id, String reason, long actorId) {
-        PurchaseOrder order = order(id);
+        PurchaseOrder order = orderForMutation(id);
         if (order.getStatus() == PurchaseOrderStatus.CANCELLED) return OrderView.from(order);
         order.cancel(reason == null || reason.isBlank() ? "Hủy theo yêu cầu người dùng" : reason.trim());
         order.setUpdatedBy(actorId);
@@ -149,7 +154,7 @@ public class PurchaseOrderService {
 
     @Transactional
     public OrderView issue(long id, long actorId) {
-        PurchaseOrder order = order(id);
+        PurchaseOrder order = orderForMutation(id);
         if (order.getStatus() == PurchaseOrderStatus.CANCELLED)
             throw ApiException.conflict("PO_CANCELLED", "Đơn đã hủy không thể phát hành");
         pdfForRevision(order, order.getRevision(), actorId);
@@ -271,45 +276,7 @@ public class PurchaseOrderService {
     }
 
     private byte[] renderPdf(OrderView order) {
-        if (!Files.isRegularFile(fontPath)) throw new IllegalStateException("Thiếu font Unicode cho PDF; cấu hình APP_PDF_FONT_PATH đến font DejaVu Sans hoặc Noto Sans");
-        try (PDDocument document = new PDDocument(); InputStream fontInput = Files.newInputStream(fontPath); ByteArrayOutputStream bytes = new ByteArrayOutputStream()) {
-            PDType0Font font = PDType0Font.load(document, fontInput);
-            PDPage page = new PDPage(PDRectangle.A4); document.addPage(page);
-            PDPageContentStream stream = new PDPageContentStream(document, page);
-            float y = 790;
-            List<String> lines = new ArrayList<>();
-            lines.add("ĐƠN ĐẶT HÀNG / PURCHASE ORDER");
-            lines.add("Số PO: " + order.poNumber() + "    Ngày: " + (order.orderDate() == null ? "Chưa xác định" : order.orderDate()));
-            lines.add("Nhà cung cấp: " + order.supplierName());
-            lines.add("Địa chỉ: " + (order.supplierAddress() == null ? "" : order.supplierAddress()));
-            lines.add("Tiền tệ: " + order.currency() + "    VAT: " + order.vatPercent() + "%");
-            lines.add("--------------------------------------------------------------------------------------------------------------------------------");
-            lines.add("STT | Tên hàng/vật tư | Quy cách | ĐVT | Số lượng | Đơn giá | Thành tiền");
-            for (OrderItemView item : order.items()) {
-                String qty = item.quantity() == null ? item.quantityText() : item.quantity().stripTrailingZeros().toPlainString();
-                String line = item.lineNo() + " | " + item.materialName() + " | " + safe(item.specification()) + " | " + safe(item.unit())
-                        + " | " + safe(qty) + " | " + money(item.unitPrice(), order.currency()) + " | " + (item.lineTotal() == null ? "Không cộng tự động" : money(item.lineTotal(), order.currency()));
-                lines.addAll(wrap(line, 94));
-            }
-            lines.add("--------------------------------------------------------------------------------------------------------------------------------");
-            lines.add("Tạm tính (không gồm dòng số lượng chữ): " + money(order.subtotal(), order.currency()) + " " + order.currency());
-            lines.add("VAT: " + money(order.taxAmount(), order.currency()) + " " + order.currency());
-            lines.add("Tổng cộng: " + money(order.grandTotal(), order.currency()) + " " + order.currency());
-            if (order.quantityTextLineCount() > 0) lines.add("Lưu ý: " + order.quantityTextLineCount() + " dòng số lượng dạng chữ không được cộng vào tổng.");
-            lines.add("Ghi chú: " + safe(order.note()));
-            lines.add("Người lập: " + safe(order.preparedBy()));
-            for (String line : lines) {
-                if (y < 45) {
-                    stream.close(); page = new PDPage(PDRectangle.A4); document.addPage(page);
-                    stream = new PDPageContentStream(document, page); y = 790;
-                }
-                stream.beginText(); stream.setFont(font, 8.5f); stream.newLineAtOffset(40, y); stream.showText(safe(line)); stream.endText();
-                y -= 15;
-            }
-            stream.close(); document.save(bytes); return bytes.toByteArray();
-        } catch (IOException exception) {
-            throw new IllegalStateException("Không thể tạo PDF", exception);
-        }
+        return PurchaseOrderPdfRenderer.render(order, fontPath);
     }
 
     private static List<String> wrap(String line, int max) {
@@ -335,6 +302,7 @@ public class PurchaseOrderService {
         catch (NoSuchAlgorithmException exception) { throw new IllegalStateException(exception); }
     }
     private PurchaseOrder order(long id) { return orders.findById(id).orElseThrow(() -> ApiException.notFound("Không tìm thấy đơn mua")); }
+    private PurchaseOrder orderForMutation(long id) { return orders.findLockedById(id).orElseThrow(() -> ApiException.notFound("Không tìm thấy đơn mua")); }
 
     @Transactional(readOnly = true)
     public List<RevisionView> revisions(long id) {
@@ -343,7 +311,7 @@ public class PurchaseOrderService {
                 .map(revision -> new RevisionView(revision.getRevision(), revision.getChangedBy(), revision.getChangeReason(), revision.getCreatedAt(),
                         documents.findByPurchaseOrderIdAndRevisionAndDocumentType(id, revision.getRevision(), "PO_PDF")
                                 .map(document -> Files.isRegularFile(safeStoredPath(document.getStorageKey()))).orElse(false)))
-                .toList();
+                .toList();b       
     }
 
     public record OrderCommand(Long supplierId, LocalDate orderDate, CurrencyCode currency, BigDecimal vatPercent,
@@ -351,7 +319,7 @@ public class PurchaseOrderService {
     public record ItemCommand(Long materialId, String materialCode, String materialName, String specification,
                               String unit, BigDecimal quantity, String quantityText, BigDecimal unitPrice) {}
     public record PdfFile(String fileName, byte[] content) {}
-    public record RevisionView(int revision, Long changedBy, String changeReason, java.time.Instant createdAt) {}
+    public record RevisionView(int revision, Long changedBy, String changeReason, java.time.Instant createdAt, boolean pdfAvailable) {}
     public record OrderView(Long id, String poNumber, LocalDate orderDate, Long supplierId, String supplierName,
                             String supplierAddress, CurrencyCode currency, BigDecimal vatPercent, String note,
                             String preparedBy, PurchaseOrderStatus status, int revision, long version,

@@ -14,7 +14,10 @@ export function AppShell() {
   const { pathname } = useLocation()
   if (!user) return null
   const initials = user.displayName.trim().split(/\s+/).slice(-2).map((part) => part[0]).join('').toUpperCase()
-  const title = navigation.find((item) => item.path === pathname)?.label ?? (pathname === '/admin/departments' ? 'Phòng ban' : pathname === '/admin/positions' ? 'Chức vụ' : 'Hệ thống')
+  const title = pathname === '/purchase-orders/new' ? 'Lập đơn mua'
+    : /^\/purchase-orders\/\d+\/edit$/.test(pathname) ? 'Sửa đơn mua'
+    : /^\/purchase-orders\/\d+$/.test(pathname) ? 'Chi tiết đơn mua'
+    : navigation.find((item) => pathname === item.path || pathname.startsWith(`${item.path}/`))?.label ?? 'Hệ thống'
   return <div className="app-shell">
     <a className="skip-link" href="#main-content">Đến nội dung chính</a>
     <Sidebar user={user} initials={initials} open={sidebar.open} onClose={sidebar.close} />

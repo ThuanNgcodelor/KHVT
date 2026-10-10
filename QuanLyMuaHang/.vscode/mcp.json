@@ -3,7 +3,7 @@
     "khvt-browser": {
       "type": "stdio",
       "command": "node",
-      "args": ["${workspaceFolder}/tools/browser-mcp/node_modules/@playwright/mcp/cli.js", "--config", "${workspaceFolder}/tools/browser-mcp/browser.config.json"]
+      "args": ["${workspaceFolder}/tools/browser-mcp/start.mjs"]
     }
   }
 }

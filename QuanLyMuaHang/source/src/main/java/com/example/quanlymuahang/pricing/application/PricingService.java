@@ -40,6 +40,7 @@ public class PricingService {
         if (hasCode) {
             var byCode = history.latestByCode(materialCode.trim(), currency, PageRequest.of(0, 1));
             if (!byCode.isEmpty()) return PriceView.from(byCode.getFirst());
+            throw ApiException.notFound("Chưa có giá có ngày cho mã vật tư và loại tiền đã chọn");
         }
         if (!normalizedName.isBlank()) {
             var byName = history.latestByName(normalizedName, currency, PageRequest.of(0, 1));

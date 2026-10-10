@@ -1,6 +1,7 @@
 package com.example.quanlymuahang.exporting.web;
 
 import com.example.quanlymuahang.domain.common.CurrencyCode;
+import com.example.quanlymuahang.domain.material.MaterialCategory;
 import com.example.quanlymuahang.exporting.application.ExcelExportService;
 import org.springframework.http.ContentDisposition;
 import org.springframework.http.HttpHeaders;
@@ -22,8 +23,9 @@ public class ExcelExportController {
 
     @GetMapping("/prices.xlsx")
     @PreAuthorize("hasAuthority('*') or hasAuthority('PRICE_READ')")
-    public ResponseEntity<byte[]> prices(@RequestParam(defaultValue = "") String q, @RequestParam(required = false) CurrencyCode currency) {
-        ExcelExportService.ExportFile file = exports.exportPriceHistory(q, currency);
+    public ResponseEntity<byte[]> prices(@RequestParam(defaultValue = "") String q, @RequestParam(required = false) CurrencyCode currency,
+                                       @RequestParam(required = false) MaterialCategory category) {
+        ExcelExportService.ExportFile file = exports.exportPriceHistory(q, currency, category);
         return response(file);
     }
 

@@ -236,3 +236,27 @@ label.checkbox-field { display: flex; align-items: center; gap: 8px; font-size: 
   .module-icon { width: 52px; height: 52px; margin-bottom: 20px; }
 }
 @media (prefers-reduced-motion: reduce) { *, *::before, *::after { transition: none !important; scroll-behavior: auto !important; } }
+.import-panel { padding: 22px; margin-bottom: 20px; }
+.import-panel h2 { margin-top: 0; font-size: 17px; }
+.import-panel .form-field { margin-bottom: 16px; }
+.import-panel .header-actions { margin: 14px 0; flex-wrap: wrap; }
+.import-note { margin: 0; padding: 16px 22px; font-size: 12px; color: var(--muted); line-height: 1.7; }
+.success-notice { background: #e7f2eb; color: #175f43; padding: 12px 16px; border: 1px solid #c6ddcd; border-radius: 4px; }
+.record-info { display: grid; grid-template-columns: 150px minmax(0, 1fr); gap: 12px 18px; margin: 0; }
+.record-info dt { color: var(--muted); font-size: 12px; }
+.record-info dd { margin: 0; overflow-wrap: anywhere; }
+.record-info > div { display: contents; }
+.po-cart { min-width: 1150px; }
+.po-cart td { min-width: 110px; vertical-align: top; }
+.po-cart td:first-child, .po-cart td:last-child { min-width: 40px; }
+.po-cart td input:not([type=checkbox]), .po-cart td select { width: 100%; min-width: 100px; padding: 7px; margin-bottom: 6px; border: 1px solid var(--line); border-radius: 3px; }
+.po-cart td:nth-child(2) { min-width: 235px; }
+.po-cart td:nth-child(3) { min-width: 185px; }
+.po-totals { margin: 20px 22px 20px auto; max-width: 380px; display: grid; grid-template-columns: 1fr auto; gap: 12px; }
+.po-totals dd { margin: 0; text-align: right; font-variant-numeric: tabular-nums; }
+.po-totals dt:last-of-type, .po-totals dd:last-of-type { font-weight: 700; color: var(--brand); }
+.lookup-list { list-style: none; padding: 0; max-height: 230px; overflow-y: auto; border: 1px solid var(--line); }
+.lookup-list button { background: #fff; border: 0; border-bottom: 1px solid var(--line); padding: 10px; width: 100%; text-align: left; }
+.lookup-list button:hover { background: #edf4ee; }
+.group-preview { border: 1px solid var(--line); padding: 16px; margin: 14px 0; border-radius: 4px; }
+@media (max-width: 760px) { .import-panel { padding: 16px; } .record-info { grid-template-columns: 1fr; gap: 5px; } .record-info dd { margin-bottom: 10px; } .import-panel .header-actions { align-items: stretch; } .material-lookup .header-actions { flex-direction: column; } }
