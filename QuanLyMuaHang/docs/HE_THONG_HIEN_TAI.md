@@ -1,6 +1,16 @@
 # Hệ thống hiện tại — Quản lý mua hàng KHVT
 
-Cập nhật ngày 2026-10-10. Tài liệu mô tả code và bằng chứng kiểm tra, không phải biên bản nghiệm thu. Nhóm mua hàng đã có UI danh mục/giá/PO/import và mẫu PDF. Backend package mới qua 36 test thực thi, một test Redis opt-in bỏ qua; frontend build, 7 unit tests và 58 trường hợp browser riêng biệt đã qua sau chạy lại. MCP mở trình duyệt và chạy UI với API giả lập đã qua. Workbook thật đã preview/commit trên H2 riêng; **chưa xác nhận import trên MySQL**: lượt driver trước bị ngắt bởi Docker/WSL. Lúc 11:08, MySQL/Redis đã healthy trở lại và backend khởi động qua; sau kiểm tra đã dừng riêng backend để nhường cổng 8080 cho VS Code F5. Frontend 5173 vẫn chạy.
+Cập nhật ngày 2026-10-10. Tài liệu mô tả code và bằng chứng kiểm tra, không phải biên bản nghiệm thu. Nhóm mua hàng đã có UI danh mục/giá/PO/import và mẫu PDF. Lượt package mua hàng qua 36 test thực thi, một test Redis opt-in bỏ qua; frontend build, 7 unit tests và 58 trường hợp browser riêng biệt đã qua sau chạy lại. MCP mở trình duyệt và chạy UI với API giả lập đã qua. Workbook thật đã preview/commit trên H2 riêng; **chưa xác nhận import trên MySQL**: lượt driver trước bị ngắt bởi Docker/WSL. Lượt sửa đăng nhập sau đó qua 11 test auth backend, 10 unit frontend và 22 browser auth desktop/mobile với API giả lập. Lúc 11:30, backend 8080 và frontend 5173 đã chạy lại, MySQL/Redis healthy.
+
+## Sửa thông báo không có quyền khi đăng nhập
+
+Kiểm tra HTTP thực tế lúc **2026-10-10 11:24–11:30 +07:00** bằng tài khoản tổng hợp không tồn tại: qua Vite, Origin `http://127.0.0.1:5173` với cookie/CSRF hợp lệ bị HTTP 403/plain text `Invalid CORS request`, còn Origin `http://localhost:5173` tới được bước xác thực và trả 401/`INVALID_CREDENTIALS` như dự kiến. Vite cấu hình proxy bằng chuỗi URL làm Host chuyển sang backend; frontend gán thông báo thiếu quyền cho response 403 không có JSON.
+
+Đã sửa proxy `/api` và `/actuator` thành cấu hình `changeOrigin: false` để giữ Host của trình duyệt. Frontend làm mới CSRF trước mỗi lần login để tránh cache cũ khi tab khác đăng nhập/đăng xuất; 403 không có JSON trên Login hiện hướng dẫn tải lại phiên. Backend phân biệt lỗi CSRF bằng `CSRF_INVALID`, còn lỗi permission thực vẫn là `FORBIDDEN`; CSRF vẫn được kiểm tra. Không thay mật khẩu hoặc quyền tài khoản.
+
+Sau sửa: cả hai Origin qua frontend đều trả 401/`INVALID_CREDENTIALS` với thông tin tổng hợp; thiếu CSRF trả 403/`CSRF_INVALID`. Gọi trực tiếp backend từ Origin 127.0.0.1 khác cấu hình vẫn bị CORS từ chối. Báo cáo `source/target/runtime/login-csrf-probe.json` (trước) và `login-csrf-probe-after-fix.json` (sau) chỉ ghi trạng thái/code, không ghi cookie/token/mật khẩu. Chưa xác nhận đăng nhập tài khoản thật của người dùng; đang thiếu email được sử dụng.
+
+`mvn -Dtest=AuthApiIntegrationTest package` dùng JDK 21/Maven 3.9.11 đã BUILD SUCCESS, 11/11 test H2: CSRF thiếu/sai/không khớp cookie không tăng failed-login counter, sai mật khẩu với CSRF hợp lệ trả 401, quyền đọc/ghi và mật khẩu tạm vẫn được kiểm tra. Frontend TypeScript/Vite build và 10 unit tests qua; Playwright `auth.spec.ts --workers=1` có 22/22 desktop/mobile qua, **API giả lập**. Log `backend-login-fix.log`, `frontend-login-types.log`, `frontend-login-build.log`, `frontend-login-browser.log` trong `source/target/runtime/`. Đây là lượt kiểm tra auth có phạm vi cụ thể, không phải chạy lại toàn bộ bộ test hay nghiệm thu nghiệp vụ.
 
 ## Bằng chứng mới của nhóm mua hàng
 

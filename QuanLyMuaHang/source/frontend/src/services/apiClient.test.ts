@@ -37,6 +37,33 @@ describe('cookie and CSRF requests', () => {
     expect(new Headers(fetchMock.mock.calls[3][1]?.headers).get('X-XSRF-TOKEN')).toBe('after-login')
   })
 
+  it('refreshes a cached CSRF token before login after another tab changes its cookie', async () => {
+    fetchMock.mockResolvedValueOnce(json({ headerName: 'X-XSRF-TOKEN', token: 'stale-from-another-tab' }))
+      .mockResolvedValueOnce(json({ ok: true }))
+      .mockResolvedValueOnce(json({ headerName: 'X-XSRF-TOKEN', token: 'current-cookie-token' }))
+      .mockResolvedValueOnce(json({ id: 1 }))
+    await apiClient.post('/example')
+    await authApi.login('fixture@example.test', 'synthetic-password')
+    expect(fetchMock.mock.calls.map(([url]) => url)).toEqual(['/api/auth/csrf', '/api/example', '/api/auth/csrf', '/api/auth/login'])
+    expect(new Headers(fetchMock.mock.calls[3][1]?.headers).get('X-XSRF-TOKEN')).toBe('current-cookie-token')
+  })
+
+  it('does not describe a non-JSON login rejection as a missing account permission', async () => {
+    fetchMock.mockResolvedValueOnce(json({ headerName: 'X-XSRF-TOKEN', token: 'fixture' }))
+      .mockResolvedValueOnce(new Response('Invalid CORS request', { status: 403 }))
+    await expect(authApi.login('fixture@example.test', 'synthetic-password'))
+      .rejects.toThrow('Không thể xác nhận phiên đăng nhập. Hãy tải lại trang và thử lại.')
+  })
+
+  it('keeps business permission errors distinct from CSRF errors', async () => {
+    fetchMock.mockResolvedValueOnce(json({ code: 'FORBIDDEN', message: 'Bạn không có quyền thực hiện thao tác này' }, 403))
+    await expect(apiClient.get('/admin/users')).rejects.toMatchObject({ status: 403, code: 'FORBIDDEN' })
+    fetchMock.mockResolvedValueOnce(json({ headerName: 'X-XSRF-TOKEN', token: 'fixture' }))
+      .mockResolvedValueOnce(json({ code: 'CSRF_INVALID', message: 'Phiên bảo vệ đã thay đổi. Hãy tải lại trang và đăng nhập lại.' }, 403))
+    await expect(authApi.login('fixture@example.test', 'synthetic-password'))
+      .rejects.toMatchObject({ status: 403, code: 'CSRF_INVALID', message: 'Phiên bảo vệ đã thay đổi. Hãy tải lại trang và đăng nhập lại.' })
+  })
+
   it('signals expired business sessions, but does not signal a rejected login', async () => {
     const expired = vi.fn()
     authEvents.addEventListener('session-expired', expired)

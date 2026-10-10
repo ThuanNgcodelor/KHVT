@@ -47,10 +47,27 @@ class AuthApiIntegrationTest {
 
     @Test
     void anonymousAndMissingCsrfAreRejected() throws Exception {
+        account("ADMIN", false, "*");
         mvc.perform(get("/api/auth/me")).andExpect(status().isUnauthorized());
         mvc.perform(post("/api/auth/login").contentType("application/json")
-                .content(json.writeValueAsString(Map.of("email", EMAIL, "password", PASSWORD))))
-                .andExpect(status().isForbidden());
+                .content(json.writeValueAsString(Map.of("email", EMAIL, "password", "wrong"))))
+                .andExpect(status().isForbidden()).andExpect(jsonPath("code").value("CSRF_INVALID"));
+        assertThat(jdbc.queryForObject("select failed_login_count from user_accounts where email=?", Integer.class, EMAIL)).isZero();
+    }
+
+    @Test
+    void invalidOrMismatchedCsrfDoesNotAttemptAuthentication() throws Exception {
+        account("ADMIN", false, "*");
+        Csrf original = csrf(null);
+        Csrf replacement = csrf(null);
+        String body = json.writeValueAsString(Map.of("email", EMAIL, "password", "wrong"));
+        mvc.perform(post("/api/auth/login").cookie(original.cookie()).header(original.header(), "not-a-valid-csrf-token")
+                .contentType("application/json").content(body))
+                .andExpect(status().isForbidden()).andExpect(jsonPath("code").value("CSRF_INVALID"));
+        mvc.perform(post("/api/auth/login").cookie(replacement.cookie()).header(original.header(), original.token())
+                .contentType("application/json").content(body))
+                .andExpect(status().isForbidden()).andExpect(jsonPath("code").value("CSRF_INVALID"));
+        assertThat(jdbc.queryForObject("select failed_login_count from user_accounts where email=?", Integer.class, EMAIL)).isZero();
     }
 
     @Test
@@ -99,7 +116,8 @@ class AuthApiIntegrationTest {
                 .andExpect(jsonPath("modules.length()").value(1))
                 .andExpect(jsonPath("modules[0].code").value("PURCHASING"));
         mvc.perform(get("/api/dashboard").session(session)).andExpect(status().isOk());
-        mvc.perform(get("/api/admin/users").session(session)).andExpect(status().isForbidden());
+        mvc.perform(get("/api/admin/users").session(session)).andExpect(status().isForbidden())
+                .andExpect(jsonPath("code").value("FORBIDDEN"));
         mvc.perform(get("/api/personnel/employees").session(session)).andExpect(status().isForbidden());
     }
 
@@ -176,6 +194,7 @@ class AuthApiIntegrationTest {
         mvc.perform(post("/api/auth/login").cookie(csrf.cookie()).header(csrf.header(), csrf.token())
                 .contentType("application/json").content(json.writeValueAsString(Map.of("email", EMAIL, "password", "wrong"))))
                 .andExpect(status().isUnauthorized()).andExpect(jsonPath("code").value("INVALID_CREDENTIALS"));
+        assertThat(users.findByEmail(EMAIL).orElseThrow().getFailedLoginCount()).isEqualTo(1);
     }
 
     private void account(String role, boolean temporary, String... permissions) {

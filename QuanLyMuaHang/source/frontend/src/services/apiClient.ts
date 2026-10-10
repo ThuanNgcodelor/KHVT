@@ -67,6 +67,7 @@ async function fetchResponse(path: string, init?: RequestInit, accept = 'applica
     if (response.status === 403) resetCsrf()
     if (detail?.code === 'PASSWORD_CHANGE_REQUIRED') authEvents.dispatchEvent(new Event('password-change-required'))
     const fallback = response.status === 401 ? 'Phiên đăng nhập đã hết hạn.'
+      : response.status === 403 && path === '/auth/login' ? 'Không thể xác nhận phiên đăng nhập. Hãy tải lại trang và thử lại.'
       : response.status === 403 ? 'Bạn không có quyền thực hiện thao tác này.' : 'Không thể xử lý yêu cầu. Hãy thử lại.'
     throw new ApiError(response.status, detail?.message || fallback, detail?.code)
   }

@@ -10,8 +10,9 @@ export default defineConfig(({ mode }) => {
     port: 5173,
     host: '127.0.0.1',
     proxy: {
-      '/api': target,
-      '/actuator': target,
+      // Keep the browser's Host so same-origin requests stay same-origin at Spring.
+      '/api': { target, changeOrigin: false },
+      '/actuator': { target, changeOrigin: false },
     },
   },
   preview: {

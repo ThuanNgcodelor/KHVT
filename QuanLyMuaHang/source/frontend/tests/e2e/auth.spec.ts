@@ -55,6 +55,27 @@ test('shows rejected credentials and clears the password field', async ({ page }
   await expect(page).toHaveURL(/\/login$/)
 })
 
+test('explains a plain-text login rejection and keeps the form without retrying', async ({ page }) => {
+  const state = await mockApi(page)
+  let loginPosts = 0
+  await page.route('**/api/auth/login', async (route) => {
+    expect(route.request().method()).toBe('POST')
+    loginPosts++
+    await route.fulfill({ status: 403, contentType: 'text/plain', body: 'Invalid CORS request' })
+  })
+  await page.goto('/login')
+  await login(page)
+  await expect(page.getByRole('alert')).toHaveText('Không thể xác nhận phiên đăng nhập. Hãy tải lại trang và thử lại.')
+  await expect(page.getByText('Bạn không có quyền thực hiện thao tác này.', { exact: true })).toHaveCount(0)
+  await expect(page.getByLabel('Email', { exact: true })).toHaveValue('fixture@localhost')
+  await expect(page.getByLabel('Mật khẩu', { exact: true })).toHaveValue('')
+  await expect(page.getByRole('button', { name: 'Đăng nhập', exact: true })).toBeEnabled()
+  await expect(page).toHaveURL(/\/login$/)
+  expect(loginPosts).toBe(1)
+  expect(state.signedIn).toBe(false)
+  expect(state.dashboardCalls).toBe(0)
+})
+
 test('viewer cannot open account administration', async ({ page }) => {
   await mockApi(page, { role: 'VIEWER', signedIn: true })
   await page.goto('/admin/users')

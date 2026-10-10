@@ -20,6 +20,7 @@ import org.springframework.security.web.context.HttpSessionSecurityContextReposi
 import org.springframework.security.web.context.SecurityContextRepository;
 import org.springframework.security.web.context.SecurityContextHolderFilter;
 import org.springframework.security.web.csrf.CookieCsrfTokenRepository;
+import org.springframework.security.web.csrf.CsrfException;
 import org.springframework.security.web.csrf.CsrfTokenRepository;
 import org.springframework.security.web.authentication.session.ChangeSessionIdAuthenticationStrategy;
 import org.springframework.security.web.authentication.session.SessionAuthenticationStrategy;
@@ -83,7 +84,12 @@ public class SecurityConfig {
                         .accessDeniedHandler((request, response, exception) -> {
                             response.setStatus(HttpServletResponse.SC_FORBIDDEN);
                             response.setContentType(MediaType.APPLICATION_JSON_VALUE);
-                            response.getWriter().write("{\"code\":\"FORBIDDEN\",\"message\":\"Bạn không có quyền thực hiện thao tác này\"}");
+                            boolean invalidCsrf = exception instanceof CsrfException;
+                            objectMapper.writeValue(response.getOutputStream(), java.util.Map.of(
+                                    "code", invalidCsrf ? "CSRF_INVALID" : "FORBIDDEN",
+                                    "message", invalidCsrf
+                                            ? "Mã bảo vệ phiên không hợp lệ hoặc đã hết hạn. Hãy tải lại trang rồi đăng nhập lại."
+                                            : "Bạn không có quyền thực hiện thao tác này"));
                         }))
                 .addFilterAfter(new PasswordChangeRequiredFilter(objectMapper), SecurityContextHolderFilter.class);
         return http.build();
