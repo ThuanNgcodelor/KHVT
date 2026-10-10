@@ -109,4 +109,27 @@
             </plugin>
         </plugins>
     </build>
+
+    <profiles>
+        <profile>
+            <id>windows-web</id>
+            <build>
+                <resources>
+                    <resource>
+                        <directory>src/main/resources</directory>
+                    </resource>
+                    <resource>
+                        <directory>frontend/dist</directory>
+                        <targetPath>static</targetPath>
+                        <includes>
+                            <include>index.html</include>
+                            <include>assets/**</include>
+                            <include>favicon.ico</include>
+                            <include>robots.txt</include>
+                        </includes>
+                    </resource>
+                </resources>
+            </build>
+        </profile>
+    </profiles>
 </project>

@@ -1,6 +1,7 @@
 package com.example.quanlymuahang.config;
 
 import com.example.quanlymuahang.identity.infrastructure.security.AccountUserDetailsService;
+import jakarta.servlet.DispatcherType;
 import jakarta.servlet.http.HttpServletResponse;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
@@ -72,7 +73,12 @@ public class SecurityConfig {
                 .httpBasic(basic -> basic.disable())
                 .logout(logout -> logout.disable())
                 .authorizeHttpRequests(auth -> auth
+                        .dispatcherTypeMatchers(DispatcherType.ERROR).permitAll()
                         .requestMatchers("/api/auth/csrf", "/api/auth/login", "/actuator/health", "/actuator/info").permitAll()
+                        .requestMatchers(HttpMethod.GET, "/", "/index.html", "/assets/**", "/favicon.ico", "/robots.txt",
+                                "/login", "/change-password", "/modules", "/dashboard", "/purchase-orders", "/purchase-orders/**",
+                                "/catalog/materials", "/catalog/suppliers", "/price-search", "/imports",
+                                "/admin/employees", "/admin/departments", "/admin/positions", "/admin/users").permitAll()
                         .requestMatchers(HttpMethod.OPTIONS, "/**").permitAll()
                         .anyRequest().authenticated())
                 .exceptionHandling(errors -> errors

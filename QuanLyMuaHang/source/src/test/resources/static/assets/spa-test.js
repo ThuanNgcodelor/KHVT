@@ -1,0 +1,1 @@
+/* synthetic-spa-test-asset */

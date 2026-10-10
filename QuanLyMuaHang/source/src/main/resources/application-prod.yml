@@ -1,4 +1,14 @@
 server:
+  address: ${SERVER_ADDRESS:127.0.0.1}
+  forward-headers-strategy: native
+  tomcat:
+    redirect-context-root: false
+    remoteip:
+      # cloudflared must connect from this host; do not trust arbitrary LAN proxies.
+      internal-proxies: '127\.0\.0\.1|0:0:0:0:0:0:0:1|::1'
+      # Keep the original Host; the app and API share the same public origin.
+      host-header: ''
+      port-header: ''
   servlet:
     session:
       cookie:
