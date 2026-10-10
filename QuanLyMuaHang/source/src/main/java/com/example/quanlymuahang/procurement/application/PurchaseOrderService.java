@@ -311,7 +311,7 @@ public class PurchaseOrderService {
                 .map(revision -> new RevisionView(revision.getRevision(), revision.getChangedBy(), revision.getChangeReason(), revision.getCreatedAt(),
                         documents.findByPurchaseOrderIdAndRevisionAndDocumentType(id, revision.getRevision(), "PO_PDF")
                                 .map(document -> Files.isRegularFile(safeStoredPath(document.getStorageKey()))).orElse(false)))
-                .toList();b       
+                .toList();
     }
 
     public record OrderCommand(Long supplierId, LocalDate orderDate, CurrencyCode currency, BigDecimal vatPercent,
