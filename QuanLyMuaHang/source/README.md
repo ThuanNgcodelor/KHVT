@@ -171,6 +171,10 @@ Legacy import chấp nhận `.xls`/`.xlsx` và yêu cầu các sheet `NCC`, `LIC
 
 Hãy sao lưu workbook và database trước lần commit đầu tiên trên dữ liệu thật; kiểm tra preview/warnings và đối chiếu số dòng/PO trước khi commit.
 
+Trong giao diện `/imports`, chọn **Workbook dữ liệu cũ** để nhập workbook có NCC/LICH_SU/DON_HANG. Màn hình **Kiểm tra 850 dòng** thuộc tab **Yêu cầu mua / báo giá**, dùng để chọn tối đa 200 dòng mỗi lượt chuyển sang lập đơn; không nạp toàn bộ lịch sử workbook.
+
+Lượt MCP với backend/MySQL thật ngày **2026-10-10, 22:11–22:22 +07:00** đã đăng nhập HTTP 200, sao lưu và commit workbook vào schema local `quanlymuahang`: lô 1 `COMMITTED`, 10.561 lịch sử, 262 PO và 850 dòng hàng; 391 NCC, 2.997 vật tư sau xử lý. Có 4.803 dòng cảnh báo, 0 lỗi; dữ liệu nguồn thiếu không bị sửa để ép commit. Preview lại giữ số nhóm/cảnh báo, nhận `duplicate=true` và không tăng số bản ghi. File gốc không đổi. Bằng chứng/giới hạn và vị trí bản sao lưu ở [hệ thống hiện tại](../docs/HE_THONG_HIEN_TAI.md#import-workbook-thật-qua-mcp-vào-mysql); đây là lượt import/đọc dữ liệu thật, không phải chạy lại toàn bộ driver hoặc nghiệm thu production.
+
 ## PDF và file sinh ra
 
 PDF PO nhúng font Unicode, có thông tin công ty/NCC, bảng hàng hóa, tổng tiền/VAT, ghi chú và ba vị trí ký; hàng dài tự xuống dòng/ngắt trang. Thông tin công ty được chuyển từ mẫu legacy, cần bộ phận nghiệp vụ rà lại trước dùng chính thức. Mặc định dùng DejaVu Sans tại `/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf`; đổi `APP_PDF_FONT_PATH` nếu hệ điều hành đặt font ở nơi khác (Windows đã thử `C:/Windows/Fonts/arial.ttf`). File PDF lưu trong `FILE_STORAGE_ROOT` (mặc định `./data/files`); cần backup thư mục này cùng database.

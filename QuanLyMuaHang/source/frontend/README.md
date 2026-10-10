@@ -129,6 +129,8 @@ Hồ sơ nhân viên và tài khoản đăng nhập là hai đối tượng riê
 
 ## Kiểm tra
 
+Lượt **MCP với backend/MySQL thật ngày 2026-10-10, 22:11–22:22 +07:00** đã đăng nhập HTTP 200 và import `QUANLYMUAHANGKHVT.xlsx` ở tab **Workbook dữ liệu cũ** sau khi sao lưu/đối chiếu. MySQL xác nhận 10.561 lịch sử, 262 PO, 850 dòng PO; giao diện danh sách/chi tiết PO, tra cứu giá và danh mục đọc được dữ liệu này. Preview lại cùng tệp nhận lô 1 `COMMITTED`, không có nút commit và không tạo dữ liệu trùng; giữ 4.803 dòng cảnh báo, 0 lỗi. Màn hình **Kiểm tra 850 dòng** ở tab **Yêu cầu mua / báo giá** chỉ chuyển tối đa 200 dòng mỗi lượt sang lập đơn, không phải import toàn bộ workbook. Xem [bằng chứng và giới hạn](../../docs/HE_THONG_HIEN_TAI.md#import-workbook-thật-qua-mcp-vào-mysql). Lượt này không chạy lại các bộ test bên dưới hay nghiệm thu toàn bộ luồng mua hàng.
+
 ```powershell
 npm.cmd run build
 npm.cmd test
