@@ -1,38 +1,96 @@
+
 name: qmh-local
 
 services:
   mysql:
     image: mysql:8.4
     restart: unless-stopped
+    mem_limit: 1536m
+    cpus: 2.0
+
+    command:
+      - --innodb-buffer-pool-size=512M
+      - --innodb-buffer-pool-instances=1
+      - --innodb-log-buffer-size=32M
+      - --max-connections=80
+      - --table-open-cache=512
+      - --table-definition-cache=512
+      - --thread-cache-size=8
+      - --tmp-table-size=32M
+      - --max-heap-table-size=32M
+      - --temptable-max-ram=64M
+      - --innodb-flush-method=O_DIRECT
+      - --skip-name-resolve
+
+    stop_grace_period: 60s
+
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
+
     environment:
       MYSQL_DATABASE: quanlymuahang
       MYSQL_USER: app
-      MYSQL_PASSWORD: ${DB_PASSWORD:?Set DB_PASSWORD in source/.env}
-      MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD:?Set MYSQL_ROOT_PASSWORD in source/.env}
+      MYSQL_PASSWORD: ${DB_PASSWORD:?Set DB_PASSWORD}
+      MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD:?Set MYSQL_ROOT_PASSWORD}
+
     ports:
       - "127.0.0.1:3307:3306"
+
     volumes:
       - mysql_data:/var/lib/mysql
+
     healthcheck:
-      test: ["CMD", "mysqladmin", "ping", "-h", "localhost"]
-      interval: 5s
+      test: ["CMD-SHELL", "MYSQL_PWD=\"$$MYSQL_ROOT_PASSWORD\" mysql -h 127.0.0.1 -u root -Nse 'SELECT 1' >/dev/null 2>&1"]
+      interval: 10s
       timeout: 5s
-      retries: 20
+      retries: 15
+      start_period: 40s
+
   redis:
     image: redis:7.4-alpine
     restart: unless-stopped
-    command: ["sh", "-c", "exec redis-server --appendonly yes --requirepass \"$${REDIS_PASSWORD}\""]
+    mem_limit: 256m
+    cpus: 1.0
+
+    command:
+      - sh
+      - -c
+      - |
+        exec redis-server \
+          --appendonly yes \
+          --appendfsync everysec \
+          --maxmemory 128mb \
+          --maxmemory-policy noeviction \
+          --requirepass "$$REDIS_PASSWORD"
+
+    stop_grace_period: 30s
+
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
+
     environment:
-      REDIS_PASSWORD: ${REDIS_PASSWORD:?Set REDIS_PASSWORD in source/.env}
+      REDIS_PASSWORD: ${REDIS_PASSWORD:?Set REDIS_PASSWORD}
+
     ports:
       - "127.0.0.1:6380:6379"
+
     volumes:
       - redis_data:/data
+
     healthcheck:
-      test: ["CMD-SHELL", "redis-cli -a \"$${REDIS_PASSWORD}\" ping | grep -q PONG"]
-      interval: 5s
+      test:
+        - CMD-SHELL
+        - REDISCLI_AUTH="$$REDIS_PASSWORD" redis-cli ping | grep -q PONG
+      interval: 10s
       timeout: 3s
-      retries: 20
+      retries: 15
+      start_period: 10s
 
 volumes:
   mysql_data:

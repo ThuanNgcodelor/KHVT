@@ -1,6 +1,22 @@
 # Hệ thống hiện tại — Quản lý mua hàng KHVT
 
-Cập nhật ngày 2026-10-10. Tài liệu mô tả code và bằng chứng kiểm tra, không phải biên bản nghiệm thu. Nhóm mua hàng đã có UI danh mục/giá/PO/import và mẫu PDF. Lượt package mua hàng qua 36 test thực thi, một test Redis opt-in bỏ qua; frontend build, 7 unit tests và 58 trường hợp browser riêng biệt đã qua sau chạy lại. MCP mở trình duyệt và chạy UI với API giả lập đã qua. Workbook thật đã preview/commit trên H2 riêng; **chưa xác nhận import trên MySQL**: lượt driver trước bị ngắt bởi Docker/WSL. Lượt sửa đăng nhập sau đó qua 11 test auth backend, 10 unit frontend và 22 browser auth desktop/mobile với API giả lập. Lúc 11:30, backend 8080 và frontend 5173 đã chạy lại, MySQL/Redis healthy.
+Cập nhật ngày 2026-10-10. Tài liệu mô tả code và bằng chứng kiểm tra, không phải biên bản nghiệm thu. Nhóm mua hàng đã có UI danh mục/giá/PO/import và mẫu PDF. Lượt package mua hàng qua 36 test thực thi, một test Redis opt-in bỏ qua; frontend build, 7 unit tests và 58 trường hợp browser riêng biệt đã qua sau chạy lại. MCP mở trình duyệt và chạy UI với API giả lập đã qua. Workbook thật đã preview/commit trên H2 riêng; **chưa xác nhận import trên MySQL**: lượt driver trước bị ngắt bởi Docker/WSL. Lượt sửa đăng nhập sau đó qua 11 test auth backend, 10 unit frontend và 22 browser auth desktop/mobile với API giả lập. Lượt Windows mới lúc 21:13–21:20 qua 20 test auth/SPA/proxy, build frontend/backend và chạy một JAR phục vụ UI/API cổng 8080; MySQL/Redis healthy. Chưa kết nối Cloudflare hoặc nghiệm thu production.
+
+## Chạy Windows, dev và chuẩn bị production
+
+[CHAY_KHVT.cmd](../CHAY_KHVT.cmd) gọi `tools/run-windows.ps1`: nạp cấu hình riêng, chọn JDK 21/Maven, kiểm tra Docker Desktop đã mở, bật riêng MySQL/Redis, `npm ci`/`npm run build`, rồi `mvn -Pwindows-web -DskipTests package`. Profile Maven đưa `frontend/dist` vào static resources của JAR. Một tiến trình Java phục vụ UI và API; không cần Vite để chạy bản đóng gói. `SpaController` phục vụ các URL giao diện cụ thể và deep link; API vẫn kiểm tra session/CSRF/permission. Không forward API hoặc asset bị thiếu thành HTML.
+
+Dev khi sửa code vẫn dùng `tools/start-local.ps1` hoặc backend VS Code/Maven và Vite 5173. Script dev đặt profile `dev`, origin local và cookie HTTP; hai launcher mặc định heap 256 MB, Serial GC, Hikari tối đa 5 kết nối/minimum idle 1. Heap không phải RAM toàn bộ tiến trình. Production dùng profile `prod`, origin HTTPS thật và cookie Secure; Tomcat native forwarded headers chỉ tin proxy loopback, bỏ override host/port, ứng dụng bind `127.0.0.1`. Hướng dẫn đầy đủ tại [chạy Windows và Cloudflare](CHAY_WINDOWS_VA_CLOUDFLARE.md).
+
+| Kiểm tra ngày 2026-10-10 | Kết quả và giới hạn |
+|---|---|
+| Test mục tiêu | `mvn -Dtest=AuthApiIntegrationTest,SpaWebIntegrationTest,ProductionProxyIntegrationTest test`: BUILD SUCCESS, 20/20 qua, không bỏ qua. Gồm 11 auth, 3 SPA/asset/API và 6 proxy/Secure cookie qua Tomcat HTTP thật. Dùng H2/MockMvc hoặc Tomcat test riêng; không chạy lại toàn bộ bộ test hay kiểm chứng Cloudflare. Log `source/target/runtime/windows-focused-tests.log`. |
+| Launcher/build | `CHAY_KHVT.cmd start` thực sự chạy npm ci, TypeScript/Vite build và Maven `windows-web` package thành công lúc 21:15. Build mặc định bỏ qua test. Gọi start lần hai giữ cùng PID, status UP, stop chỉ dừng Java được theo dõi. `start -NoBuild -ExternalDocker` chạy lại thành công; runtime cuối lúc 21:20 dùng PID 5448, cổng 8080. Không đăng ký Windows Service/tự chạy sau reboot. |
+| HTTP/UI thực | `windows-web-probe.json` lúc 21:19:50: root/login/modules/PO deep link/admin shell trả HTML 200, JS/CSS 200, API anonymous trả JSON 401, asset thiếu 404. Login bằng tài khoản tổng hợp không tồn tại và CSRF hợp lệ trả 401/INVALID_CREDENTIALS cho cả localhost/127.0.0.1; thiếu CSRF trả 403/CSRF_INVALID. MCP mở login của JAR, React render form/footer đúng; console có 401 `/api/auth/me` dự kiến khi chưa đăng nhập. Không đăng nhập tài khoản thật hoặc kiểm thử CRUD nghiệp vụ trong lượt này. |
+| Docker/dữ liệu | Người dùng xóa container cũ nhưng hai volume còn; container mới dùng nguyên volume. Lượt giới hạn 768/128 MiB lúc 21:12: Docker báo MySQL 316,5 MiB/Redis 7,547 MiB, so với 466,8/8,574 MiB lúc 21:03. Sau đó người dùng chỉnh Compose thành MySQL 1536 MiB/2 CPU/buffer pool 512 MiB, Redis 256 MiB/1 CPU/maxmemory 128 MiB/noeviction; lúc 21:17 báo 375,9 MiB/5,02 MiB, cả hai healthy. Volume, danh sách bảng, số migration thành công và số tài khoản khớp trước/sau; không đối chiếu toàn bộ dữ liệu nghiệp vụ. Redis keys 6→15 sau HTTP CSRF smoke; không xóa session. Log `docker-before.json`, `docker-after.json`. |
+| Java/WSL | Java JAR heap 256 MB dùng khoảng 336,5 MB Windows working set lúc 21:15; số đo tức thời, chưa đo tải/import lớn. Java của IDE không bị dừng hoặc đổi cấu hình bởi launcher. WSL VM còn bộ nhớ hệ thống/cache ngoài container; giới hạn Compose không phải giới hạn RAM của toàn bộ Docker Desktop. |
+
+Một lần `-NoBuild` startup nhận lỗi MySQL Communications/EOF đúng thời gian container được tạo lại với cấu hình mới; chờ cả hai healthy và chạy lại đã thành công. Không có bằng chứng lỗi này do giới hạn RAM. Không reset database, volume hoặc đổi mật khẩu để xử lý. Cloudflare Tunnel/domain và việc chuyển sang máy Windows khác chưa được kiểm chứng.
 
 ## Sửa thông báo không có quyền khi đăng nhập
 
@@ -40,6 +56,8 @@ Docker Desktop/WSL trước đó từng báo bootstrap `0xc00000fd` hoặc mất
 | `docs/CONG_UNG_DUNG_VA_PHAN_QUYEN.md` | Cổng chọn ứng dụng, quyền hiện có và hướng mở rộng Bán hàng/grant độc lập |
 | `skills/khvt-ui/SKILL.md` | Skill giao diện riêng của repository, palette và quy tắc UI theo yêu cầu người dùng |
 | `source/` | Backend và frontend của hệ thống mua hàng đang triển khai |
+| `CHAY_KHVT.cmd`, `tools/run-windows.ps1` | Build và chạy bản Windows, giao diện/API trong cùng JAR; Docker Desktop mở riêng |
+| `docs/CHAY_WINDOWS_VA_CLOUDFLARE.md` | Lệnh dev/production, giới hạn RAM, chuyển máy và chuẩn bị HTTPS/Tunnel |
 | `plan/` | Thiết kế và tiêu chí cần đạt; không mặc nhiên là trạng thái đã hoàn thành |
 | `backend(Demo để lấy phần login)/` | Đã xóa theo yêu cầu người dùng; không thuộc build ứng dụng chính |
 | `.codegraph/` | Chỉ mục để tra cứu code; không phải module chạy ứng dụng |
@@ -144,7 +162,7 @@ Vì vậy thư mục demo không cần để build/chạy ứng dụng chính hi
 
 ## Công việc còn lại theo ưu tiên
 
-1. Phục hồi Docker/WSL và khởi động runtime chính; chạy driver MySQL/Redis đến hết lượt, gồm workbook trên schema thử riêng theo yêu cầu người dùng. H2 workbook đã qua, không thay kiểm chứng MySQL/Flyway.
+1. Runtime đóng gói và Docker hiện đã khởi động; vẫn cần chạy driver MySQL/Redis đến hết lượt, gồm workbook trên schema thử riêng theo yêu cầu người dùng. H2 workbook đã qua, không thay kiểm chứng MySQL/Flyway.
 2. Đối chiếu 4.803 dòng cảnh báo nguồn, mẫu PDF/VAT/currency với nghiệp vụ và tiêu chí plan 09. Không commit vào database ứng dụng nếu chưa backup/đối chiếu.
 3. Kiểm thử browser với backend thật trên dữ liệu thử, các role và file yêu cầu Excel/CSV/PDF text; bổ sung ràng buộc chống PO trùng khi mất kết nối và cải thiện trải nghiệm giỏ chưa lưu. Browser fixture/MCP không thay nghiệm thu nghiệp vụ.
 4. Quyết định phạm vi CRUD role/permission và có cần grant module/xin duyệt quyền độc lập không; hiện admin cấp ứng dụng thông qua vai trò. Bán hàng mới là hướng mở rộng, chưa có code nghiệp vụ.

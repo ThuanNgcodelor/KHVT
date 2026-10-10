@@ -50,6 +50,7 @@ class SpaWebIntegrationTest {
     }
 
     private static org.springframework.test.web.servlet.request.MockHttpServletRequestBuilder get(String path) {
-        return org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get(path).servletPath(path);
+        var request = org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get(path);
+        return "/".equals(path) ? request.pathInfo("/") : request.servletPath(path);
     }
 }

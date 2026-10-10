@@ -4,7 +4,7 @@
     [switch]$ExternalDocker,
     [ValidateSet('dev', 'prod')][string]$Profile,
     [ValidateRange(0, 65535)][int]$Port = 0,
-    [ValidateRange(128, 2048)][int]$HeapMB = 384,
+    [ValidateRange(128, 2048)][int]$HeapMB = 256,
     [switch]$OpenBrowser
 )
 
@@ -286,7 +286,7 @@ try {
     Assert-BundledJar
     # Bind conflicts can appear while a long build is running: check again.
     Assert-PortFree $appPort
-    $javaArgs = @('-XX:ActiveProcessorCount=2', '-XX:+UseSerialGC', '-XX:TieredStopAtLevel=1', '-Xss512k', '-Xms32m', "-Xmx${HeapMB}m", '-XX:MaxMetaspaceSize=160m', '-XX:ReservedCodeCacheSize=32m', '-jar', "`"$jarPath`"", '--debug=false', '--logging.level.org.springframework.security=INFO')
+    $javaArgs = @('-XX:ActiveProcessorCount=2', '-XX:+UseSerialGC', '-XX:TieredStopAtLevel=1', '-Xss512k', '-Xms32m', "-Xmx${HeapMB}m", '-XX:MaxMetaspaceSize=160m', '-XX:ReservedCodeCacheSize=32m', '-jar', "`"$jarPath`"", '--debug=false', '--logging.level.org.springframework.security=INFO', '--spring.datasource.hikari.maximum-pool-size=5', '--spring.datasource.hikari.minimum-idle=1')
     Write-Host 'Khởi động ứng dụng web/API...'
     $launchedProcess = Start-Process -FilePath $javaExe -ArgumentList $javaArgs -WorkingDirectory $sourceDir -WindowStyle Hidden -PassThru -RedirectStandardOutput (Join-Path $runtimeDir 'windows-app.log') -RedirectStandardError (Join-Path $runtimeDir 'windows-app-error.log')
     $processRecord = [ordered]@{ pid = $launchedProcess.Id; creationUtcTicks = [string]$launchedProcess.StartTime.ToUniversalTime().Ticks; exePath = $javaExe; jarPath = [IO.Path]::GetFullPath($jarPath); port = $appPort; profile = $activeProfile; url = $appUrl; startedAtUtc = [DateTime]::UtcNow.ToString('o') }

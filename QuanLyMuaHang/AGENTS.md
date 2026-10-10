@@ -4,7 +4,7 @@
 
 1. Đọc [nguyên tắc trung thực](docs/NGUYEN_TAC_TRUNG_THUC.md) và tuân thủ khi trả lời, lập kế hoạch, sửa code hoặc báo cáo kết quả.
 2. Đọc [hệ thống hiện tại](docs/HE_THONG_HIEN_TAI.md) để biết cấu trúc, phần đã triển khai và giới hạn kiểm thử.
-3. Đọc `source/README.md` khi chạy backend. Đọc các tài liệu liên quan trong `plan/` khi thay đổi nghiệp vụ.
+3. Đọc `source/README.md` khi chạy backend; đọc [chạy Windows và Cloudflare](docs/CHAY_WINDOWS_VA_CLOUDFLARE.md) khi dùng launcher, đóng gói giao diện hoặc chuẩn bị domain HTTPS. Đọc các tài liệu liên quan trong `plan/` khi thay đổi nghiệp vụ.
 
 `plan/` mô tả thiết kế và tiêu chí mong muốn. Code hiện tại và kết quả kiểm tra thực tế mới xác nhận phần đã làm. Không tự đánh dấu nghiệm thu chỉ vì đã có controller, file hoặc test chạy qua.
 
@@ -22,6 +22,7 @@ If there is no `.codegraph/` directory, skip CodeGraph entirely — indexing is 
 ## Bản đồ nhanh
 
 - `source/`: ứng dụng chính, backend Spring Boot Java 21; `source/pom.xml` là điểm build.
+- `CHAY_KHVT.cmd` → `tools/run-windows.ps1`: điểm chạy Windows chính, đóng frontend vào JAR và chạy Java phục vụ UI/API cùng cổng 8080; Docker Desktop mở riêng. `tools/start-local.ps1` vẫn là launcher dev Java/Vite.
 - `source/frontend/`: React/TypeScript/Vite/Tailwind; auth/CSRF, cổng ứng dụng, dashboard, nhân sự/tài khoản, danh mục/giá/PO/import theo pages/hooks/components. Đọc `source/frontend/README.md` để biết phần UI đã có và giới hạn kiểm thử.
 - `source/src/main/resources/db/migration/`: schema MySQL do Flyway quản lý.
 - `source/src/test/`: test backend. Kết quả build và runtime local có thể nằm trong `source/target/runtime/`; thư mục `target/` là đầu ra sinh ra, không phải source.
@@ -38,6 +39,7 @@ If there is no `.codegraph/` directory, skip CodeGraph entirely — indexing is 
 - DTO trả ra API không chứa mật khẩu/hash. Quyền phải được kiểm tra ở backend.
 - Flyway quản lý schema. Không sửa migration đã áp dụng thành công trên database đang dùng; bổ sung migration mới. Khi migration thất bại, kiểm tra trạng thái và dữ liệu trước khi sửa hoặc phục hồi.
 - Chạy `mvn test` hoặc `mvn package` trong `source/` bằng JDK 21 và Maven 3.9+. POM có cấu hình Mockito agent cho test. Test context thường dùng H2/servlet session, không coi đó là kiểm chứng MySQL/Redis thật. `RedisSessionRevocationIntegrationTest` chỉ chạy khi `QMH_RUN_REDIS_TESTS=true`, dùng biến `QMH_TEST_REDIS_*` và namespace UUID riêng; không flush Redis.
+- Profile Maven `windows-web` đưa `frontend/dist` vào static resources của JAR; launcher chạy `npm ci`, `npm run build`, rồi `mvn -Pwindows-web -DskipTests package`. Bước này bỏ qua test, không báo nghiệm thu từ build/start. Chỉ các URL UI/assets GET được phục vụ công khai; session/CSRF/permission của `/api` vẫn phải được kiểm tra.
 
 ## Cách sửa frontend
 
@@ -53,16 +55,18 @@ If there is no `.codegraph/` directory, skip CodeGraph entirely — indexing is 
 - Tách page/component theo tính năng khi triển khai; không tiếp tục dồn toàn bộ tính năng vào `App.tsx`.
 - Nhãn trạng thái API, KPI và bảng phải phản ánh dữ liệu thật hoặc ghi rõ dữ liệu mẫu. Có loading, empty, error, 401/403 và trạng thái gửi form; kiểm tra keyboard và màn hình nhỏ.
 - Chạy `npm.cmd ci`, `npm.cmd run build`, `npm.cmd run dev` trong `source/frontend/` trên PowerShell; dùng `npm` trên shell phù hợp. Kiểm tra scripts và các test thực sự có trước khi tuyên bố đã chạy E2E.
+- Bản đóng gói dùng UI và `/api` cùng origin 8080; dev dùng Vite 5173 hoặc VS Code backend. Không đổi base API component để phục vụ từng chế độ. Production dùng `-Profile prod`, `APP_FRONTEND_URL` là origin HTTPS thực tế và cookie Secure; Cloudflare trỏ `http://127.0.0.1:8080`.
 
 ## Dữ liệu và vận hành
 
 - Không hiển thị, commit hay đưa nội dung `.env`, mật khẩu, hash, session cookie hoặc CSRF token vào chat, tài liệu, log/audit. Chỉ đọc bí mật khi tác vụ cần.
 - MySQL/Redis local dùng Compose project `qmh-local`, cổng loopback 3307/6380. Compose hiện chỉ chứa hai dịch vụ này.
+- Từ root, lệnh Compose cần `--env-file .\source\.env -f .\source\docker-compose.yml`; root không có file Compose. Cấu hình hiện do người dùng chỉnh: MySQL 1536 MiB/2 CPU (buffer pool 512 MiB, tối đa 80 kết nối), Redis 256 MiB/1 CPU (`maxmemory` 128 MiB, `noeviction`). Giữ volume/AOF, không giảm RAM bằng cách xóa dữ liệu. Java launcher mặc định heap 256 MB; heap khác RSS và không đổi Java của VS Code.
 - Session dùng Redis indexed repository với namespace `qmh:session:indexed` để thu hồi theo tài khoản. Cấu hình namespace cũ đã đổi; cookie cũ cần đăng nhập lại, keys cũ để hết TTL. Không chuyển về repository mặc định khi service cần `FindByIndexNameSessionRepository`.
 - Không xóa volume hoặc reset database có dữ liệu để giải quyết lỗi khởi động. Thao tác phá hủy cần phạm vi rõ ràng, kiểm tra dữ liệu và bản sao lưu.
 - Không truy cập database hoặc secrets của dự án demo để chạy ứng dụng chính.
 - Legacy workbook: preview -> kiểm tra số dòng/cảnh báo -> commit khi đã có quyền và điều kiện dữ liệu phù hợp. Không tự commit workbook thật chỉ để chứng minh API hoạt động.
-- Cloudflare Tunnel/domain chưa được triển khai trong source. Không báo đã có production deployment nếu chưa kiểm tra.
+- Cloudflare Tunnel/domain chưa được triển khai trong source. Launcher chưa đăng ký Windows Service hay tự chạy sau reboot; không báo đã có production deployment nếu chưa kiểm tra. Hướng dẫn chuẩn bị nằm ở `docs/CHAY_WINDOWS_VA_CLOUDFLARE.md`.
 
 ## Báo cáo và cập nhật tài liệu
 

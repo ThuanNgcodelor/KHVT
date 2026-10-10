@@ -76,15 +76,33 @@ Page là điểm vào của một URL; component dựng giao diện; hook chứa
 
 `useEffect` hiện dùng cho đăng ký/hủy listener và đồng bộ trạng thái phiên/menu. Việc tải dữ liệu có cache, trạng thái tải/lỗi và hủy request nằm trong TanStack Query. `useMemo` chưa cần ở các phép lọc menu nhỏ; chỉ thêm khi có phép tính đáng kể và lý do đo được. React tự quản lý Virtual DOM/reconciliation và cập nhật DOM thật qua `react-dom`; ứng dụng không viết lớp Virtual DOM riêng.
 
-## Chạy local
+## Chạy giao diện cùng backend trên Windows
 
-Khởi chạy backend tại `localhost:8080` theo [README backend](../README.md), rồi mở terminal khác:
+Từ thư mục gốc `QuanLyMuaHang`, mở Docker Desktop riêng, chuẩn bị `source/.env` rồi chạy:
+
+```powershell
+.\CHAY_KHVT.cmd start
+```
+
+[CHAY_KHVT.cmd](../../CHAY_KHVT.cmd) gọi `npm ci`/`npm run build`, rồi Maven profile `windows-web` đóng `frontend/dist` vào JAR. Một tiến trình Java phục vụ giao diện và API tại **http://localhost:8080**; các URL giao diện đã biết hỗ trợ reload trực tiếp. Frontend dùng `/api` cùng origin, không cần chạy Vite 5173 cho bản đóng gói. Launcher mặc định bỏ qua test khi đóng gói; kết quả kiểm tra riêng ở phần dưới và [hệ thống hiện tại](../../docs/HE_THONG_HIEN_TAI.md).
+
+`CHAY_KHVT.cmd status`/`stop` quản lý đúng tiến trình launcher ghi nhận; `start -NoBuild` dùng JAR đã đóng gói, không cập nhật source. Hướng dẫn Docker, lựa chọn cổng/heap, profile HTTPS và chuyển máy ở [Chạy Windows và Cloudflare](../../docs/CHAY_WINDOWS_VA_CLOUDFLARE.md).
+
+Ngày **2026-10-10**, launcher đã chạy thật `npm ci`, frontend build/package JAR và Java heap 256 MB thành công; UI/deep link/HTTP auth local đã kiểm tra, MCP render login đã qua. `me` trả 401 khi chưa đăng nhập là trạng thái dự kiến. `start` lần hai không tạo thêm tiến trình, `status`/`stop` đã qua. Lượt `start -NoBuild -ExternalDocker` chạy lại lúc **21:19 +07:00** qua, health `UP`, probe HTTP sau restart lúc **21:19:50** qua 15 kiểm tra; lượt đầu trước đó gặp MySQL EOF lúc container tạo lại. Kiểm tra backend có phạm vi 20 test (11 auth, 3 SPA, 6 proxy production với Tomcat HTTP thật/header tổng hợp) đã qua; không phải toàn bộ bộ test hoặc nghiệm thu MySQL/Cloudflare. Xem [bằng chứng hiện hành](../../docs/HE_THONG_HIEN_TAI.md).
+
+Khi dùng domain HTTPS, đặt `APP_FRONTEND_URL` là origin HTTPS thực tế và chạy `CHAY_KHVT.cmd start -Profile prod`; cookie Secure cần kiểm tra qua HTTPS. Cloudflare Tunnel sau này trỏ `http://127.0.0.1:8080`. Launcher chưa tạo Tunnel/domain hoặc đăng ký Windows Service.
+
+## Chạy Vite khi phát triển
+
+Để chỉnh frontend với HMR, dùng `tools/start-local.ps1` từ root để chạy backend 8080/Vite 5173, hoặc chạy backend bằng VS Code theo [README backend](../README.md) rồi mở terminal frontend riêng:
 
 ```powershell
 cd source/frontend
 npm.cmd ci
 npm.cmd run dev -- --host 127.0.0.1 --port 5173 --strictPort
 ```
+
+Script dev đã chỉnh preset/heap nhưng chưa kiểm tra lại startup/HMR ở lượt launcher Windows mới; runtime dev lúc 11:30 ngày 2026-10-10 là bằng chứng lịch sử. Bản đóng gói 8080 cần build lại khi đổi frontend, không dùng HMR.
 
 Mở `http://localhost:5173` hoặc `http://127.0.0.1:5173`. Vite proxy `/api` và `/actuator` về backend với `changeOrigin: false`, giữ Host để request cùng origin không bị coi thành request CORS khác origin. Khi frontend gọi API khác origin trực tiếp, cấu hình `APP_FRONTEND_URL` tương ứng. Đăng nhập bằng **email** tài khoản được cấp; email miền nội bộ được chấp nhận và backend kiểm tra tài khoản. Admin bootstrap có mật khẩu tạm được chuyển tới trang đổi mật khẩu, sau đó vào cổng `/modules`. Giữ mật khẩu riêng trong `.env`, không đưa lên chat. Bootstrap chỉ tạo tài khoản khi chưa tồn tại; đổi mật khẩu đăng nhập rồi thì mật khẩu trong `.env` không tự ghi đè lại.
 

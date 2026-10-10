@@ -38,7 +38,7 @@ class ProductionProxyIntegrationTest {
     void productionProfileRestrictsTrustedProxyAddresses() {
         assertThat(server.getAddress().isLoopbackAddress()).isTrue();
         assertThat(server.getForwardHeadersStrategy()).isEqualTo(ServerProperties.ForwardHeadersStrategy.NATIVE);
-        assertThat(server.getTomcat().isRedirectContextRoot()).isFalse();
+        assertThat(server.getTomcat().getRedirectContextRoot()).isFalse();
         assertThat(server.getServlet().getSession().getCookie().getSecure()).isTrue();
         assertThat(server.getTomcat().getRemoteip().getHostHeader()).isEmpty();
         assertThat(server.getTomcat().getRemoteip().getPortHeader()).isEmpty();

@@ -4,7 +4,54 @@ Backend là Spring Boot REST API trên Java 21, chia module theo nghiệp vụ t
 
 Frontend React/Vite ở `frontend/` có auth/session/CSRF, cổng chọn ứng dụng, dashboard, nhân sự/tài khoản, danh mục vật tư/NCC, tra cứu giá, lập/sửa/hủy PO, PDF/XLSX và import preview/commit. Xem [cấu trúc và cách chạy frontend](frontend/README.md), [đối chiếu Index.html/Mã.js](../docs/DOI_CHIEU_UNG_DUNG_CU.md) và [bằng chứng kiểm thử hiện hành](../docs/HE_THONG_HIEN_TAI.md). Hướng dẫn cho AI nằm ở [AGENTS.md](../AGENTS.md), kèm [nguyên tắc trung thực](../docs/NGUYEN_TAC_TRUNG_THUC.md) và [skill giao diện KHVT](../skills/khvt-ui/SKILL.md).
 
-## Chạy local
+## Chạy trên Windows
+
+Điểm chạy chính ở thư mục gốc `QuanLyMuaHang` là [CHAY_KHVT.cmd](../CHAY_KHVT.cmd). Cần JDK 21, Maven 3.9+, Node/npm và Docker Desktop; tạo `source/.env` riêng từ mẫu nếu chưa có, không ghi đè file đang dùng. **Mở Docker Desktop riêng**, chờ engine sẵn sàng rồi bấm đúp file hoặc chạy từ thư mục gốc:
+
+```powershell
+.\CHAY_KHVT.cmd start
+```
+
+Launcher gọi Compose để bật MySQL/Redis, chạy `npm ci` và `npm run build` trong `source/frontend`, rồi `mvn -Pwindows-web -DskipTests package` trong `source`. Profile Maven `windows-web` đóng `frontend/dist` vào static resources của JAR. Một tiến trình Java phục vụ **giao diện và API tại http://localhost:8080**, gồm các URL giao diện khi reload trực tiếp; không cần chạy Vite để dùng bản đóng gói.
+
+Lượt start mặc định **bỏ qua bộ test**, nên phải chạy test riêng khi kiểm tra thay đổi. Hướng dẫn tùy chọn, profile HTTPS và chuyển máy tại [Chạy Windows và Cloudflare](../docs/CHAY_WINDOWS_VA_CLOUDFLARE.md). Launcher nạp `source/.env` đúng đường dẫn và ghi log/PID riêng; không thay mật khẩu hoặc dừng Java của VS Code.
+
+```powershell
+.\CHAY_KHVT.cmd status
+.\CHAY_KHVT.cmd stop
+.\CHAY_KHVT.cmd start -NoBuild
+```
+
+`-NoBuild` dùng JAR đã chứa frontend, không cập nhật code. `stop` chỉ dừng tiến trình ứng dụng được launcher xác minh; Docker Desktop/MySQL/Redis tiếp tục chạy. Để build lại code mới, dừng đúng ứng dụng rồi chạy `start` không có `-NoBuild`.
+
+Lượt kiểm tra launcher ngày **2026-10-10** đã chạy thật `npm ci`, frontend build và package `windows-web` thành công, rồi Java heap 256 MB phục vụ UI/API trên 8080. HTTP giao diện/deep link đã qua; API chưa đăng nhập trả 401, thiếu CSRF trả 403 và thông tin đăng nhập tổng hợp sai trả 401 ở cả hai origin local. MCP đã render trang login, với 401 từ `me` khi chưa đăng nhập là trạng thái dự kiến. Gọi `start` lần hai không tạo thêm tiến trình; `status` và `stop` đã qua. Lượt `start -NoBuild -ExternalDocker` chạy lại lúc **21:19 +07:00** đã qua, health `UP`; probe HTTP lúc **21:19:50** qua 15 kiểm tra shell/deep link/assets, API 401, asset thiếu 404, thông tin đăng nhập tổng hợp sai 401 ở localhost/127.0.0.1 và thiếu CSRF 403. Lượt `-NoBuild` đầu trước đó gặp MySQL EOF trong lúc container đang được tạo lại. Đây là kiểm tra launcher/HTTP/UI, không xác nhận đăng nhập tài khoản người dùng, toàn bộ nghiệp vụ hoặc production Tunnel. Log build/app trong `source/target/runtime/windows-*.log`; xem [bằng chứng hiện hành](../docs/HE_THONG_HIEN_TAI.md) để biết cập nhật cuối.
+
+Nếu muốn tự bật container từ **thư mục gốc** trước khi chạy ứng dụng:
+
+```powershell
+docker compose --env-file .\source\.env -f .\source\docker-compose.yml --project-name qmh-local up -d mysql redis
+docker compose --env-file .\source\.env -f .\source\docker-compose.yml --project-name qmh-local ps
+.\CHAY_KHVT.cmd start -NoBuild -ExternalDocker
+```
+
+Root không chứa file Compose; vì vậy `docker compose up` tại root cần `-f` như trên. `-ExternalDocker` không gọi `compose up`, vẫn kiểm tra engine và hai container của dự án. Chưa có JAR đóng gói thì bỏ `-NoBuild` để build trước.
+
+### Giới hạn RAM local
+
+Compose chỉ có hai dependency, với giới hạn sau:
+
+| Dịch vụ | Giới hạn RAM container | CPU | Cấu hình chính |
+|---|---|---|---|
+| MySQL | 1536 MiB | 2 CPU | InnoDB buffer pool 512 MiB, tối đa 80 kết nối |
+| Redis | 256 MiB | 1 CPU | `maxmemory` 128 MiB, `noeviction`, giữ AOF |
+
+Đây là mức trần, không phải lượng RAM được đặt trước hoặc tổng RAM Docker Desktop/WSL. Sau người dùng đổi Compose sang cấu hình trong bảng và tạo lại container, số đo `docker stats` lúc **2026-10-10 21:17 +07:00** là MySQL 375.9 MiB/giới hạn 1.5 GiB và Redis 5.02 MiB/giới hạn 256 MiB. Volume, schema và số tài khoản khớp trước/sau. Redis có 15 key sau smoke CSRF, so với 6 key trước smoke; không coi thay đổi key phiên này là mất dữ liệu.
+
+Lịch sử cấu hình 768 MiB MySQL/128 MiB Redis ngày 2026-10-10: trước chỉnh lúc 21:03, MySQL 466.8 MiB/Redis 8.574 MiB; sau áp dụng lúc 21:12, MySQL 316.5 MiB/Redis 7.547 MiB, cả hai healthy và vẫn dùng volume cũ. Các số đo là ảnh chụp tại thời điểm tương ứng, không bảo đảm mức RAM dưới tải workbook hoặc nhiều người dùng, và không phải kết quả của cấu hình hiện tại.
+
+Launcher mới dùng Java heap tối đa 256 MB mặc định; có thể đổi bằng `-HeapMB`. Heap không phải RSS toàn tiến trình: Java còn dùng bộ nhớ cho class, thread và bộ nhớ native. Cấu hình Java của VS Code vẫn riêng, không bị đổi bởi launcher. Không dùng `docker compose down -v` để giảm RAM hoặc sửa startup vì lệnh đó xóa volume.
+
+## Chạy backend thủ công và chế độ phát triển
 
 Cần cài JDK 21, Maven 3.9+, Docker Engine và Docker Compose. Docker Compose trong repo chỉ khởi chạy MySQL và Redis; không tạo/đổi tên/xóa container hay volume nào bên ngoài project.
 
@@ -32,13 +79,13 @@ mvn spring-boot:run
 
 API mặc định ở `http://localhost:8080`. MySQL chỉ bind vào `127.0.0.1:3307`, Redis vào `127.0.0.1:6380`. Khi cần dừng riêng stack local này: `docker compose stop mysql redis`.
 
-Trên Windows PowerShell, từ thư mục repository có thể dùng:
+Khi phát triển cần Vite HMR, trên Windows PowerShell từ thư mục repository vẫn có thể dùng launcher dev:
 
 ```powershell
-./tools/start-local.ps1
+powershell -NoProfile -ExecutionPolicy Bypass -File .\tools\start-local.ps1
 ```
 
-Script nạp `.env` riêng, kiểm tra Docker và chờ MySQL/Redis healthy, chọn JDK 21/Maven, build JAR rồi chạy Java/Vite cửa sổ ẩn với heap giới hạn. `-SkipBuild` dùng JAR đã build; không thay cho chạy test. Nếu cổng đang có tiến trình chưa xác nhận, script dừng với thông báo; frontend do launcher tạo có PID/command đúng có thể được dùng lại ở API 8080. PID và log riêng trong `source/target/runtime/`. Script đã qua kiểm tra cú pháp PowerShell 5.1, nhánh Docker offline và khởi động thành công với `-SkipBuild`: lúc **2026-10-10 11:08 +07:00**, backend và health qua Vite proxy trả HTTP 200/`UP`, frontend trả HTTP 200. Lượt này đã dừng riêng backend để nhường cổng cho VS Code; lúc **11:30** đã chạy lại backend/frontend bằng bản sửa đăng nhập mới.
+Script nạp `.env` riêng, kiểm tra Docker và chờ MySQL/Redis healthy, chọn JDK 21/Maven, build JAR rồi chạy Java 8080/Vite 5173 cửa sổ ẩn với heap giới hạn. Đây là chế độ phát triển; bản chạy chung bằng `CHAY_KHVT.cmd` ở trên dùng một cổng 8080. `-SkipBuild` dùng JAR đã build; không thay cho chạy test. Nếu cổng đang có tiến trình chưa xác nhận, script dừng với thông báo; frontend do launcher tạo có PID/command đúng có thể được dùng lại ở API 8080. PID và log riêng trong `source/target/runtime/`. Lịch sử bản script trước chỉnh preset: đã qua kiểm tra cú pháp PowerShell 5.1, nhánh Docker offline và khởi động thành công với `-SkipBuild` lúc **2026-10-10 11:08 +07:00**, backend/proxy health 200/`UP`, frontend 200; lúc **11:30** đã chạy lại backend/frontend bằng bản sửa đăng nhập. Script dev sau chỉnh preset/heap chưa kiểm tra khởi động lại hoặc HMR; các lượt lịch sử không xác nhận bản script mới.
 
 ### Chạy backend bằng VS Code
 
@@ -59,11 +106,13 @@ Log `Access denied for user 'app' ...` / MySQL `1045` là lỗi xác thực data
 
 Chạy `mvn test` để chạy test unit và Spring context với H2 trong bộ nhớ; bộ test thông thường không kết nối MySQL/Redis thật. Test Redis thật được bật riêng như bên dưới. Để chạy API local, MySQL và Redis phải healthy trước.
 
-Kết quả mới: Maven 3.9.11/JDK 21 `mvn package` **BUILD SUCCESS lúc 2026-10-10 09:53:20 +07:00**; 37 test liệt kê, 36 thực thi qua, một test Redis opt-in bỏ qua. Lần này bật `QMH_TEST_WORKBOOK`: preview/commit H2 file UUID, đối chiếu 10.561 dòng lịch sử/262 PO, hai commit đồng thời chỉ một thành công, preview sau commit giữ cảnh báo/nhóm PO; file gốc không đổi. Driver HTTP/MySQL/Redis riêng đã qua một phần gồm hai phiên/last-admin/CRUD/PO nhưng chưa hoàn tất lượt workbook/MCP vì Docker crash. Log hiện hành và giới hạn xem [hệ thống hiện tại](../docs/HE_THONG_HIEN_TAI.md); cách tái chạy tại [tools/local-test](../tools/local-test/README.md).
+Lượt đóng gói UI/profile proxy Windows lúc **2026-10-10 21:13:05 +07:00** đã qua 20 test có phạm vi: 11 auth, 3 SPA và 6 proxy production với Tomcat HTTP thật/header tổng hợp; 0 failure/error/skipped. Log `source/target/runtime/windows-focused-tests.log`. Kiểm tra này không phải lượt chạy lại toàn bộ bộ test, workbook/MySQL hoặc HTTPS qua Cloudflare thật. Launcher sau đó đã build frontend/JAR và chạy HTTP local như phần Windows ở trên; start mặc định vẫn dùng `-DskipTests`.
+
+Lịch sử lượt mua hàng: Maven 3.9.11/JDK 21 `mvn package` **BUILD SUCCESS lúc 2026-10-10 09:53:20 +07:00**; 37 test liệt kê, 36 thực thi qua, một test Redis opt-in bỏ qua. Lần này bật `QMH_TEST_WORKBOOK`: preview/commit H2 file UUID, đối chiếu 10.561 dòng lịch sử/262 PO, hai commit đồng thời chỉ một thành công, preview sau commit giữ cảnh báo/nhóm PO; file gốc không đổi. Driver HTTP/MySQL/Redis riêng đã qua một phần gồm hai phiên/last-admin/CRUD/PO nhưng chưa hoàn tất lượt workbook/MCP vì Docker crash. Log hiện hành và giới hạn xem [hệ thống hiện tại](../docs/HE_THONG_HIEN_TAI.md); cách tái chạy tại [tools/local-test](../tools/local-test/README.md).
 
 Runtime local kiểm tra lại lúc **2026-10-10 11:30 +07:00**: MySQL/Redis healthy, backend và frontend đang chạy. Qua Vite proxy, cả Origin localhost/127.0.0.1 với cookie/CSRF đúng đã tới bước xác thực; tài khoản tổng hợp không tồn tại trả 401 như dự kiến, thiếu CSRF vẫn trả 403/`CSRF_INVALID`. Đã sửa proxy giữ Host, làm mới CSRF trước login và tách thông báo lỗi phiên với thiếu quyền. Package auth mới qua 11 test H2; không kiểm thử lại toàn bộ bộ test hay xác nhận mật khẩu hiện hành của người dùng. Docker/WSL từng crash trong các lượt trước, chưa xác định nguyên nhân gốc. Lịch sử trước UI mua hàng: thử login bằng cấu hình bootstrap nhận 401 và đã dừng, không reset mật khẩu. Health và test không thay nghiệm thu nghiệp vụ.
 
-Nếu trang Đăng nhập báo 403, phân biệt lỗi phiên/CSRF hoặc origin với quyền nghiệp vụ: `/api/auth/login` là `permitAll`. Mở giao diện qua Vite 5173 và dùng API `/api` cùng origin; proxy đã giữ Host của trình duyệt. API khác origin cần `APP_FRONTEND_URL` khớp địa chỉ frontend thực tế. Ô đăng nhập nhận **email tài khoản**; mật khẩu MySQL/Redis là cấu hình hạ tầng, không phải mật khẩu người dùng.
+Nếu trang Đăng nhập báo 403, phân biệt lỗi phiên/CSRF hoặc origin với quyền nghiệp vụ: `/api/auth/login` là `permitAll`. Bản đóng gói dùng giao diện và `/api` cùng origin 8080; bản dev dùng Vite 5173 và proxy giữ Host của trình duyệt. API khác origin cần `APP_FRONTEND_URL` khớp địa chỉ frontend thực tế. Ô đăng nhập nhận **email tài khoản**; mật khẩu MySQL/Redis là cấu hình hạ tầng, không phải mật khẩu người dùng.
 
 Test Redis thật sử dụng namespace UUID `qmh:test:session:<uuid>`, chỉ dọn key do test tạo, không dùng tài khoản thật hoặc `FLUSHDB`. Bật khi Redis của dự án đã chạy và `REDIS_PASSWORD` đã được nạp riêng vào môi trường. Trên Bash:
 
@@ -128,4 +177,6 @@ PDF PO nhúng font Unicode, có thông tin công ty/NCC, bảng hàng hóa, tổ
 
 ## Triển khai sau này
 
-Cloudflare Tunnel trỏ tới dịch vụ web/API đang chạy tại máy chủ, ví dụ `http://localhost:8080`; không public port MySQL/Redis. Trước khi mở cho người dùng thật cần đặt secrets riêng, bật profile `prod`, HTTPS, backup/restore thử nghiệm, giám sát dung lượng và chiến lược lưu file bền vững. Chưa cấu hình Tunnel hoặc domain trong source này.
+Với domain HTTPS thực tế, đặt `APP_FRONTEND_URL=https://<domain-cua-ban>` trong `.env` riêng rồi chạy `CHAY_KHVT.cmd start -Profile prod`. Profile này dùng cookie Secure; kiểm tra login qua domain HTTPS, không qua HTTP local. Cloudflare Tunnel cần trỏ tới **`http://127.0.0.1:8080`**, nơi JAR phục vụ cả React và API; không trỏ vào Vite hoặc public port MySQL/Redis. Hướng dẫn cấu hình, backup/chuyển máy và giới hạn tự khởi động ở [Chạy Windows và Cloudflare](../docs/CHAY_WINDOWS_VA_CLOUDFLARE.md).
+
+Launcher chưa cài Windows Service, tự chạy sau reboot hay tạo Tunnel/domain. Trước khi dùng cho người thật cần kiểm tra HTTPS, backup/restore, quyền ghi file và vận hành máy chủ; không suy ra production đã triển khai từ việc build hoặc health local qua.

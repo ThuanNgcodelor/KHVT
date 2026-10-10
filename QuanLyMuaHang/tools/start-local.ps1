@@ -1,4 +1,4 @@
-﻿param([switch]$SkipBuild, [ValidateRange(128, 2048)][int]$HeapMB = 384)
+﻿param([switch]$SkipBuild, [ValidateRange(128, 2048)][int]$HeapMB = 256)
 $ErrorActionPreference = 'Stop'
 $repoRoot = Split-Path -Parent $PSScriptRoot
 $sourceDir = Join-Path $repoRoot 'source'
@@ -39,9 +39,13 @@ $versionText = (& $javaExe --version | Out-String)
 if ($versionText -notmatch '(?m)^(java|openjdk) 21([.\s])') { throw 'JAVA_HOME phải trỏ tới JDK 21.' }
 $env:JAVA_HOME = $jdkDir
 $env:PATH = "$(Join-Path $jdkDir 'bin');$env:PATH"
+$env:SPRING_PROFILES_ACTIVE = 'dev'
+$env:SESSION_COOKIE_SECURE = 'false'
+$env:SERVER_ADDRESS = '127.0.0.1'
+$env:APP_FRONTEND_URL = 'http://localhost:5173'
 $env:NODE_OPTIONS = '--max-old-space-size=256 --max-semi-space-size=4'
 $env:MAVEN_OPTS = '-XX:ActiveProcessorCount=2 -XX:+UseSerialGC -XX:TieredStopAtLevel=1 -Xss512k -Xms16m -Xmx128m -XX:MaxMetaspaceSize=128m -XX:ReservedCodeCacheSize=32m'
-if (-not $env:APP_PDF_FONT_PATH -and (Test-Path -LiteralPath 'C:/Windows/Fonts/arial.ttf')) { $env:APP_PDF_FONT_PATH = 'C:/Windows/Fonts/arial.ttf' }
+if ((-not $env:APP_PDF_FONT_PATH -or -not (Test-Path -LiteralPath $env:APP_PDF_FONT_PATH -PathType Leaf)) -and (Test-Path -LiteralPath 'C:/Windows/Fonts/arial.ttf')) { $env:APP_PDF_FONT_PATH = 'C:/Windows/Fonts/arial.ttf' }
 $jar = Join-Path $sourceDir 'target/quan-ly-mua-hang-0.0.1-SNAPSHOT.jar'
 $apiPort = if ($env:SERVER_PORT) { [int]$env:SERVER_PORT } else { 8080 }
 if (Get-NetTCPConnection -State Listen -LocalPort $apiPort -ErrorAction SilentlyContinue) { throw "Cổng backend $apiPort đang được dùng. Kiểm tra tiến trình hiện có; script không tự dừng tiến trình đó." }
@@ -70,7 +74,7 @@ if (-not (Test-Path -LiteralPath $jar)) { throw 'Chưa có JAR. Chạy lại kh�
 $vitePath = Join-Path $frontendDir 'node_modules/vite/bin/vite.js'
 if (-not (Test-Path -LiteralPath $vitePath)) { throw 'Chạy npm.cmd ci trong source/frontend trước.' }
 $env:VITE_API_PROXY_TARGET = "http://127.0.0.1:$apiPort"
-$javaArgs = @('-XX:ActiveProcessorCount=2', '-XX:+UseSerialGC', '-XX:TieredStopAtLevel=1', '-Xss512k', '-Xms32m', "-Xmx${HeapMB}m", '-XX:MaxMetaspaceSize=160m', '-XX:ReservedCodeCacheSize=32m', '-jar', "`"$jar`"", '--debug=false', '--logging.level.org.springframework.security=INFO')
+$javaArgs = @('-XX:ActiveProcessorCount=2', '-XX:+UseSerialGC', '-XX:TieredStopAtLevel=1', '-Xss512k', '-Xms32m', "-Xmx${HeapMB}m", '-XX:MaxMetaspaceSize=160m', '-XX:ReservedCodeCacheSize=32m', '-jar', "`"$jar`"", '--debug=false', '--logging.level.org.springframework.security=INFO', '--spring.datasource.hikari.maximum-pool-size=5', '--spring.datasource.hikari.minimum-idle=1')
 $backend = Start-Process -FilePath $javaExe -ArgumentList $javaArgs -WorkingDirectory $sourceDir -WindowStyle Hidden -PassThru -RedirectStandardOutput (Join-Path $runtimeDir 'backend-local.log') -RedirectStandardError (Join-Path $runtimeDir 'backend-local-error.log')
 $apiReady = $false
 for ($attempt = 0; $attempt -lt 60; $attempt++) {
