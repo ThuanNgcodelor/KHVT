@@ -38,7 +38,22 @@ Trên Windows PowerShell, từ thư mục repository có thể dùng:
 ./tools/start-local.ps1
 ```
 
-Script nạp `.env` riêng, kiểm tra Docker và chờ MySQL/Redis healthy, chọn JDK 21/Maven, build JAR rồi chạy Java/Vite cửa sổ ẩn với heap giới hạn. `-SkipBuild` dùng JAR đã build; không thay cho chạy test. Nếu cổng đang có tiến trình chưa xác nhận, script dừng với thông báo; frontend do launcher tạo có PID/command đúng có thể được dùng lại ở API 8080. PID và log riêng trong `source/target/runtime/`. Script đã qua kiểm tra cú pháp PowerShell 5.1 và từ chối chạy đúng khi Docker offline; nhánh khởi động thành công còn chờ phục hồi Docker.
+Script nạp `.env` riêng, kiểm tra Docker và chờ MySQL/Redis healthy, chọn JDK 21/Maven, build JAR rồi chạy Java/Vite cửa sổ ẩn với heap giới hạn. `-SkipBuild` dùng JAR đã build; không thay cho chạy test. Nếu cổng đang có tiến trình chưa xác nhận, script dừng với thông báo; frontend do launcher tạo có PID/command đúng có thể được dùng lại ở API 8080. PID và log riêng trong `source/target/runtime/`. Script đã qua kiểm tra cú pháp PowerShell 5.1, nhánh Docker offline và khởi động thành công với `-SkipBuild`: lúc **2026-10-10 11:08 +07:00**, backend và health qua Vite proxy trả HTTP 200/`UP`, frontend trả HTTP 200. Sau kiểm tra đã dừng riêng backend để nhường cổng 8080 cho VS Code; MySQL/Redis/frontend vẫn chạy.
+
+### Chạy backend bằng VS Code
+
+Mở **Run and Debug** (`Ctrl+Shift+D`), chọn profile Java rồi nhấn **F5**. Khi mở thư mục `QuanLyMuaHang`, chọn **KHVT Backend (source/.env)** trong [launch.json](../.vscode/launch.json). Khi mở thư mục cha `KHVT`, profile Spring Boot hiện có trong `KHVT/.vscode/launch.json` đã được sửa trên máy local. Cả hai dùng JDK 21 đã cài ở `C:/Program Files/Java/jdk-21.0.12`; trên máy khác cần chỉnh `javaExec` theo nơi cài JDK 21.
+
+Đường dẫn phụ thuộc thư mục thực tế đang mở trong VS Code:
+
+| Thư mục mở | `cwd` | `envFile` |
+|---|---|---|
+| `QuanLyMuaHang` | `${workspaceFolder}/source` | `${workspaceFolder}/source/.env` |
+| `KHVT` | `${workspaceFolder}/QuanLyMuaHang/source` | `${workspaceFolder}/QuanLyMuaHang/source/.env` |
+
+`envFile` nạp biến môi trường cho tiến trình Java, còn `cwd` giữ đường dẫn lưu file đúng trong `source/`; xem [tài liệu Java debugging của VS Code](https://code.visualstudio.com/docs/java/java-debugging). Không chép mật khẩu vào `launch.json`. Profile local có giới hạn heap 384 MB và font Arial cho PDF trên Windows. Backend đang chạy bằng launcher sẽ chiếm cổng 8080, nên dừng bản đó trước khi chạy thêm bằng F5.
+
+Log `Access denied for user 'app' ...` / MySQL `1045` là lỗi xác thực database khi Spring Boot khởi động, không phải lỗi biên dịch Java. Lượt VS Code lúc 11:01 ngày 2026-10-10 trỏ `envFile` tới `KHVT/.env` không tồn tại; file đúng là `QuanLyMuaHang/source/.env`. Sau sửa, khởi động JAR bằng cấu hình này đã qua MySQL/Flyway/Redis và health `UP`; chưa thao tác F5 trực tiếp trong VS Code. Nếu lỗi 1045 còn xuất hiện, kiểm tra cấu hình được chọn và thông tin MySQL thực tế; không xóa volume để xử lý lỗi mật khẩu.
 
 ## Kiểm tra và đăng nhập API
 
@@ -46,7 +61,7 @@ Chạy `mvn test` để chạy test unit và Spring context với H2 trong bộ 
 
 Kết quả mới: Maven 3.9.11/JDK 21 `mvn package` **BUILD SUCCESS lúc 2026-10-10 09:53:20 +07:00**; 37 test liệt kê, 36 thực thi qua, một test Redis opt-in bỏ qua. Lần này bật `QMH_TEST_WORKBOOK`: preview/commit H2 file UUID, đối chiếu 10.561 dòng lịch sử/262 PO, hai commit đồng thời chỉ một thành công, preview sau commit giữ cảnh báo/nhóm PO; file gốc không đổi. Driver HTTP/MySQL/Redis riêng đã qua một phần gồm hai phiên/last-admin/CRUD/PO nhưng chưa hoàn tất lượt workbook/MCP vì Docker crash. Log hiện hành và giới hạn xem [hệ thống hiện tại](../docs/HE_THONG_HIEN_TAI.md); cách tái chạy tại [tools/local-test](../tools/local-test/README.md).
 
-Runtime chính hiện chưa khởi động lại được vì Docker/WSL crash, MySQL/Redis offline. Lịch sử trước UI mua hàng: health từng UP; thử login database ứng dụng một lần bằng cấu hình bootstrap nhận 401 và đã dừng, không reset mật khẩu. Các test sau dùng tài khoản tổng hợp/database riêng, không xác nhận mật khẩu hiện hành của người dùng. Health và test không thay nghiệm thu nghiệp vụ.
+Runtime local kiểm tra lại lúc **2026-10-10 11:08 +07:00**: MySQL/Redis healthy, backend và health qua frontend proxy trả HTTP 200/`UP`. Đã dừng riêng bản backend kiểm tra để người dùng chạy F5; frontend 5173 vẫn chạy. Docker/WSL từng crash trong các lượt kiểm thử trước, nhưng đã hoạt động lại tại lần kiểm tra này; chưa xác định nguyên nhân sự cố trước đó. Lịch sử trước UI mua hàng: thử login database ứng dụng một lần bằng cấu hình bootstrap nhận 401 và đã dừng, không reset mật khẩu. Các test sau dùng tài khoản tổng hợp/database riêng, không xác nhận mật khẩu hiện hành của người dùng. Health và test không thay nghiệm thu nghiệp vụ.
 
 Test Redis thật sử dụng namespace UUID `qmh:test:session:<uuid>`, chỉ dọn key do test tạo, không dùng tài khoản thật hoặc `FLUSHDB`. Bật khi Redis của dự án đã chạy và `REDIS_PASSWORD` đã được nạp riêng vào môi trường. Trên Bash:
 

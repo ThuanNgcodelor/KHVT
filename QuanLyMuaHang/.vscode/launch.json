@@ -1,0 +1,21 @@
+{
+  "version": "0.2.0",
+  "configurations": [
+    {
+      "type": "java",
+      "name": "KHVT Backend (source/.env)",
+      "request": "launch",
+      "mainClass": "com.example.quanlymuahang.QuanLyMuaHangApplication",
+      "projectName": "quan-ly-mua-hang",
+      "cwd": "${workspaceFolder}/source",
+      "envFile": "${workspaceFolder}/source/.env",
+      "javaExec": "C:/Program Files/Java/jdk-21.0.12/bin/java.exe",
+      "vmArgs": "-XX:ActiveProcessorCount=2 -XX:+UseSerialGC -XX:TieredStopAtLevel=1 -Xss512k -Xms32m -Xmx384m -XX:MaxMetaspaceSize=160m -XX:ReservedCodeCacheSize=32m",
+      "env": {
+        "APP_PDF_FONT_PATH": "C:/Windows/Fonts/arial.ttf"
+      },
+      "args": "--debug=false --logging.level.org.springframework.security=INFO",
+      "console": "integratedTerminal"
+    }
+  ]
+}

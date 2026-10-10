@@ -1,0 +1,20 @@
+{
+  "configurations": [
+    {
+      "type": "java",
+      "name": "Spring Boot-QuanLyMuaHangApplication<quan-ly-mua-hang>",
+      "request": "launch",
+      "cwd": "${workspaceFolder}/QuanLyMuaHang/source",
+      "mainClass": "com.example.quanlymuahang.QuanLyMuaHangApplication",
+      "projectName": "quan-ly-mua-hang",
+      "args": "",
+      "envFile": "${workspaceFolder}/QuanLyMuaHang/source/.env",
+      "javaExec": "C:/Program Files/Java/jdk-21.0.12/bin/java.exe",
+      "vmArgs": "-XX:ActiveProcessorCount=2 -XX:+UseSerialGC -XX:TieredStopAtLevel=1 -Xss512k -Xms32m -Xmx384m -XX:MaxMetaspaceSize=160m -XX:ReservedCodeCacheSize=32m",
+      "env": {
+        "APP_PDF_FONT_PATH": "C:/Windows/Fonts/arial.ttf"
+      }
+    }
+  ],
+  "version": "0.2.0"
+}
