@@ -24,6 +24,8 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import org.apache.poi.openxml4j.util.ZipSecureFile;
 import org.apache.poi.ss.usermodel.Cell;
 import org.apache.poi.ss.usermodel.CellType;
+import org.apache.poi.ss.usermodel.CellValue;
+import org.apache.poi.ss.usermodel.Date1904Support;
 import org.apache.poi.ss.usermodel.DataFormatter;
 import org.apache.poi.ss.usermodel.DateUtil;
 import org.apache.poi.ss.usermodel.FormulaEvaluator;
@@ -31,6 +33,7 @@ import org.apache.poi.ss.usermodel.Row;
 import org.apache.poi.ss.usermodel.Sheet;
 import org.apache.poi.ss.usermodel.Workbook;
 import org.apache.poi.ss.usermodel.WorkbookFactory;
+import org.apache.poi.xssf.usermodel.XSSFCell;
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.jdbc.core.BatchPreparedStatementSetter;
 import org.springframework.jdbc.core.JdbcTemplate;
@@ -126,14 +129,27 @@ public class LegacyWorkbookImportService {
         if (batch.getStatus() != ImportBatchStatus.PREVIEW) throw ApiException.conflict("IMPORT_ALREADY_PROCESSED", "Lô import đã được xử lý trước đó");
         List<StoredRow> rows = jdbc.query("SELECT sheet_name,`row_number`,mapped_json,status,issues_json FROM import_rows WHERE batch_id=? ORDER BY sheet_name,`row_number`",
                 (rs, index) -> new StoredRow(rs.getString(1), rs.getInt(2), readJson(rs.getString(3)), rs.getString(4), rs.getString(5)), batchId);
+        if (rows.size() != batch.getTotalRows())
+            throw ApiException.conflict("IMPORT_SOURCE_INVALID", "Staging không còn khớp số dòng hoặc có giá trị không thể lưu chính xác; chưa commit");
+        if (rows.stream().anyMatch(row -> validateRow(row.sheet(), row.data()).stream().anyMatch(issue -> issue.startsWith("ERROR:"))))
+            throw ApiException.conflict("IMPORT_HAS_ERRORS", "Staging có giá trị không thể lưu chính xác; chưa commit");
+        Map<String, List<LegacyRow>> stagedGroups = rows.stream().map(row -> new LegacyRow(row.sheet(), row.rowNumber(), Map.of(), row.data(), row.status(), List.of()))
+                .collect(Collectors.groupingBy(LegacyRow::sheet, LinkedHashMap::new, Collectors.toList()));
+        addPurchaseOrderHeaderConflicts(stagedGroups);
+        if (stagedGroups.values().stream().flatMap(List::stream).anyMatch(row -> row.issues().stream().anyMatch(issue -> issue.contains("PO_HEADER_CONFLICT"))))
+            throw ApiException.conflict("PO_HEADER_CONFLICT", "Staging có header PO không nhất quán; chưa commit");
         if (rows.stream().anyMatch(row -> row.issuesJson() != null && row.issuesJson().contains("PO_HEADER_CONFLICT")))
             throw ApiException.conflict("PO_HEADER_CONFLICT", "Một hoặc nhiều số PO có header khác nhau giữa các dòng. Hãy chỉnh workbook cho nhất quán rồi tải lại; chưa có dữ liệu nào được commit.");
         if (rows.stream().anyMatch(row -> row.status().equals("ERROR")))
             throw ApiException.conflict("IMPORT_HAS_ERRORS", "Lô có dòng lỗi. Hãy sửa file và tải lại; chưa có dữ liệu nào được commit.");
+        rows = rows.stream().map(this::revalidated).toList();
+        for (StoredRow row : rows) jdbc.update("UPDATE import_rows SET issues_json=? WHERE batch_id=? AND sheet_name=? AND `row_number`=?",
+                row.issuesJson(), batchId, row.sheet(), row.rowNumber());
 
         Map<String, Supplier> supplierByCode = new HashMap<>();
         Map<String, Supplier> supplierByName = new HashMap<>();
         Set<Supplier> changedSuppliers = new LinkedHashSet<>();
+        Map<Integer, Supplier> supplierSourceRows = new LinkedHashMap<>();
         for (Supplier entity : suppliers.findAll()) indexSupplier(entity, supplierByCode, supplierByName);
         for (StoredRow row : rows) {
             if (!row.sheet().equals("NCC") || row.status().equals("ERROR")) continue;
@@ -141,8 +157,13 @@ public class LegacyWorkbookImportService {
             String name = value(row.data(), "supplierName");
             Supplier entity = findSupplier(code, name, supplierByCode, supplierByName);
             if (entity == null) entity = new Supplier(name, TextNormalizer.normalize(name));
-            entity.update(code == null ? entity.getCode() : code, name, TextNormalizer.normalize(name), value(row.data(), "address"), null, null, null, true);
+            Supplier updatedSupplier = entity;
+            supplierByName.entrySet().removeIf(entry -> entry.getValue() == updatedSupplier);
+            entity.update(code == null ? entity.getCode() : code, name, TextNormalizer.normalize(name),
+                    value(row.data(), "address") == null ? entity.getAddress() : value(row.data(), "address"),
+                    entity.getTaxCode(), entity.getPhone(), entity.getEmail(), entity.isActive());
             indexSupplier(entity, supplierByCode, supplierByName); changedSuppliers.add(entity);
+            supplierSourceRows.put(row.rowNumber(), entity);
         }
         for (StoredRow row : rows) {
             if (row.status().equals("ERROR") || row.sheet().equals("NCC")) continue;
@@ -157,6 +178,10 @@ public class LegacyWorkbookImportService {
             indexSupplier(entity, supplierByCode, supplierByName); changedSuppliers.add(entity);
         }
         suppliers.saveAll(changedSuppliers);
+        suppliers.flush();
+        supplierSourceRows.forEach((rowNumber, entity) -> jdbc.update(
+                "UPDATE import_rows SET committed_entity_type='SUPPLIER', committed_entity_id=? WHERE batch_id=? AND sheet_name='NCC' AND `row_number`=?",
+                entity.getId(), batchId, rowNumber));
 
         Map<String, Material> materialByCode = new HashMap<>();
         Map<String, Material> materialByName = new HashMap<>();
@@ -199,13 +224,26 @@ public class LegacyWorkbookImportService {
         }
 
         int importedOrders = importOrders(orderRows, batchId, supplierByCode, supplierByName, materialByCode, materialByName);
+        suppliers.flush(); materials.flush(); history.flush(); orders.flush();
+        LegacyImportReconciler.Verification verification = new LegacyImportReconciler(jdbc).verify(batchId,
+                rows.stream().map(row -> new LegacyImportReconciler.SourceRow(row.sheet(), row.rowNumber(), row.data())).toList());
         jdbc.update("UPDATE import_rows SET status='COMMITTED' WHERE batch_id=? AND status IN ('READY','WARNING')", batchId);
         batch.setSuccessRows(success); batch.setErrorRows(errors);
         batch.setStatus(errors == 0 ? ImportBatchStatus.COMMITTED : ImportBatchStatus.PARTIAL);
         CommitResult result = new CommitResult(batchId, batch.getStatus().name(), success, errors, warnings, changedSuppliers.size(), changedMaterials.size(),
-                historyRows.size(), importedOrders, "Đã import dữ liệu hợp lệ; các trường thiếu được giữ nguyên là NULL hoặc kèm snapshot nguồn.");
+                historyRows.size(), importedOrders, "Đã đối chiếu từng dòng nguồn với dữ liệu lưu; loại tiền thiếu vẫn là giả định có cảnh báo.", verification);
         audit.record(actorId, "LEGACY_IMPORT_COMMITTED", "IMPORT_BATCH", batchId, result);
         return result;
+    }
+
+    private StoredRow revalidated(StoredRow row) {
+        List<String> issues;
+        try { issues = row.issuesJson() == null ? new ArrayList<>() : new ArrayList<>(mapper.readValue(row.issuesJson(), new TypeReference<List<String>>() {})); }
+        catch (JsonProcessingException exception) { throw new IllegalStateException("Cảnh báo staging JSON bị lỗi", exception); }
+        issues.addAll(validateRow(row.sheet(), row.data()));
+        issues = issues.stream().distinct().toList();
+        String status = issues.isEmpty() ? "READY" : "WARNING";
+        return new StoredRow(row.sheet(), row.rowNumber(), row.data(), status, json(issues));
     }
 
     private int importOrders(List<StoredRow> rows, long batchId, Map<String, Supplier> supplierByCode,
@@ -219,7 +257,7 @@ public class LegacyWorkbookImportService {
             if (group.isEmpty()) continue;
             Map<String, String> first = group.get(0).data();
             String sourceNumber = value(first, "poNumber");
-            if (sourceNumber == null) continue;
+            if (sourceNumber == null) throw ApiException.conflict("IMPORT_SOURCE_CHANGED", "Staging thiếu số PO; không commit thiếu dòng");
             String number = internalOrderNumber(sourceNumber, usedNumbers, duplicateNumbers);
             LocalDate date = parseDate(firstValue(group, "date"));
             String supplierCode = firstValue(group, "supplierCode");
@@ -238,9 +276,9 @@ public class LegacyWorkbookImportService {
                 BigDecimal quantity = parseFieldDecimal(data, "quantity");
                 String quantityText = quantity == null ? value(data, "quantity") : null;
                 BigDecimal price = parseFieldDecimal(data, "unitPrice");
-                if (price == null) continue;
+                if (price == null) throw ApiException.conflict("IMPORT_SOURCE_CHANGED", "Staging có đơn giá không hợp lệ; không commit thiếu dòng");
                 String itemName = value(data, "materialName");
-                if (itemName == null) continue;
+                if (itemName == null) throw ApiException.conflict("IMPORT_SOURCE_CHANGED", "Staging thiếu tên hàng; không commit thiếu dòng");
                 Material material = findMaterial(value(data, "materialCode"), itemName, materialByCode, materialByName);
                 PurchaseOrderItem item = new PurchaseOrderItem(itemName, value(data, "unit"), quantity, price);
                 item.setMaterial(material);
@@ -295,7 +333,8 @@ public class LegacyWorkbookImportService {
         BigDecimal quantity = parseFieldDecimal(data, "quantity");
         h.setQuantity(quantity); h.setQuantityText(quantity == null ? value(data, "quantity") : null);
         h.setUnitPrice(parseFieldDecimal(data, "unitPrice"));
-        h.setCurrency(CurrencyCode.VND); h.setCurrencyBasis("ASSUMED_LEGACY");
+        h.setCurrency(parseCurrency(value(data, "currency")));
+        h.setCurrencyBasis(value(data, "currency") == null ? "ASSUMED_LEGACY" : "SOURCE");
         h.setSource("LEGACY_LICH_SU"); h.setSourceRowNumber(rowNumber); h.setCategory(MaterialCategory.MATERIAL);
         h.setSourceSheet("LICH_SU"); h.setImportBatchId(batchId); h.setDataQualityFlags(issuesJson);
         h.setSourceReference("LEGACY:" + batchId + ":LICH_SU:" + rowNumber);
@@ -314,9 +353,18 @@ public class LegacyWorkbookImportService {
             if (headerRow == null) continue;
             Map<Integer, String> columns = new HashMap<>();
             for (int col = 0; col < headerRow.getLastCellNum(); col++) {
-                String header = TextNormalizer.normalize(cellText(headerRow.getCell(col), formatter, evaluator));
+                Cell headerCell = headerRow.getCell(col);
+                if (headerCell != null && effectiveType(headerCell, evaluator) == CellType.ERROR)
+                    throw ApiException.badRequest("WORKSHEET_HEADER_INVALID", "Ô header lỗi tại " + name + " cột " + (col + 1));
+                String header = TextNormalizer.normalize(cellText(headerCell, formatter, evaluator));
                 String field = canonicalField(header);
-                if (field != null) columns.put(col, field);
+                if (field == null && !header.isBlank())
+                    throw ApiException.badRequest("WORKSHEET_UNKNOWN_HEADER", "Header chưa có mapping tại " + name + " cột " + (col + 1));
+                if (field != null) {
+                    if (columns.containsValue(field))
+                        throw ApiException.badRequest("WORKSHEET_DUPLICATE_HEADER", "Hai cột cùng mapping " + field + " tại sheet " + name);
+                    columns.put(col, field);
+                }
             }
             Set<String> headerFields = Set.copyOf(columns.values());
             Set<String> requiredHeaders = switch (name) {
@@ -332,22 +380,57 @@ public class LegacyWorkbookImportService {
                 if (row == null || row.getFirstCellNum() < 0) continue;
                 Map<String, String> mapped = new LinkedHashMap<>();
                 Map<String, String> raw = new LinkedHashMap<>();
+                List<String> issues = new ArrayList<>();
                 for (int col = 0; col < row.getLastCellNum(); col++) {
                     Cell cell = row.getCell(col);
                     String field = columns.get(col);
-                    String text = cell == null ? "" : (("supplierCode".equals(field) || "materialCode".equals(field) || "poNumber".equals(field))
-                            ? formatter.formatCellValue(cell, evaluator).trim() : cellText(cell, formatter, evaluator));
-                    if (text == null || text.isBlank()) continue;
+                    String rawKey = field == null ? "__column_" + (col + 1) : field;
+                    if (cell != null && cell.getCellType() == CellType.FORMULA) {
+                        raw.put(rawKey + "__formula", cell.getCellFormula());
+                        if (cell instanceof XSSFCell formulaCell && formulaCell.getRawValue() != null)
+                            raw.put(rawKey + "__cachedValue", formulaCell.getRawValue());
+                    } else if (cell instanceof XSSFCell numericCell && cell.getCellType() == CellType.NUMERIC && numericCell.getRawValue() != null)
+                        raw.put(rawKey + "__numericToken", numericCell.getRawValue());
+                    CellType effectiveType;
+                    String text;
+                    try {
+                        effectiveType = cell == null ? CellType.BLANK : effectiveType(cell, evaluator);
+                        text = cell == null ? "" : (("supplierCode".equals(field) || "materialCode".equals(field) || "poNumber".equals(field))
+                                ? formatter.formatCellValue(cell, evaluator) : cellText(cell, formatter, evaluator));
+                    } catch (RuntimeException exception) {
+                        raw.put(field == null ? "__column_" + (col + 1) : field, cell == null ? "" : cell.toString());
+                        issues.add("ERROR:CELL_READ_FAILED: Không đọc được ô cột " + (col + 1));
+                        continue;
+                    }
+                    if (effectiveType == CellType.ERROR) {
+                        raw.put(field == null ? "__column_" + (col + 1) : field, text);
+                        issues.add("ERROR:EXCEL_CELL_ERROR: Ô Excel/công thức lỗi tại cột " + (col + 1));
+                        continue;
+                    }
+                    if (text == null || text.isEmpty()) continue;
+                    raw.put(field == null ? "__column_" + (col + 1) : field, text);
+                    if (text.isBlank()) continue;
                     if (field != null) {
-                        mapped.put(field, text.trim()); raw.put(field, text.trim());
-                        CellType effectiveType = cell.getCellType() == CellType.FORMULA ? evaluator.evaluateFormulaCell(cell) : cell.getCellType();
+                        if (!allowedFields(name).contains(field))
+                            issues.add("ERROR:UNMAPPED_FIELD: Sheet " + name + " không lưu trường " + field);
+                        mapped.put(field, text.trim());
+                        if (effectiveType == CellType.NUMERIC) raw.put(field + "__display", formatter.formatCellValue(cell, evaluator));
                         if (effectiveType == CellType.NUMERIC && !DateUtil.isCellDateFormatted(cell)
                                 && Set.of("quantity", "unitPrice", "vatPercent").contains(field))
                             mapped.put(field + "__numeric", "true");
-                    }
+                        if (effectiveType == CellType.NUMERIC && Set.of("quantity", "unitPrice", "vatPercent").contains(field)
+                                && formatter.formatCellValue(cell, evaluator).trim().endsWith("%"))
+                            issues.add("ERROR:PERCENT_CELL_FORMAT: Ô số có định dạng phần trăm; cần xác nhận tỷ lệ/giá trị nguồn trước khi nhập, không tự nhân 100");
+                        if ("date".equals(field) && effectiveType == CellType.NUMERIC && DateUtil.isCellDateFormatted(cell)) {
+                            BigDecimal serial = numericValue(cell, evaluator);
+                            raw.put("date__serial", serial.toPlainString());
+                            if (serial.stripTrailingZeros().scale() > 0)
+                                issues.add("ERROR:DATE_HAS_TIME: Ngày nguồn chứa giờ, cột DATE không giữ được giờ");
+                        }
+                    } else issues.add("ERROR:UNMAPPED_CELL: Ô có dữ liệu nhưng không có header mapping tại cột " + (col + 1));
                 }
-                if (mapped.isEmpty()) continue;
-                List<String> issues = validateRow(name, mapped);
+                if (mapped.isEmpty() && issues.isEmpty()) continue;
+                issues.addAll(validateRow(name, mapped));
                 String status = issues.stream().anyMatch(issue -> issue.startsWith("ERROR:")) ? "ERROR"
                         : issues.isEmpty() ? "READY" : "WARNING";
                 LegacyRow item = new LegacyRow(name, rowIndex + 1, raw, mapped, status, issues);
@@ -356,6 +439,7 @@ public class LegacyWorkbookImportService {
             bySheet.put(name, sheetRows);
         }
         addPurchaseOrderHeaderConflicts(bySheet);
+        addSourceCodeVariants(bySheet);
         all = bySheet.values().stream().flatMap(List::stream).toList();
         return new WorkbookData(bySheet, all);
     }
@@ -369,8 +453,7 @@ public class LegacyWorkbookImportService {
             if (group.size() < 2) continue;
             List<String> conflicts = new ArrayList<>();
             for (String field : compareFields) {
-                Set<String> values = group.stream().map(row -> normalizeHeaderValue(field, value(row.mapped(), field)))
-                        .filter(value -> value != null || Set.of("date", "currency", "vatPercent").contains(field))
+                Set<String> values = group.stream().map(row -> normalizeHeaderValue(field, row.mapped()))
                         .map(value -> value == null ? "<missing>" : value).collect(Collectors.toSet());
                 if (values.size() > 1) conflicts.add(field);
             }
@@ -389,31 +472,95 @@ public class LegacyWorkbookImportService {
         bySheet.put("DON_HANG", poRows);
     }
 
-    private String normalizeHeaderValue(String field, String value) {
-        if (value == null) return switch (field) {
-            case "currency" -> "VND";
-            case "vatPercent" -> "UNKNOWN";
-            case "date" -> "<missing>";
-            default -> null;
-        };
+    private String normalizeHeaderValue(String field, Map<String, String> data) {
+        String value = value(data, field);
+        if (value == null) return null;
         return switch (field) {
-            case "supplierCode" -> value.trim().toLowerCase(Locale.ROOT);
-            case "supplierName" -> TextNormalizer.normalize(value);
             case "currency" -> switch (value.trim().toUpperCase(Locale.ROOT)) {
                 case "USD" -> "USD";
                 case "VND", "VNĐ" -> "VND";
                 default -> "UNSUPPORTED:" + value.trim().toUpperCase(Locale.ROOT);
             };
             case "vatPercent" -> {
-                BigDecimal decimal = parseDecimal(value);
+                BigDecimal decimal = parseFieldDecimal(data, field);
                 yield decimal == null ? value.trim() : decimal.stripTrailingZeros().toPlainString();
             }
+            case "date" -> parseDate(value) == null ? value : parseDate(value).toString();
             default -> value.trim();
         };
     }
 
+    private static Set<String> allowedFields(String sheet) {
+        return switch (sheet) {
+            case "NCC" -> Set.of("supplierCode", "supplierName", "address");
+            case "LICH_SU" -> Set.of("date", "supplierCode", "supplierName", "materialCode", "materialName", "unit", "quantity", "unitPrice", "currency");
+            default -> Set.of("date", "poNumber", "supplierCode", "supplierName", "address", "materialCode", "materialName", "unit", "quantity", "unitPrice", "preparedBy", "specification", "note", "vatPercent", "currency");
+        };
+    }
+
+    private void addSourceCodeVariants(Map<String, List<LegacyRow>> bySheet) {
+        Map<String, Set<String>> names = new HashMap<>();
+        Map<String, Set<String>> units = new HashMap<>();
+        for (List<LegacyRow> sheetRows : bySheet.values()) for (LegacyRow row : sheetRows) {
+            for (String kind : List.of("supplier", "material")) {
+                String code = value(row.mapped(), kind + "Code");
+                String name = value(row.mapped(), kind + "Name");
+                if (code != null && name != null) names.computeIfAbsent(kind + ":" + code.toLowerCase(Locale.ROOT), ignored -> new HashSet<>()).add(TextNormalizer.normalize(name));
+            }
+            String code = value(row.mapped(), "materialCode"), unit = value(row.mapped(), "unit");
+            if (code != null && unit != null) units.computeIfAbsent(code.toLowerCase(Locale.ROOT), ignored -> new HashSet<>()).add(TextNormalizer.normalize(unit));
+        }
+        bySheet.replaceAll((sheet, sheetRows) -> sheetRows.stream().map(row -> {
+            List<String> issues = new ArrayList<>(row.issues());
+            for (String kind : List.of("supplier", "material")) {
+                String code = value(row.mapped(), kind + "Code");
+                if (code != null && names.getOrDefault(kind + ":" + code.toLowerCase(Locale.ROOT), Set.of()).size() > 1)
+                    issues.add("WARNING:CODE_NAME_VARIANT: Mã " + kind + " có nhiều tên nguồn; giữ snapshot, cần đối chiếu");
+            }
+            String code = value(row.mapped(), "materialCode");
+            if (code != null && units.getOrDefault(code.toLowerCase(Locale.ROOT), Set.of()).size() > 1)
+                issues.add("WARNING:CODE_UNIT_VARIANT: Mã hàng có nhiều đơn vị nguồn; không tự quy đổi");
+            return new LegacyRow(row.sheet(), row.rowNumber(), row.raw(), row.mapped(),
+                    row.status().equals("ERROR") ? "ERROR" : issues.isEmpty() ? "READY" : "WARNING", List.copyOf(issues));
+        }).collect(Collectors.toCollection(ArrayList::new)));
+    }
+
     private List<String> validateRow(String sheet, Map<String, String> data) {
         List<String> issues = new ArrayList<>();
+        Map<String, Integer> lengths = Map.ofEntries(Map.entry("supplierCode", 50), Map.entry("supplierName", 500),
+                Map.entry("materialCode", 80), Map.entry("materialName", 500), Map.entry("unit", 100),
+                Map.entry("address", 1000), Map.entry("specification", 1000), Map.entry("note", 1000),
+                Map.entry("preparedBy", 255), Map.entry("poNumber", 40));
+        lengths.forEach((field, limit) -> {
+            String text = value(data, field);
+            if (text != null && text.codePointCount(0, text.length()) > limit)
+                issues.add("ERROR:FIELD_TOO_LONG: " + field + " vượt quá " + limit + " ký tự");
+        });
+        for (String field : data.keySet()) {
+            if (!field.endsWith("__numeric") && !allowedFields(sheet).contains(field) && value(data, field) != null)
+                issues.add("ERROR:UNMAPPED_FIELD: Sheet " + sheet + " không lưu trường " + field);
+        }
+        if (!sheet.equals("NCC")) {
+            validateDecimal(data, "unitPrice", 38, 18, issues);
+            validateDecimal(data, "quantity", 38, 18, issues);
+            String quantityText = value(data, "quantity");
+            if (quantityText != null && parseFieldDecimal(data, "quantity") == null) {
+                if (LegacyImportValues.looksNumeric(quantityText) || "true".equals(data.get("quantity__numeric")))
+                    issues.add("ERROR:AMBIGUOUS_QUANTITY: Số lượng dạng số không đọc được chắc chắn; không biến thành số lượng chữ");
+                else if (quantityText.codePointCount(0, quantityText.length()) > 255)
+                    issues.add("ERROR:FIELD_TOO_LONG: quantity_text vượt quá 255 ký tự");
+                else issues.add("WARNING:QUANTITY_TEXT: Giữ nguyên số lượng chữ, không tính tổng");
+            }
+            if (value(data, "unit") == null) issues.add("WARNING:MISSING_UNIT: Nguồn không ghi đơn vị tính");
+            for (String field : List.of("unitPrice", "quantity")) {
+                BigDecimal number = parseFieldDecimal(data, field);
+                if (number != null && number.signum() <= 0) issues.add("WARNING:NONPOSITIVE_" + field.toUpperCase(Locale.ROOT) + ": Giữ giá trị nguồn bằng 0/âm, cần đối chiếu chứng từ");
+            }
+            if (value(data, "currency") == null)
+                issues.add("WARNING:ASSUMED_LEGACY_CURRENCY: Nguồn không ghi loại tiền; VND là giả định, chưa xác minh");
+            else if (!List.of("VND", "VNĐ", "USD").contains(value(data, "currency").toUpperCase(Locale.ROOT)))
+                issues.add("ERROR:UNSUPPORTED_CURRENCY: Loại tiền nguồn chưa hỗ trợ; không thay bằng VND");
+        }
         if (sheet.equals("NCC")) {
             required(data, "supplierName", "MISSING_SUPPLIER_NAME", "Tên NCC", issues);
             if (value(data, "supplierCode") == null) issues.add("WARNING:MISSING_SUPPLIER_CODE: Không có mã NCC; giữ nhà cung cấp theo tên chính xác nếu duy nhất");
@@ -422,11 +569,10 @@ public class LegacyWorkbookImportService {
             required(data, "unitPrice", "MISSING_UNIT_PRICE", "Đơn giá", issues);
             if (parseFieldDecimal(data, "unitPrice") == null) issues.add("ERROR:INVALID_UNIT_PRICE: Đơn giá không phải số hợp lệ");
             if (value(data, "date") == null) issues.add("WARNING:MISSING_DATE: Không có ngày mua; sẽ giữ NULL");
-            else if (parseDate(value(data, "date")) == null) issues.add("WARNING:INVALID_DATE: Ngày mua không đọc được; sẽ giữ NULL");
+            else if (parseDate(value(data, "date")) == null) issues.add("ERROR:INVALID_DATE: Ngày mua có dữ liệu nhưng không đọc được chính xác");
             if (value(data, "supplierCode") == null) issues.add("WARNING:MISSING_SUPPLIER_CODE: Không có mã NCC; sẽ chỉ liên kết khi tên khớp chính xác và duy nhất");
             if (value(data, "supplierCode") == null && value(data, "supplierName") == null) issues.add("WARNING:MISSING_SUPPLIER: Không có nhà cung cấp");
             if (value(data, "materialCode") == null) issues.add("WARNING:MISSING_MATERIAL_CODE: Không có mã hàng; giữ snapshot và không tự ghép mơ hồ");
-            if (value(data, "quantity") != null && parseFieldDecimal(data, "quantity") == null) issues.add("WARNING:QUANTITY_TEXT: Số lượng chữ được giữ nguyên và không cộng vào tổng");
         } else {
             required(data, "poNumber", "MISSING_PO_NUMBER", "Số PO", issues);
             if (value(data, "poNumber") != null && value(data, "poNumber").length() > 40)
@@ -435,16 +581,26 @@ public class LegacyWorkbookImportService {
             required(data, "unitPrice", "MISSING_UNIT_PRICE", "Đơn giá", issues);
             if (parseFieldDecimal(data, "unitPrice") == null) issues.add("ERROR:INVALID_UNIT_PRICE: Đơn giá không phải số hợp lệ");
             if (value(data, "date") == null) issues.add("WARNING:MISSING_DATE: Không có ngày PO; sẽ giữ NULL");
-            else if (parseDate(value(data, "date")) == null) issues.add("WARNING:INVALID_DATE: Ngày PO không đọc được; sẽ giữ NULL");
+            else if (parseDate(value(data, "date")) == null) issues.add("ERROR:INVALID_DATE: Ngày PO có dữ liệu nhưng không đọc được chính xác");
             if (value(data, "supplierCode") == null) issues.add("WARNING:MISSING_SUPPLIER_CODE: Không có mã NCC; giữ snapshot tên");
             if (value(data, "materialCode") == null) issues.add("WARNING:MISSING_MATERIAL_CODE: Không có mã hàng; giữ snapshot tên");
-            if (value(data, "currency") == null) issues.add("WARNING:MISSING_CURRENCY: Không ghi loại tiền; sẽ mặc định VND và ghi dấu nguồn");
-            else if (!List.of("VND", "VNĐ", "USD").contains(value(data, "currency").toUpperCase(Locale.ROOT)))
-                issues.add("WARNING:UNSUPPORTED_CURRENCY: Loại tiền không hỗ trợ; sẽ mặc định VND và giữ raw ở staging");
             if (value(data, "vatPercent") == null) issues.add("WARNING:UNKNOWN_VAT: Không có VAT; để NULL, không tự suy đoán");
-            else if (parseFieldDecimal(data, "vatPercent") == null) issues.add("WARNING:INVALID_VAT: VAT không đọc được; để NULL, không tự suy đoán");
+            else {
+                BigDecimal vat = parseFieldDecimal(data, "vatPercent");
+                if (vat == null || vat.signum() < 0 || vat.compareTo(new BigDecimal("100")) > 0)
+                    issues.add("ERROR:INVALID_VAT: VAT có dữ liệu nhưng không phải tỷ lệ 0–100 đọc được chính xác");
+                validateDecimal(data, "vatPercent", 5, 2, issues);
+            }
         }
         return issues;
+    }
+
+    private static void validateDecimal(Map<String, String> data, String field, int precision, int scale, List<String> issues) {
+        BigDecimal number = parseFieldDecimal(data, field);
+        if (number == null) return;
+        BigDecimal exact = number.stripTrailingZeros();
+        if (Math.max(0, exact.scale()) > scale || Math.max(0L, (long) exact.precision() - exact.scale()) > precision - scale)
+            issues.add("ERROR:DECIMAL_NOT_REPRESENTABLE: " + field + " không lưu chính xác được trong DECIMAL(" + precision + "," + scale + "); không làm tròn");
     }
 
     private void persistPreviewRows(long batchId, List<LegacyRow> rows) {
@@ -486,14 +642,36 @@ public class LegacyWorkbookImportService {
 
     private String cellText(Cell cell, DataFormatter formatter, FormulaEvaluator evaluator) {
         if (cell == null) return "";
-        CellType type = cell.getCellType();
-        if (type == CellType.FORMULA) type = evaluator.evaluateFormulaCell(cell);
-        if (type == CellType.NUMERIC && DateUtil.isCellDateFormatted(cell)) return DateUtil.getLocalDateTime(cell.getNumericCellValue()).toLocalDate().toString();
-        if (type == CellType.NUMERIC) return BigDecimal.valueOf(cell.getNumericCellValue()).stripTrailingZeros().toPlainString();
-        if (type == CellType.STRING) return cell.getStringCellValue().trim();
-        if (type == CellType.BOOLEAN) return Boolean.toString(cell.getBooleanCellValue());
-        if (type == CellType.ERROR || type == CellType.BLANK) return "";
-        return formatter.formatCellValue(cell, evaluator).trim();
+        CellValue formulaValue = cell.getCellType() == CellType.FORMULA ? evaluator.evaluate(cell) : null;
+        CellType type = formulaValue == null ? cell.getCellType() : formulaValue.getCellType();
+        if (type == CellType.NUMERIC && DateUtil.isCellDateFormatted(cell)) {
+            double serial = numericValue(cell, evaluator).doubleValue();
+            if (!DateUtil.isValidExcelDate(serial)) throw new IllegalArgumentException("Invalid Excel date");
+            Workbook workbook = cell.getSheet().getWorkbook();
+            boolean date1904 = workbook instanceof Date1904Support support && support.isDate1904();
+            if (workbook instanceof org.apache.poi.hssf.usermodel.HSSFWorkbook hssf)
+                date1904 = hssf.getWorkbook().isUsing1904DateWindowing();
+            if (!date1904 && serial >= 60 && serial < 61) throw new IllegalArgumentException("Excel fictitious 1900 leap day");
+            return DateUtil.getLocalDateTime(serial, date1904).toLocalDate().toString();
+        }
+        if (type == CellType.NUMERIC) return numericValue(cell, evaluator).stripTrailingZeros().toPlainString();
+        if (type == CellType.STRING) return formulaValue == null ? cell.getStringCellValue() : formulaValue.getStringValue();
+        if (type == CellType.BOOLEAN) return Boolean.toString(formulaValue == null ? cell.getBooleanCellValue() : formulaValue.getBooleanValue());
+        if (type == CellType.BLANK) return "";
+        return formatter.formatCellValue(cell, evaluator);
+    }
+
+    private static CellType effectiveType(Cell cell, FormulaEvaluator evaluator) {
+        if (cell.getCellType() != CellType.FORMULA) return cell.getCellType();
+        CellValue evaluated = evaluator.evaluate(cell);
+        if (evaluated == null) throw new IllegalArgumentException("Formula has no value");
+        return evaluated.getCellType();
+    }
+
+    private static BigDecimal numericValue(Cell cell, FormulaEvaluator evaluator) {
+        if (cell.getCellType() == CellType.FORMULA) return BigDecimal.valueOf(evaluator.evaluate(cell).getNumberValue());
+        if (cell instanceof XSSFCell xssf && xssf.getRawValue() != null) return new BigDecimal(xssf.getRawValue());
+        return BigDecimal.valueOf(cell.getNumericCellValue());
     }
 
     private String canonicalField(String header) {
@@ -534,30 +712,16 @@ public class LegacyWorkbookImportService {
         return result == null || result.isBlank() ? null : result.trim();
     }
     private static BigDecimal parseDecimal(String text) {
-        if (text == null || text.isBlank()) return null;
-        return LocalizedNumberParser.parse(text);
+        return LegacyImportValues.decimalText(text);
     }
     private static BigDecimal parseFieldDecimal(Map<String, String> data, String field) {
-        String text = value(data, field);
-        if (text == null) return null;
-        if ("true".equals(data.get(field + "__numeric"))) {
-            try { return new BigDecimal(text); } catch (NumberFormatException exception) { return null; }
-        }
-        return parseDecimal(text);
+        return LegacyImportValues.decimal(data, field);
     }
     private static LocalDate parseDate(String text) {
-        if (text == null || text.isBlank()) return null;
-        String value = text.trim();
-        for (java.time.format.DateTimeFormatter formatter : List.of(
-                java.time.format.DateTimeFormatter.ISO_LOCAL_DATE,
-                java.time.format.DateTimeFormatter.ofPattern("d/M/uuuu", Locale.ROOT),
-                java.time.format.DateTimeFormatter.ofPattern("d-M-uuuu", Locale.ROOT))) {
-            try { return LocalDate.parse(value, formatter); } catch (RuntimeException ignored) { }
-        }
-        return null;
+        return LegacyImportValues.date(text);
     }
     private static CurrencyCode parseCurrency(String text) {
-        return text != null && text.trim().equalsIgnoreCase("USD") ? CurrencyCode.USD : CurrencyCode.VND;
+        return LegacyImportValues.currency(text);
     }
     private static String safeFileName(String value) {
         if (value == null || value.isBlank()) return "legacy-import.xlsx";
@@ -612,5 +776,12 @@ public class LegacyWorkbookImportService {
                                 List<RowIssue> rowIssues, boolean duplicate, String message) {}
     public record CommitResult(Long batchId, String status, int committedRows, int errorRows, int warningRows,
                                int supplierRowsProcessed, int materialRowsProcessed, int historyRowsImported,
-                               int purchaseOrdersImported, String message) {}
+                               int purchaseOrdersImported, String message, LegacyImportReconciler.Verification verification) {
+        public CommitResult(Long batchId, String status, int committedRows, int errorRows, int warningRows,
+                            int supplierRowsProcessed, int materialRowsProcessed, int historyRowsImported,
+                            int purchaseOrdersImported, String message) {
+            this(batchId, status, committedRows, errorRows, warningRows, supplierRowsProcessed, materialRowsProcessed,
+                    historyRowsImported, purchaseOrdersImported, message, null);
+        }
+    }
 }

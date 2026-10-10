@@ -2,10 +2,15 @@ import type { Page } from '@playwright/test'
 import { mockApi } from './fixtures.ts'
 import type { Material, Supplier } from '../../src/features/catalog/types'
 import type { PurchaseOrder } from '../../src/features/procurement/types'
+import type { LegacyCommit, LegacyPreview } from '../../src/features/imports/types'
 
 export async function purchasing(page: Page, role = 'ADMIN') {
   const auth = await mockApi(page, { signedIn: true, role })
-  const state = { failCatalog: false, failSave: false, commits: 0, writes: [] as { path: string; data: Record<string, unknown> }[],
+  const state = { failCatalog: false, failSave: false, commits: 0, legacyDetected: false, legacyPreviewCalls: 0, operationalPreviewCalls: 0,
+    legacyPreview: { batchId:1,fileName:'fixture.xlsx',sha256:'synthetic',status:'PREVIEW',summary:{rowsPerSheet:{NCC:1,LICH_SU:2,DON_HANG:1},errorRows:0,warningRows:1,legacyPurchaseOrderGroups:1,totalRows:4,note:'CONFIG bỏ qua'},rowIssues:[{sheet:'DON_HANG',rowNumber:2,status:'WARNING',issues:['WARNING:VAT_UNKNOWN: Cần đối chiếu VAT']}],duplicate:false,message:null } as LegacyPreview,
+    legacyCommit: {batchId:1,status:'COMMITTED',committedRows:4,errorRows:0,warningRows:1,supplierRowsProcessed:1,materialRowsProcessed:1,historyRowsImported:2,purchaseOrdersImported:1,message:'Đã commit dữ liệu thử',verification:{sourceRows:4,verifiedRows:4,historyRows:2,purchaseOrders:1,purchaseOrderItems:1,supplierRows:1}} as LegacyCommit,
+    issueCsv: 'sheet,rowNumber,status,issue\r\nDON_HANG,2,WARNING,WARNING:VAT_UNKNOWN\r\n',
+    writes: [] as { path: string; data: Record<string, unknown> }[],
     materials: [{ id: 1, code: '0001', name: 'Thép kiểm thử', category: 'MATERIAL', defaultUnit: 'kg', active: true }] as Material[],
     suppliers: [{ id: 1, code: 'NCC1', name: 'NCC mẫu A', address: 'Địa chỉ mẫu', taxCode: null, phone: null, email: null, active: true }, { id: 2, code: 'NCC2', name: 'NCC mẫu B', address: null, taxCode: null, phone: null, email: null, active: true }] as Supplier[],
     orders: [] as PurchaseOrder[] }
@@ -55,9 +60,15 @@ export async function purchasing(page: Page, role = 'ADMIN') {
       const saved = { ...command, id, poNumber: `PO-TEST-${id}`, supplierName: state.suppliers.find((row)=>row.id===command.supplierId)!.name, supplierAddress: 'Địa chỉ mẫu', status: 'DRAFT', revision: match ? (order!.revision+1) : 1, version:0, items, subtotal,taxAmount,grandTotal:subtotal+taxAmount,quantityTextLineCount:items.filter((item)=>item.quantity==null).length } as PurchaseOrder
       state.orders = [...state.orders.filter((item)=>item.id!==id),saved]; return reply(saved)
     }
-    if (path.includes('/imports/operational/')) return reply({ fileName:'paste.tsv',sourceType:'PASTE',confidence:.9,message:'Kiểm tra bản nháp',items:[{sourceRow:2,materialName:'Thép kiểm thử',materialCode:null,specification:null,unit:'kg',quantity:null,quantityText:'Qua cân thực tế',unitPrice:100,warnings:[]}],warnings:[] })
-    if (path === '/api/imports/legacy/preview') return reply({ batchId:1,fileName:'fixture.xlsx',sha256:'synthetic',status:'PREVIEW',summary:{rowsPerSheet:{NCC:1,LICH_SU:2,DON_HANG:1},errorRows:0,warningRows:1,legacyPurchaseOrderGroups:1,totalRows:4,note:'CONFIG bỏ qua'},rowIssues:[{sheet:'DON_HANG',rowNumber:2,status:'WARNING',issues:['WARNING:VAT_UNKNOWN: Cần đối chiếu VAT']}],duplicate:false,message:null })
-    if (path.includes('/imports/legacy/') && path.endsWith('/commit')) { state.commits++; return reply({batchId:1,status:'COMMITTED',committedRows:4,historyRowsImported:2,purchaseOrdersImported:1,message:'Đã commit dữ liệu thử'}) }
+    if (path.includes('/imports/operational/')) {
+      state.operationalPreviewCalls++
+      if (state.legacyDetected && path.endsWith('/preview')) return reply({code:'LEGACY_WORKBOOK_DETECTED',message:'Đây là workbook dữ liệu cũ'},400)
+      return reply({ fileName:'paste.tsv',sourceType:'PASTE',confidence:.9,message:'Kiểm tra bản nháp',items:[{sourceRow:2,materialName:'Thép kiểm thử',materialCode:null,specification:null,unit:'kg',quantity:null,quantityText:'Qua cân thực tế',unitPrice:100,warnings:[]}],warnings:[] })
+    }
+    if (path === '/api/imports/legacy/preview') { state.legacyPreviewCalls++; return reply({...state.legacyPreview,duplicate:state.legacyPreview.status==='COMMITTED'}) }
+    if (path === '/api/imports/legacy/1' && method === 'GET') return reply(state.legacyPreview)
+    if (path === '/api/imports/legacy/1/issues.csv') return route.fulfill({contentType:'text/csv; charset=utf-8',headers:{'Content-Disposition':'attachment; filename="legacy-import-1-issues.csv"'},body:state.issueCsv})
+    if (path.includes('/imports/legacy/') && path.endsWith('/commit')) { state.commits++; state.legacyPreview.status='COMMITTED'; return reply(state.legacyCommit) }
     return route.fulfill({ contentType:'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',headers:{'Content-Disposition':'attachment; filename="fixture.xlsx"'},body:'PKsynthetic' })
   })
   return state

@@ -55,6 +55,8 @@ public class OperationalRequestImportService {
     private DraftPreview spreadsheet(String fileName, byte[] bytes) throws IOException {
         try (Workbook workbook = WorkbookFactory.create(new ByteArrayInputStream(bytes))) {
             if (workbook.getNumberOfSheets() == 0) throw ApiException.badRequest("EMPTY_WORKBOOK", "Workbook không có sheet");
+            if (workbook.getSheet("NCC") != null && workbook.getSheet("LICH_SU") != null && workbook.getSheet("DON_HANG") != null)
+                throw ApiException.badRequest("LEGACY_WORKBOOK_DETECTED", "Tệp chứa NCC, LICH_SU và DON_HANG. Hãy dùng Workbook dữ liệu cũ để nhập đủ lịch sử và từng PO.");
             Sheet sheet = workbook.getSheetAt(0);
             DataFormatter formatter = new DataFormatter(Locale.ROOT);
             FormulaEvaluator evaluator = workbook.getCreationHelper().createFormulaEvaluator();

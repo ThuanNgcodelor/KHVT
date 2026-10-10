@@ -56,13 +56,13 @@ public class HistoricalPurchase {
     @Column(length = 100)
     private String unit;
 
-    @Column(precision = 20, scale = 6)
+    @Column(precision = 38, scale = 18)
     private BigDecimal quantity;
 
     @Column(name = "quantity_text", length = 255)
     private String quantityText;
 
-    @Column(name = "unit_price", nullable = false, precision = 20, scale = 4)
+    @Column(name = "unit_price", nullable = false, precision = 38, scale = 18)
     private BigDecimal unitPrice;
 
     @Enumerated(EnumType.STRING)
