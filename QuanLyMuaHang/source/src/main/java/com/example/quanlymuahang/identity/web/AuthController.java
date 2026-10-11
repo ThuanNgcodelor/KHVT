@@ -39,13 +39,16 @@ public class AuthController {
     private final AuthService authService;
     private final CsrfTokenRepository csrfTokenRepository;
     private final SessionAuthenticationStrategy sessionAuthenticationStrategy;
+    private final com.example.quanlymuahang.identity.infrastructure.security.RememberMeService rememberMeService;
 
     public AuthController(AuthenticationManager authenticationManager, SecurityContextRepository contextRepository,
                           AuthService authService, CsrfTokenRepository csrfTokenRepository,
-                          SessionAuthenticationStrategy sessionAuthenticationStrategy) {
+                          SessionAuthenticationStrategy sessionAuthenticationStrategy,
+                          com.example.quanlymuahang.identity.infrastructure.security.RememberMeService rememberMeService) {
         this.authenticationManager = authenticationManager; this.contextRepository = contextRepository;
         this.authService = authService; this.csrfTokenRepository = csrfTokenRepository;
         this.sessionAuthenticationStrategy = sessionAuthenticationStrategy;
+        this.rememberMeService = rememberMeService;
     }
 
     @GetMapping("/csrf")
@@ -68,6 +71,9 @@ public class AuthController {
         SecurityContextHolder.setContext(context);
         contextRepository.saveContext(context, request, response);
         csrfTokenRepository.saveToken(null, request, response);
+        if (Boolean.TRUE.equals(body.rememberMe()) && !principal.mustChangePassword()) {
+            rememberMeService.createToken(principal.id(), request, response);
+        }
         return ResponseEntity.ok(MeResponse.from(principal));
     }
 
@@ -81,6 +87,7 @@ public class AuthController {
         HttpSession session = request.getSession(false);
         if (session != null) session.invalidate();
         csrfTokenRepository.saveToken(null, request, response);
+        rememberMeService.revokeCurrentToken(request, response);
         return ResponseEntity.noContent().build();
     }
 
@@ -96,10 +103,13 @@ public class AuthController {
         context.setAuthentication(updatedAuthentication);
         SecurityContextHolder.setContext(context);
         contextRepository.saveContext(context, request, response);
+        rememberMeService.revokeAllForUser(principal.id());
         return MeResponse.from(principal);
     }
 
-    public record LoginRequest(@NotBlank @Email String email, @NotBlank String password) {}
+    public record LoginRequest(@NotBlank @Email String email, @NotBlank String password, Boolean rememberMe) {
+        public LoginRequest(String email, String password) { this(email, password, false); }
+    }
     public record ChangePasswordRequest(@NotBlank String currentPassword, @NotBlank @Size(min = 12, max = 200) String newPassword) {}
     public record CsrfResponse(String headerName, String token) {}
     public record AuthError(String code, String message) {}

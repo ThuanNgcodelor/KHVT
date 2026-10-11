@@ -9,6 +9,7 @@ import { useLogout } from './useLogout'
 const schema = z.object({
   email: z.string(), password: z.string().min(1, 'Nhập mật khẩu hiện tại.'),
   newPassword: z.string(), confirmation: z.string(),
+  rememberMe: z.boolean().optional(),
 })
 type FormValues = z.infer<typeof schema>
 // Allow internal addresses (e.g. user@localhost) accepted by backend @Email.
@@ -32,14 +33,14 @@ export function useAuthForm(mode: 'login' | 'change-password') {
         if (values.newPassword !== values.confirmation) context.addIssue({ code: 'custom', path: ['confirmation'], message: 'Hai mật khẩu mới chưa khớp.' })
       }
     })),
-    defaultValues: { email: '', password: '', newPassword: '', confirmation: '' },
+    defaultValues: { email: '', password: '', newPassword: '', confirmation: '', rememberMe: false },
   })
 
   async function submit(values: FormValues) {
     setServerError('')
     try {
       if (changing) await auth.changePassword(values.password, values.newPassword)
-      else await auth.login(values.email, values.password)
+      else await auth.login(values.email, values.password, values.rememberMe)
       form.reset()
     } catch (error) {
       setServerError(error instanceof ApiError ? error.message : 'Chưa kết nối được hệ thống. Hãy thử lại.')

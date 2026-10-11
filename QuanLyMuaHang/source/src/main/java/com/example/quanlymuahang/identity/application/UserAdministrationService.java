@@ -45,12 +45,21 @@ public class UserAdministrationService {
     private final PositionJpaRepository positions;
     private final SessionRevocationService sessions;
     private final AuditRecorder audit;
+    private final com.example.quanlymuahang.identity.infrastructure.security.RememberMeService rememberMeService;
+
+    public UserAdministrationService(UserAccountJpaRepository accounts, RoleJpaRepository roles, PasswordEncoder encoder,
+                                     EmployeeJpaRepository employees, DepartmentJpaRepository departments,
+                                     PositionJpaRepository positions, SessionRevocationService sessions, AuditRecorder audit,
+                                     com.example.quanlymuahang.identity.infrastructure.security.RememberMeService rememberMeService) {
+        this.accounts = accounts; this.roles = roles; this.encoder = encoder; this.employees = employees;
+        this.departments = departments; this.positions = positions; this.sessions = sessions; this.audit = audit;
+        this.rememberMeService = rememberMeService;
+    }
 
     public UserAdministrationService(UserAccountJpaRepository accounts, RoleJpaRepository roles, PasswordEncoder encoder,
                                      EmployeeJpaRepository employees, DepartmentJpaRepository departments,
                                      PositionJpaRepository positions, SessionRevocationService sessions, AuditRecorder audit) {
-        this.accounts = accounts; this.roles = roles; this.encoder = encoder; this.employees = employees;
-        this.departments = departments; this.positions = positions; this.sessions = sessions; this.audit = audit;
+        this(accounts, roles, encoder, employees, departments, positions, sessions, audit, null);
     }
 
     @Transactional(readOnly = true)
@@ -157,6 +166,7 @@ public class UserAdministrationService {
         UserView view = view(account, employee);
         audit.record(actorId, "USER_UPDATED", "USER_ACCOUNT", account.getId(), view);
         sessions.revokeAll(account.getEmail());
+        if (rememberMeService != null) rememberMeService.revokeAllForUser(account.getId());
         return view;
     }
 
@@ -169,6 +179,7 @@ public class UserAdministrationService {
         account.changePassword(encoder.encode(temporaryPassword), true);
         audit.record(actorId, "USER_PASSWORD_RESET", "USER_ACCOUNT", account.getId(), Map.of("mustChangePassword", true));
         sessions.revokeAll(account.getEmail());
+        if (rememberMeService != null) rememberMeService.revokeAllForUser(account.getId());
     }
 
     private EmployeeEntity resolveEmployee(Long employeeId, EmployeeProfile profile, String fullName, String accountEmail, Long accountId, long actorId) {

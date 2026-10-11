@@ -2,10 +2,10 @@ import { apiClient, refreshCsrf, resetCsrf } from '../../services/apiClient'
 import type { CurrentUser } from './types'
 export const authApi = {
   me: (signal?: AbortSignal) => apiClient.get<CurrentUser>('/auth/me', { signal }),
-  login: async (email: string, password: string) => {
+  login: async (email: string, password: string, rememberMe?: boolean) => {
     // Another tab may have changed the CSRF cookie after this tab cached its token.
     await refreshCsrf()
-    const user = await apiClient.post<CurrentUser>('/auth/login', { email, password })
+    const user = await apiClient.post<CurrentUser>('/auth/login', { email, password, rememberMe })
     resetCsrf()
     return user
   },

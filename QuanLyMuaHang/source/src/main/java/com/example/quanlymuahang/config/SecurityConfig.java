@@ -62,6 +62,7 @@ public class SecurityConfig {
     SecurityFilterChain securityFilterChain(HttpSecurity http, DaoAuthenticationProvider provider,
                                             SecurityContextRepository contextRepository,
                                             CsrfTokenRepository csrfRepository,
+                                            com.example.quanlymuahang.identity.infrastructure.security.RememberMeService rememberMeService,
                                             com.fasterxml.jackson.databind.ObjectMapper objectMapper) throws Exception {
         http.authenticationProvider(provider)
                 .csrf(csrf -> csrf.csrfTokenRepository(csrfRepository))
@@ -96,7 +97,8 @@ public class SecurityConfig {
                                             ? "Mã bảo vệ phiên không hợp lệ hoặc đã hết hạn. Hãy tải lại trang rồi đăng nhập lại."
                                             : "Bạn không có quyền thực hiện thao tác này"));
                         }))
-                .addFilterAfter(new PasswordChangeRequiredFilter(objectMapper), SecurityContextHolderFilter.class);
+                .addFilterAfter(new com.example.quanlymuahang.identity.infrastructure.security.RememberMeAuthFilter(rememberMeService, contextRepository), SecurityContextHolderFilter.class)
+                .addFilterAfter(new PasswordChangeRequiredFilter(objectMapper), com.example.quanlymuahang.identity.infrastructure.security.RememberMeAuthFilter.class);
         return http.build();
     }
 }

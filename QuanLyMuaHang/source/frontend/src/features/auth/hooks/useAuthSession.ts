@@ -61,8 +61,8 @@ export function useAuthSession(): AuthContextValue {
     pending: session.isPending,
     error: session.error,
     refresh: () => { void session.refetch() },
-    login: async (email, password) => {
-      const user = await authApi.login(email.trim(), password)
+    login: async (email, password, rememberMe) => {
+      const user = await authApi.login(email.trim(), password, rememberMe)
       await client.cancelQueries()
       client.removeQueries({ predicate: (query) => query.queryKey[0] !== 'auth' })
       client.getMutationCache().clear()

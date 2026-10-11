@@ -6,7 +6,7 @@ export type AuthContextValue = {
   pending: boolean
   error: Error | null
   refresh: () => void
-  login: (email: string, password: string) => Promise<void>
+  login: (email: string, password: string, rememberMe?: boolean) => Promise<void>
   changePassword: (currentPassword: string, newPassword: string) => Promise<void>
   logout: () => Promise<void>
 }

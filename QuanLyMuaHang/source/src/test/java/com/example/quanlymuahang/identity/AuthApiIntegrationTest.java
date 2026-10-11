@@ -197,6 +197,57 @@ class AuthApiIntegrationTest {
         assertThat(users.findByEmail(EMAIL).orElseThrow().getFailedLoginCount()).isEqualTo(1);
     }
 
+    @Test
+    void loginWithRememberMeSetsCookieAndRestoresSession() throws Exception {
+        account("ADMIN", false, "*");
+        Csrf csrf = csrf(null);
+        MvcResult loginResult = mvc.perform(post("/api/auth/login").cookie(csrf.cookie()).header(csrf.header(), csrf.token())
+                .contentType("application/json").content(json.writeValueAsString(Map.of("email", EMAIL, "password", PASSWORD, "rememberMe", true))))
+                .andExpect(status().isOk())
+                .andReturn();
+        String rememberHeader = loginResult.getResponse().getHeader("Set-Cookie");
+        assertThat(rememberHeader).contains("QMH_REMEMBER=");
+
+        Cookie rememberCookie = loginResult.getResponse().getCookie("QMH_REMEMBER");
+        assertThat(rememberCookie).isNotNull();
+
+        // Perform unauthenticated call to /api/auth/me using only the remember-me cookie (no session)
+        MvcResult restoredResult = mvc.perform(get("/api/auth/me").cookie(rememberCookie))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("email").value(EMAIL))
+                .andReturn();
+
+        // Session was restored, and token was rotated
+        String rotatedHeader = restoredResult.getResponse().getHeader("Set-Cookie");
+        assertThat(rotatedHeader).contains("QMH_REMEMBER=");
+    }
+
+    @Test
+    void logoutRevokesRememberMeToken() throws Exception {
+        account("ADMIN", false, "*");
+        Csrf csrf = csrf(null);
+        MvcResult loginResult = mvc.perform(post("/api/auth/login").cookie(csrf.cookie()).header(csrf.header(), csrf.token())
+                .contentType("application/json").content(json.writeValueAsString(Map.of("email", EMAIL, "password", PASSWORD, "rememberMe", true))))
+                .andExpect(status().isOk())
+                .andReturn();
+        Cookie rememberCookie = loginResult.getResponse().getCookie("QMH_REMEMBER");
+        assertThat(rememberCookie).isNotNull();
+        MockHttpSession session = (MockHttpSession) loginResult.getRequest().getSession(false);
+
+        Csrf sessionCsrf = csrf(session);
+        MvcResult logoutResult = mvc.perform(post("/api/auth/logout").session(session).cookie(sessionCsrf.cookie(), rememberCookie).header(sessionCsrf.header(), sessionCsrf.token()))
+                .andExpect(status().isNoContent())
+                .andReturn();
+
+        Cookie clearedCookie = logoutResult.getResponse().getCookie("QMH_REMEMBER");
+        assertThat(clearedCookie).isNotNull();
+        assertThat(clearedCookie.getMaxAge()).isZero();
+
+        // Calling /api/auth/me with old remember cookie should fail
+        mvc.perform(get("/api/auth/me").cookie(rememberCookie))
+                .andExpect(status().isUnauthorized());
+    }
+
     private void account(String role, boolean temporary, String... permissions) {
         account(role, temporary, true, permissions);
     }
