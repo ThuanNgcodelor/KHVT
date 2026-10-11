@@ -19,7 +19,7 @@ public interface PurchaseOrderRepository extends JpaRepository<PurchaseOrder, Lo
     @Query("select p from PurchaseOrder p where p.id = :id")
     Optional<PurchaseOrder> findLockedById(@Param("id") long id);
 
-    @Query("select p from PurchaseOrder p where (:q is null or :q = '' or lower(p.poNumber) like lower(concat('%', :q, '%')) or lower(p.supplierNameSnapshot) like lower(concat('%', :q, '%'))) and (:status is null or p.status = :status) order by p.orderDate desc, p.id desc")
+    @Query("select p from PurchaseOrder p where (:q is null or :q = '' or lower(p.poNumber) like lower(concat('%', :q, '%')) or lower(p.supplierNameSnapshot) like lower(concat('%', :q, '%'))) and (:status is null or p.status = :status)")
     Page<PurchaseOrder> search(@Param("q") String query, @Param("status") com.example.quanlymuahang.domain.purchaseorder.PurchaseOrderStatus status, Pageable pageable);
 
     long countByOrderDateBetween(java.time.LocalDate from, java.time.LocalDate to);

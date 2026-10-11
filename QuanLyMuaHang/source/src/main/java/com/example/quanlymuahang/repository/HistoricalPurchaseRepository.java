@@ -19,8 +19,7 @@ public interface HistoricalPurchaseRepository extends JpaRepository<HistoricalPu
 
     @Query("select h from HistoricalPurchase h where (:q is null or :q = '' or h.materialNameNormalizedSnapshot like concat('%', :q, '%') " +
             "or lower(h.materialNameSnapshot) like lower(concat('%', :q, '%')) or lower(h.materialCodeSnapshot) like concat('%', :q, '%')) " +
-            "and (:currency is null or h.currency = :currency) and (:category is null or h.category = :category) " +
-            "order by case when h.purchaseDate is null then 1 else 0 end, h.purchaseDate desc, h.id desc")
+            "and (:currency is null or h.currency = :currency) and (:category is null or h.category = :category)")
     Page<HistoricalPurchase> searchFiltered(@Param("q") String normalizedQuery, @Param("currency") CurrencyCode currency,
                                             @Param("category") MaterialCategory category, Pageable pageable);
 
