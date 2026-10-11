@@ -2,13 +2,21 @@
 
 Cập nhật ngày 2026-10-11. Tài liệu mô tả code và bằng chứng kiểm tra, không phải biên bản nghiệm thu. Import workbook đã qua kiểm thử backend và MySQL/Redis riêng: 11.690 dòng nguồn, 91.526 trường, 0 sai lệch; đủ 10.561 lịch sử, 262 PO và 850 dòng hàng. Có CSV cảnh báo đầy đủ, đối chiếu trước commit, rollback khi lệch và bảo vệ nhập đồng thời. JAR mới đã kiểm tra trên 8080, V6 thành công và số bản ghi trước/sau giữ nguyên; server sau đó đã dừng theo yêu cầu người dùng để lập kế hoạch tiếp. Thông tin thiếu hoặc giả định trong nguồn vẫn cần xác minh nghiệp vụ. Chưa kết nối Cloudflare hoặc nghiệm thu production.
 
+## Import PCVT và báo giá đã triển khai ngày 2026-10-11
+
+Theo yêu cầu mới, triển khai **import trước Quản trị**. `/imports` mặc định mở **PCVT / báo giá mới** khi có `IMPORT_OPERATIONAL`. Backend `/api/imports/documents` lưu tệp gốc/checksum, nguồn trích xuất và snapshot xác nhận; chọn từng phiếu từ sổ năm, tra NCC/giá cũ, lưu/xuất XLSX nhóm hỏi giá, nối dòng báo giá và so sánh. Migration V7 lưu chứng từ riêng, không biến báo giá thành giá đã mua.
+
+Đã qua 33 test import backend bản cuối, TypeScript/Vite và 10 unit tests, 46 trường hợp browser desktop/mobile bằng API fixtures. Suite backend trước sửa cuối khóa nhóm giá có 124 test liệt kê/121 thực thi qua/3 opt-in bỏ qua; sau sửa chạy lại 33 test import và package, không cộng các lượt thành một tổng mới. Driver MySQL/Redis riêng hoàn tất **14 nhóm**, gồm MCP/UI thật: Excel CVT **2.013 dòng**, Excel báo giá **43+18 dòng**, PDF text **8/31/11 dòng**, tổng **2.124 dòng/10.671 trường hoặc chi tiết kiểm tra, 0 sai lệch**. PDF scan báo chưa OCR và đã kiểm tra nhập tay riêng. Bằng chứng và phạm vi nằm ở [nghiệm thu kỹ thuật import PCVT/báo giá](NGHIEM_THU_IMPORT_PCVT_VA_BAO_GIA.md); cách dùng ở [hướng dẫn import](HUONG_DAN_IMPORT_PCVT_VA_BAO_GIA.md).
+
+Lượt thật cuối **17:24 +07:00** dùng `qmh_docs_test_34e94b899b19`, `completed: true`, `mainUnchanged: true`. Dữ liệu chính vẫn 10.580 lịch sử/262 PO/850 dòng PO/391 NCC/2.997 vật tư/1 tài khoản và Flyway V6. JAR mới đóng gói UI; V7 chỉ áp dụng trên schema thử, sẽ chạy khi khởi động bản mới. Server chính tiếp tục tắt, MySQL/Redis giữ nguyên. Chưa OCR, lưu alias có duyệt, phân bổ/lập PO trực tiếp từ PCVT, grant/deny riêng hoặc production.
+
 ## Hướng tiếp theo được người dùng xác nhận ngày 2026-10-11
 
 Đã dừng ứng dụng bằng `CHAY_KHVT.cmd stop`; tại lần kiểm tra, cổng 8080/5173/5174 không có listener. Hai container `qmh-local` MySQL/Redis vẫn healthy, không thay đổi database hoặc volume.
 
 Người dùng cần **Quản trị** để tạo tài khoản, quản lý phòng ban/chức vụ cơ bản và cấp/cấm ứng dụng/hành động, không cần ứng dụng Nhân sự riêng. Hiện `/admin/users` có thể tạo tài khoản không liên kết nhân viên; grant/deny cá nhân và giữ đăng nhập chưa triển khai. Cấu hình Redis session idle 30 phút, không có access/refresh JWT. Xem [kế hoạch Quản trị và phiên đăng nhập](../plan/15-quan-tri-tai-khoan-va-phan-quyen.md).
 
-`QUANLYMUAHANGKHVT.xlsx` là **dữ liệu lịch sử của Apps Script**. Luồng mới cần nhập PCVT, tra từng món đã mua NCC nào/giá nào, gom hỏi giá theo NCC và so với báo giá mới. Báo giá chưa phải giao dịch đã mua. Xem [kế hoạch PCVT, tra lịch sử và báo giá](../plan/16-pcvt-tra-gia-cu-va-bao-gia.md). Lượt này chỉ rà soát/lập kế hoạch; chưa nhập các file mới hoặc triển khai tính năng mới, không chạy lại suite đã có.
+`QUANLYMUAHANGKHVT.xlsx` là **dữ liệu lịch sử của Apps Script**. Báo giá mới chưa phải giao dịch đã mua. [Kế hoạch PCVT, tra lịch sử và báo giá](../plan/16-pcvt-tra-gia-cu-va-bao-gia.md) đã được triển khai phần import/tra/gom/so sánh như bằng chứng ở trên; sáu mẫu mới chỉ nhập vào schema thử, chưa nhập database chính. Quản trị làm sau theo ưu tiên mới.
 
 ## Bổ sung kiểm tra độ chính xác khi nhập workbook
 
@@ -18,7 +26,7 @@ Validator mới thêm cảnh báo cho giá/số lượng bằng 0 hoặc âm, th
 
 Migration `V6__preserve_excel_decimal_precision.sql` đã áp dụng thành công trên schema chính: bốn cột số lượng/đơn giá của lịch sử và dòng PO đều là `DECIMAL(38,18)`. Migration không phục hồi các chữ số từng bị làm tròn ở dữ liệu cũ. Đối chiếu chính xác workbook gốc với database chính đã kiểm tra **12.834 giá trị số, 0 chênh lệch**; không có bằng chứng cần tự sửa các giá trị này. Chưa backfill liên kết NCC của lô 1 hoặc chạy lại import vào database chính trong lượt bổ sung code này.
 
-UI mặc định mở tab workbook khi có quyền; tải nhầm workbook ba sheet vào operational sẽ nhận `LEGACY_WORKBOOK_DETECTED` và chuyển sang legacy cùng tệp nếu có quyền, hoặc hướng dẫn liên hệ admin. Có tải **toàn bộ cảnh báo/lỗi CSV** qua `GET /api/imports/legacy/{id}/issues.csv`, kiểm tra lại trạng thái qua `GET /api/imports/legacy/{id}`, cập nhật trạng thái sau commit và chặn gửi lặp khi đang xử lý. Preview trên màn hình chỉ hiển thị tối đa 30 dòng vấn đề; CSV xuất từng điều kiện, nên số dòng CSV không nhất thiết bằng số dòng nguồn có cảnh báo.
+UI hiện mặc định mở PCVT/báo giá mới khi có quyền operational; tài khoản chỉ có legacy mở workbook. Parser chứng từ mới từ chối workbook ba sheet bằng `LEGACY_WORKBOOK_DETECTED` để chọn đúng tab; công cụ lập đơn nhanh cũ vẫn chuyển sang legacy cùng tệp nếu có quyền, hoặc hướng dẫn liên hệ admin. Có tải **toàn bộ cảnh báo/lỗi CSV** qua `GET /api/imports/legacy/{id}/issues.csv`, kiểm tra lại trạng thái qua `GET /api/imports/legacy/{id}`, cập nhật trạng thái sau commit và chặn gửi lặp khi đang xử lý. Preview trên màn hình chỉ hiển thị tối đa 30 dòng vấn đề; CSV xuất từng điều kiện, nên số dòng CSV không nhất thiết bằng số dòng nguồn có cảnh báo.
 
 **Kiểm thử backend bản cuối:** `mvn -DforkCount=0 -Dspring.test.context.cache.maxSize=1 test` đã BUILD SUCCESS lúc **2026-10-10 23:57:35 +07:00**: 92 test được liệt kê, **91 thực thi qua**, một test Redis opt-in riêng bỏ qua. Đã bật workbook gốc và font Arial Windows; H2 đối chiếu đủ 11.690 dòng, 10.561 lịch sử, 262 PO, 850 dòng PO và 279 dòng NCC; hai commit đồng thời cho một thành công/một từ chối. Có 0 lỗi đọc/ghi và 11.433 dòng cảnh báo theo validator mới. JVM dùng heap 384 MB cùng Mockito agent; các lượt thiếu bộ nhớ trước đó không tính là qua. Log `source/target/runtime/import-backend-final.log`, báo cáo `workbook-h2-report.json`. Bằng chứng database chính bên dưới dùng validator cũ; số 4.803 không đại diện cho tổng cảnh báo mới.
 

@@ -26,7 +26,7 @@ Giá Apps Script thiếu cơ sở VAT hoặc tiền tệ giả định vẫn xem
 
 PDF dạng ảnh được đánh dấu **chưa hỗ trợ OCR**; tải nguồn để xem, thêm dòng thủ công, kiểm tra rồi lưu. Không coi 0 dòng trích xuất là một báo giá rỗng đã nhập thành công.
 
-`QUANLYMUAHANGKHVT.xlsx` là dữ liệu cũ của Apps Script: dùng tab **Dữ liệu lịch sử cũ**, không dùng làm mẫu cho PCVT/báo giá mới. Luồng này có preview/đối chiếu/commit riêng. Không commit lại trên database đang có lô đó.
+`QUANLYMUAHANGKHVT.xlsx` là dữ liệu cũ của Apps Script: dùng tab **Workbook dữ liệu cũ**, không dùng làm mẫu cho PCVT/báo giá mới. Luồng này có preview/đối chiếu/commit riêng. Không commit lại trên database đang có lô đó.
 
 Tệp gốc lưu private, có SHA-256; API tải lại kiểm tra checksum. Chứng từ xác nhận giữ bản nguồn và snapshot đã kiểm tra. Tải lại cùng tệp/sheet hoặc gửi lại cùng xác nhận không tạo thêm bản trùng. Sửa bản đã xác nhận cần chứng từ mới; chưa có thao tác sửa liên kết vật tư/alias độc lập sau xác nhận.
 

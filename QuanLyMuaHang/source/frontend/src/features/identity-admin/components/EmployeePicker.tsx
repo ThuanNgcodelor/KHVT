@@ -1,12 +1,12 @@
 import { useDeferredValue, useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
-import { personnelApi } from '../../personnel/personnelApi'
+import { userAdminApi } from '../userAdminApi'
 import { errorMessage } from '../../../services/errorMessage'
 export function EmployeePicker({ value, onChange, disabled }: { value: number | null; onChange: (value: number | null) => void; disabled: boolean }) {
   const [search, setSearch] = useState('')
   const q = useDeferredValue(search.trim())
-  const selected = useQuery({ queryKey: ['personnel', 'employee', value], queryFn: ({ signal }) => personnelApi.employee(value!, signal), enabled: value !== null })
-  const choices = useQuery({ queryKey: ['personnel', 'employee-options', q], queryFn: ({ signal }) => personnelApi.employees({ q, status: 'ACTIVE', page: 0, size: 25 }, signal), enabled: value === null && q.length > 0 })
+  const selected = useQuery({ queryKey: ['users', 'linked-employee', value], queryFn: async ({ signal }) => (await userAdminApi.employees({ employeeId: value!, page: 0, size: 1 }, signal)).content.find((employee) => employee.id === value), enabled: value !== null })
+  const choices = useQuery({ queryKey: ['users', 'employee-options', q], queryFn: ({ signal }) => userAdminApi.employees({ query: q, page: 0, size: 25 }, signal), enabled: value === null && q.length > 0 })
   return <div className="form-field">
     <label htmlFor="linked-employee">Liên kết nhân viên</label>
     {value !== null ? <>

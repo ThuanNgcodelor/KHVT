@@ -1,6 +1,7 @@
 package com.example.quanlymuahang.identity.infrastructure.persistence;
 
 import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.JpaSpecificationExecutor;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 import org.springframework.data.domain.Page;
@@ -9,7 +10,7 @@ import org.springframework.data.domain.Pageable;
 import java.util.Optional;
 import java.util.List;
 
-public interface UserAccountJpaRepository extends JpaRepository<UserAccountEntity, Long> {
+public interface UserAccountJpaRepository extends JpaRepository<UserAccountEntity, Long>, JpaSpecificationExecutor<UserAccountEntity> {
     Optional<UserAccountEntity> findByEmail(String email);
     boolean existsByEmail(String email);
     Optional<UserAccountEntity> findByEmployeeId(Long employeeId);

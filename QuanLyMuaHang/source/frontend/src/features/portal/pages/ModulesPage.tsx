@@ -5,7 +5,7 @@ import { Brand } from '../../../components/layout/Brand'
 import { Footer } from '../../../components/layout/Footer'
 import { Icon, type IconName } from '../../../components/Icon'
 
-const icons: Record<string, IconName> = { PURCHASING: 'orders', PERSONNEL: 'people', ADMINISTRATION: 'users' }
+const icons: Record<string, IconName> = { PURCHASING: 'orders', ADMINISTRATION: 'users' }
 export function ModulesPage() {
   const { user } = useAuth()
   const logout = useLogout()

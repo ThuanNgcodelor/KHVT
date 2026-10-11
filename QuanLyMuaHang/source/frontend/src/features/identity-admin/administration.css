@@ -1,0 +1,13 @@
+.account-list { min-width: 0; }
+.account-list .filter-bar { flex-wrap: wrap; }
+.account-list .filter-bar .search-field { flex: 1 1 240px; }
+.account-list .filter-bar select { max-width: 230px; }
+.account-lookup-error { margin: 12px 20px; }
+.account-profile { margin: 20px 0; padding: 16px 0; border-top: 1px solid var(--line); border-bottom: 1px solid var(--line); }
+.account-profile h3 { margin: 0; font-size: 14px; }
+.account-profile h3 span { font-size: 12px; font-weight: 400; color: var(--muted); }
+.account-profile > .field-help { margin-bottom: 16px; }
+@media (max-width: 760px) {
+  .account-list .filter-bar .search-field { flex-basis: 100%; }
+  .account-list .filter-bar select { max-width: 100%; }
+}

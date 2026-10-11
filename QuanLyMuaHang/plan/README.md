@@ -64,15 +64,15 @@ Thay Google Apps Script/Google Sheet bằng hệ thống mua hàng có dữ li�
 
 Không cần ứng dụng Nhân sự riêng: Quản trị phục vụ tạo tài khoản, thông tin phòng ban/chức vụ cơ bản và cấp/cấm module/hành động cho từng người. Chức vụ không tự sinh quyền. Giữ đăng nhập là bổ sung đề xuất; hiện hệ thống dùng Redis session idle 30 phút, không có cặp access token/refresh token.
 
-`QUANLYMUAHANGKHVT.xlsx` chỉ là dữ liệu cũ của Apps Script. File PCVT mới dùng để tra từng món từng mua NCC nào/giá nào, gom hỏi giá theo NCC; file báo giá mới dùng so sánh và chọn NCC từng dòng. Hai kế hoạch 15–16 mô tả hướng mới, chưa triển khai. Chúng điều chỉnh phạm vi Nhân sự và luồng import nghiệp vụ trong các tài liệu cũ; không coi các route/API đề xuất là tính năng đã có.
+`QUANLYMUAHANGKHVT.xlsx` chỉ là dữ liệu cũ của Apps Script. File PCVT mới dùng để tra từng món từng mua NCC nào/giá nào, gom hỏi giá theo NCC; file báo giá mới dùng so sánh. Người dùng đổi ưu tiên sang import trước: kế hoạch 16 đã triển khai phần nhập/lưu/tra/gom/so sánh và qua [nghiệm thu kỹ thuật theo phạm vi](../docs/NGHIEM_THU_IMPORT_PCVT_VA_BAO_GIA.md); phần alias/phân bổ PO còn làm tiếp. Kế hoạch 15 Quản trị chưa triển khai. Không coi route/API đề xuất ở phần còn lại là tính năng đã có.
 
 ## Current source status
 
-Cập nhật 2026-10-11: `source/` có auth/cổng ứng dụng/nhân sự/tài khoản, danh mục/giá/PO/PDF/XLSX/import/dashboard. Quyền hiện tính từ vai trò; chưa có grant/deny từng tài khoản hoặc quy trình PCVT–gom hỏi giá–so sánh nhiều báo giá. UI/code tồn tại không đồng nghĩa nghiệm thu đủ nghiệp vụ.
+Cập nhật 2026-10-11: `source/` có auth/cổng ứng dụng/nhân sự/tài khoản, danh mục/giá/PO/PDF/XLSX/import/dashboard và chứng từ PCVT–tra giá/NCC–gom hỏi–so sánh báo giá. Quyền hiện tính từ vai trò; chưa có grant/deny từng tài khoản. UI/code tồn tại không đồng nghĩa nghiệm thu đủ nghiệp vụ; xem biên bản kiểm tra thực tế và giới hạn theo từng phần.
 
 Luồng workbook cũ đã qua 91 test backend thực thi và driver MySQL/Redis riêng: đối chiếu 11.690 dòng nguồn/91.526 trường, 0 sai lệch theo mapping; đủ 10.561 lịch sử, 262 PO, 850 dòng PO. Cảnh báo nguồn vẫn cần xác minh. Kết quả frontend và giới hạn kiểm thử xem [hệ thống hiện tại](../docs/HE_THONG_HIEN_TAI.md), không dùng các con số của lượt build cũ để mô tả bản hiện tại.
 
-Server ứng dụng đã dừng theo yêu cầu người dùng trong lượt lập kế hoạch ngày 2026-10-11; các cổng 8080/5173/5174 không còn listener tại lần kiểm tra đó. Docker/MySQL/Redis vẫn chạy healthy; không xóa hay thay dữ liệu. Không có thay đổi tính năng hoặc bộ test mới trong lượt lập kế hoạch này. Backend demo đã xóa; Cloudflare/production chưa nghiệm thu.
+Server chính tiếp tục tắt theo yêu cầu người dùng; backend test 8082 và browser riêng đã tự dừng sau nghiệm thu import. Docker/MySQL/Redis vẫn chạy healthy, số bản ghi và Flyway V6 database chính giữ nguyên. JAR/UI mới đóng gói; V7 chỉ áp dụng trên schema thử. Backend demo đã xóa; Cloudflare/production chưa nghiệm thu.
 
 ## Global Definition of Done
 

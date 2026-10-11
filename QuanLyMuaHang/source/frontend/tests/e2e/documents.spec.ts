@@ -80,3 +80,26 @@ test('document list permission errors stay visible and retry after access recove
   await expect(page.getByRole('button', { name: 'Mở chứng từ 1', exact: true })).toBeVisible()
   await page.getByRole('button', { name: 'Mở chứng từ 1', exact: true }).click(); await expect(page.getByRole('heading', { name: 'Chứng từ đã xác nhận' })).toBeVisible()
 })
+
+test('a quotation can link an older PCVT by ID only after missing and wrong-kind IDs are rejected', async ({ page }) => {
+  const request = confirmedRequest(); request.id = 123; request.title = 'PCVT cũ ngoài danh sách gần đây'
+  const wrongKind = doc(2); wrongKind.kind = 'QUOTATION'; wrongKind.parsed.kind = 'QUOTATION'
+  const quotation = doc(3); quotation.kind = 'QUOTATION'; quotation.parsed.kind = 'QUOTATION'
+  quotation.parsed.supplierName = 'NCC mẫu mới'; quotation.parsed.quotationDate = '2026-10-08'; quotation.parsed.currency = 'VND'; quotation.parsed.priceBasis = 'EXCL_VAT'
+  quotation.parsed.lines = [line('quote-old-id', { requestNumber: null, unitPrice: '120' })]
+  const state = await documentFixtures(page, [request, wrongKind]); state.hiddenListIds = [123, 2]; state.preview = quotation
+  await page.goto('/imports'); await page.getByLabel('Loại chứng từ').selectOption('QUOTATION'); await upload(page)
+  await page.getByRole('button', { name: 'Chọn dòng đang hiển thị', exact: true }).click()
+  const idInput = page.getByLabel('ID PCVT ngoài danh sách gần đây', { exact: true })
+  const find = page.getByRole('button', { name: 'Tìm PCVT theo ID', exact: true })
+  const save = page.getByRole('button', { name: 'Xác nhận và lưu 1 dòng', exact: true })
+  await idInput.fill('999'); await find.click(); await expect(page.getByRole('alert')).toContainText('Không tìm thấy chứng từ'); await expect(save).toBeDisabled()
+  await idInput.fill('2'); await find.click(); await expect(page.getByRole('alert')).toContainText('không phải PCVT đã xác nhận'); await expect(save).toBeDisabled()
+  expect(state.confirmCalls).toHaveLength(0)
+  await idInput.fill('123'); await find.click()
+  const mapping = page.getByLabel('Liên kết PCVT quote-old-id', { exact: true })
+  await expect(mapping).toBeEnabled(); await mapping.selectOption('row5'); await acknowledge(page); await save.click()
+  await expect(page.getByRole('heading', { name: 'Chứng từ đã xác nhận', exact: true })).toBeVisible()
+  expect(state.confirmCalls[0].requestId).toBe(123); expect(state.confirmCalls[0].requestLineMappings).toEqual({ 'quote-old-id': 'row5' })
+  await page.reload(); await expect(mapping).toHaveValue('row5'); await expect(page.getByLabel('Liên kết với PCVT đã lưu', { exact: true })).toHaveValue('123')
+})

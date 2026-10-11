@@ -21,5 +21,5 @@ export function hasEveryPermission(user: CurrentUser, permissions: readonly stri
   return permissions.every((permission) => hasPermission(user, permission))
 }
 export const roleLabels: Record<RoleCode, string> = {
-  ADMIN: 'Quản trị viên', HR_MANAGER: 'Quản lý nhân sự', PLANNER: 'Nhân viên kế hoạch', VIEWER: 'Chỉ xem',
+  ADMIN: 'Quản trị viên', HR_MANAGER: 'Quản lý danh bạ', PLANNER: 'Nhân viên kế hoạch', VIEWER: 'Chỉ xem',
 }

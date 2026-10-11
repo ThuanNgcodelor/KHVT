@@ -8,6 +8,14 @@ Commit workbook giữ khóa lô để tránh nhập trùng. Nếu yêu cầu kh�
 
 Lượt import cuối đã qua 91 test backend thực thi và driver MySQL/Redis riêng: đủ 11.690 dòng nguồn, 91.526 trường, 0 sai lệch; commit 10.561 lịch sử, 262 PO và 850 dòng PO. Validator mới giữ các giá trị nguồn thiếu/bất thường và báo 11.433 dòng cảnh báo. JAR đã đóng gói lại; V6 áp dụng trên database chính với số bản ghi giữ nguyên. Xem [báo cáo đối chiếu](../docs/DOI_CHIEU_CSDL_VA_WORKBOOK.md) và [hướng dẫn kiểm thử riêng](../tools/local-test/README.md). Đây là kiểm chứng đọc/ghi theo mapping, không chứng nhận chứng từ hoặc giả định loại tiền đã đúng nghiệp vụ.
 
+## PCVT và báo giá mới
+
+`/imports` → **PCVT / báo giá mới** lưu yêu cầu và báo giá trên server, cho chọn sheet/phiếu, sửa preview, nhập tay PDF scan, mở lại nguồn, tra NCC/giá cũ, lưu/xuất nhóm hỏi giá và nối dòng để so sánh. `QUANLYMUAHANGKHVT.xlsx` vẫn là dữ liệu cũ của Apps Script, dùng tab workbook riêng.
+
+API `/api/imports/documents`: `POST /preview` multipart có `kind=REQUEST|QUOTATION` và `sheet` tùy chọn; `GET /`, `GET /{id}`, `GET /{id}/source`; `POST /{id}/confirm`, `/lookup`, `/inquiries`, `/inquiries.xlsx`; `GET /{id}/comparison`. Quyền import là `IMPORT_OPERATIONAL`; tra/gom/xuất/so sánh cần thêm `PRICE_READ`. File private và checksum kiểm tra phía server; mutation có CSRF. V7 lưu JSON nguồn/snapshot riêng, không ghi lịch sử mua hoặc tạo PO.
+
+33 test import cuối qua; driver MySQL/Redis/MCP riêng hoàn tất 14 nhóm với sáu file thật, không thay dữ liệu chính. Xem [biên bản và giới hạn](../docs/NGHIEM_THU_IMPORT_PCVT_VA_BAO_GIA.md), [cách dùng](../docs/HUONG_DAN_IMPORT_PCVT_VA_BAO_GIA.md). Đoạn đối chiếu 11.690 dòng ở trên là bằng chứng workbook cũ; không cộng vào số kiểm tra chứng từ mới. Server chính tiếp tục tắt; JAR mới đã đóng gói, V7 sẽ áp dụng khi khởi động bản mới.
+
 ## Chạy trên Windows
 
 Điểm chạy chính ở thư mục gốc `QuanLyMuaHang` là [CHAY_KHVT.cmd](../CHAY_KHVT.cmd). Cần JDK 21, Maven 3.9+, Node/npm và Docker Desktop; tạo `source/.env` riêng từ mẫu nếu chưa có, không ghi đè file đang dùng. **Mở Docker Desktop riêng**, chờ engine sẵn sàng rồi bấm đúp file hoặc chạy từ thư mục gốc:

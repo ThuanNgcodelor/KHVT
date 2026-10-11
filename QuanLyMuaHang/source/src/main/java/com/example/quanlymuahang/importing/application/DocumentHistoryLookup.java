@@ -50,7 +50,8 @@ public class DocumentHistoryLookup {
             // remain visible and are checked for each candidate instead of blocking every source.
             if (!"MATCHED_CODE".equals(match) && identities.size() > 1) match = "NEEDS_REVIEW";
             Map<String, List<HistoryRow>> groups = new LinkedHashMap<>();
-            for (HistoryRow r : found) groups.computeIfAbsent(r.supplierKey + "|" + r.nUnit + "|" + r.currency + "|" + r.nCode + "|" + r.nName + "|" + r.nSpecification, k -> new ArrayList<>()).add(r);
+            for (HistoryRow r : found) groups.computeIfAbsent(r.supplierKey + "|" + r.nUnit + "|" + r.currency + "|" + r.nCode + "|" + r.nName + "|" + r.nSpecification
+                    + "|" + r.currencyBasis + "|" + r.priceBasis, k -> new ArrayList<>()).add(r);
             List<HistoryCandidate> candidates = new ArrayList<>();
             for (List<HistoryRow> group : groups.values()) {
                 group.sort(Comparator.comparing((HistoryRow r) -> r.date, Comparator.nullsLast(Comparator.reverseOrder())).thenComparing(r -> r.reference));

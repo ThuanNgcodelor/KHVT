@@ -7,10 +7,10 @@ export const navigation: { path: string; label: string; icon: IconName; group: s
   { path: '/imports', label: 'Nhập dữ liệu', icon: 'import', group: 'Mua hàng', moduleCode: 'PURCHASING', permissions: [], anyPermissions: ['IMPORT_OPERATIONAL', 'IMPORT_LEGACY'] },
   { path: '/catalog/materials', label: 'Vật tư', icon: 'orders', group: 'Danh mục', moduleCode: 'PURCHASING', permissions: ['CATALOG_READ'] },
   { path: '/catalog/suppliers', label: 'Nhà cung cấp', icon: 'users', group: 'Danh mục', moduleCode: 'PURCHASING', permissions: ['CATALOG_READ'] },
-  { path: '/admin/employees', label: 'Nhân viên', icon: 'people', group: 'Nhân sự', moduleCode: 'PERSONNEL', permissions: ['PERSONNEL_READ'] },
-  { path: '/admin/departments', label: 'Phòng ban', icon: 'overview', group: 'Nhân sự', moduleCode: 'PERSONNEL', permissions: ['PERSONNEL_READ'] },
-  { path: '/admin/positions', label: 'Chức vụ', icon: 'users', group: 'Nhân sự', moduleCode: 'PERSONNEL', permissions: ['PERSONNEL_READ'] },
   { path: '/admin/users', label: 'Tài khoản', icon: 'users', group: 'Quản trị', moduleCode: 'ADMINISTRATION', permissions: ['USER_READ'] },
+  { path: '/admin/employees', label: 'Danh bạ nhân viên', icon: 'people', group: 'Danh mục quản trị', moduleCode: 'ADMINISTRATION', permissions: ['PERSONNEL_READ'] },
+  { path: '/admin/departments', label: 'Phòng ban', icon: 'overview', group: 'Danh mục quản trị', moduleCode: 'ADMINISTRATION', permissions: ['PERSONNEL_READ'] },
+  { path: '/admin/positions', label: 'Chức vụ', icon: 'users', group: 'Danh mục quản trị', moduleCode: 'ADMINISTRATION', permissions: ['PERSONNEL_READ'] },
 ]
 export function moduleForPath(pathname: string) {
   return navigation.find((item) => pathname === item.path || pathname.startsWith(`${item.path}/`))?.moduleCode

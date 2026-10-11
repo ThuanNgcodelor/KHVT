@@ -87,7 +87,7 @@ Preview ghi tổng dòng phát hiện, dòng có thể dùng, dòng lỗi/chưa 
 
 ### Kiểm kê sáu file người dùng gửi
 
-Đã đọc cấu trúc hai Excel bằng OpenXML, trích text bốn PDF bằng PDFBox và xem ảnh PDF scan. File ở thư mục cha KHVT. Đây là kiểm kê nguồn/bố cục, **chưa chạy parser nghiệp vụ với sáu file**, không xác nhận ứng dụng hiện import được đúng các mẫu này. Bản trích phục vụ kiểm tra nằm ở `source/target/runtime/sample-review/`, không đưa vào Git.
+Đã đọc cấu trúc hai Excel bằng OpenXML, trích text bốn PDF bằng PDFBox và xem ảnh PDF scan. File ở thư mục cha KHVT. Sau bước kiểm kê, đã chạy parser/API trên schema MySQL/Redis riêng với sáu mẫu và MCP/UI thật; kết quả/giới hạn ở [nghiệm thu kỹ thuật](../docs/NGHIEM_THU_IMPORT_PCVT_VA_BAO_GIA.md). Năm nguồn đọc tự động đã khớp các trường kiểm tra; scan cần nhập tay, không tính là OCR thành công. Bản trích phục vụ kiểm tra nằm ở `source/target/runtime/sample-review/`, không đưa vào Git.
 
 | File | Nội dung và quy mô kiểm tra | Cách xử lý cần có |
 |---|---|---|

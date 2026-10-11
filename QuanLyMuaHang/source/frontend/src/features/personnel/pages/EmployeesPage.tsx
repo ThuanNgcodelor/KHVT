@@ -34,7 +34,7 @@ export function EmployeesPage() {
     } catch { /* Keep dialog open with the server error. */ }
   }
   return <>
-    <PageHeader title="Nhân sự" description="Danh bạ nhân viên, phòng ban và chức vụ của đơn vị."
+    <PageHeader title="Danh bạ nhân viên" description="Thông tin nhân viên trong Quản trị. Tài khoản đăng nhập được quản lý riêng tại mục Tài khoản."
       actions={canManage && <button className="primary-button" onClick={() => { setNotice(''); setEditing('new') }}><Icon name="plus" />Thêm nhân viên</button>} />
     <PersonnelTabs />
     {notice && <p className="notice" role="status">{notice}</p>}

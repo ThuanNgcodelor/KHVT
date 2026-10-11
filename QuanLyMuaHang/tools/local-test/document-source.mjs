@@ -48,7 +48,8 @@ export async function readDocumentWorkbook(path) {
     const e = entries.get(name); if (!e) return '';
     if (![0, 8].includes(e.method)) throw new Error('Unsupported ZIP compression');
     const start = e.local + 30 + bytes.readUInt16LE(e.local + 26) + bytes.readUInt16LE(e.local + 28), data = bytes.subarray(start, start + e.length);
-    return (e.method === 8 ? inflateRawSync(data, { maxOutputLength: 64 * 1024 * 1024 }) : data).toString('utf8');
+    // XML normalizes literal CRLF/CR before parsing; character references are decoded later.
+    return (e.method === 8 ? inflateRawSync(data, { maxOutputLength: 64 * 1024 * 1024 }) : data).toString('utf8').replace(/\r\n?/g, '\n');
   }
   const strings = [...xml('xl/sharedStrings.xml').matchAll(/<si\b[^>]*>([\s\S]*?)<\/si>/g)].map((m) => xmlText(m[1]));
   const relationships = new Map([...xml('xl/_rels/workbook.xml.rels').matchAll(/<Relationship\b([^>]*)(?:\/?>)/g)].map((m) => { const a = attrs(m[1]); if (a.TargetMode === 'External') throw new Error('External sheet unsupported by acceptance reader'); return [a.Id, a.Target]; }));

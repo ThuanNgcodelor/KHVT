@@ -68,14 +68,12 @@ export function App() {
       <Route element={<RequirePermissions permissions={['PRICE_READ']} />}><Route path="price-search" element={<PriceSearchPage />} /></Route>
       <Route element={<RequireAnyPermission permissions={['IMPORT_OPERATIONAL', 'IMPORT_LEGACY']} />}><Route path="imports" element={<ImportsPage />} /></Route>
       </Route>
-      <Route element={<RequireModule code="PERSONNEL" />}>
+      <Route element={<RequireModule code="ADMINISTRATION" />}>
       <Route element={<RequirePermissions permissions={['PERSONNEL_READ']} />}>
         <Route path="admin/employees" element={<EmployeesPage />} />
         <Route path="admin/departments" element={<UnitsPage key="departments" kind="departments" />} />
         <Route path="admin/positions" element={<UnitsPage key="positions" kind="positions" />} />
       </Route>
-      </Route>
-      <Route element={<RequireModule code="ADMINISTRATION" />}>
       <Route element={<RequirePermissions permissions={['USER_READ']} />}><Route path="admin/users" element={<UsersPage />} /></Route>
       </Route>
       <Route path="*" element={<PageState title="Không tìm thấy trang" message="Chọn một chức năng trong thanh điều hướng để tiếp tục." />} />

@@ -249,6 +249,36 @@ class SourceDocumentWorkflowIntegrationTest {
         assertThat(compared.path("baseline").path("sourceReference").asText()).isEqualTo("PO:" + compatible + ":R:1:L:1");
     }
 
+    @Test void aNewerUnverifiedLegacyPoCannotHideAnOlderCompatiblePriceFromTheSameSupplier() throws Exception {
+        var session = login("*"); var request = preview(session, requestFile(false), "REQUEST");
+        var requestBody = confirmation(request, "Same supplier VAT-basis review", "1");
+        ((ObjectNode) requestBody.withArray("lines").get(0)).put("materialCode", "VT-6204");
+        long id = read(postJson(session, BASE + "/" + request.path("id").asLong() + "/confirm", requestBody).andExpect(status().isOk()).andReturn()).path("id").asLong();
+        long compatible = seedPo("BASIS-KNOWN", "NCC same basis", "EXPORTED", 1, "Cái", "VND", 100);
+        long unverified = seedPo("BASIS-LEGACY", "NCC same basis", "EXPORTED", 1, "Cái", "VND", 90);
+        jdbc.update("update purchase_order_items set material_code_snapshot='VT-6204' where purchase_order_id in (?,?)", compatible, unverified);
+        jdbc.update("insert into import_batches(file_name,sha256,file_type,mode,status,total_rows,success_rows,error_rows,created_at) values('basis-legacy.xlsx',?,'XLSX','LEGACY','COMMITTED',1,1,0,CURRENT_TIMESTAMP)", "0".repeat(64));
+        long batch = jdbc.queryForObject("select id from import_batches where file_name='basis-legacy.xlsx'", Long.class);
+        jdbc.update("update purchase_orders set source_import_batch_id=?,order_date=DATE '2026-10-09' where id=?", batch, unverified);
+        var candidates = read(postJson(session, BASE + "/" + id + "/lookup", json.createObjectNode()).andExpect(status().isOk()).andReturn()).path("lines").get(0).path("candidates");
+        assertThat(candidates).hasSize(2);
+        assertThat(candidates.get(0).path("supplierKey")).isEqualTo(candidates.get(1).path("supplierKey"));
+        assertThat(candidates.get(0).path("currencyBasis").asText()).isEqualTo("LEGACY_UNVERIFIED");
+        assertThat(candidates.get(0).path("priceBasis").asText()).isEqualTo("UNKNOWN");
+        assertThat(candidates.get(1).path("currencyBasis").asText()).isEqualTo("SOURCE");
+        var quote = preview(session, scan(), "QUOTATION"); var body = confirmation(quote, "Same-supplier compatible quotation", "");
+        body.put("supplierName", "New supplier"); body.put("quotationDate", "2026-10-11"); body.put("currency", "VND"); body.put("priceBasis", "EXCL_VAT");
+        var line = manualLine("manual-basis", "Vòng bi 6204", 2, 110); line.put("specification", "6204 2RS"); body.withArray("lines").add(line); body.put("requestId", id);
+        body.set("requestLineMappings", json.valueToTree(Map.of("manual-basis", requestBody.path("lines").get(0).path("lineKey").asText())));
+        postJson(session, BASE + "/" + quote.path("id").asLong() + "/confirm", body).andExpect(status().isOk());
+        var compared = read(mvc.perform(get(BASE + "/" + id + "/comparison").session(session)).andExpect(status().isOk()).andReturn()).path("lines").get(0).path("quotes").get(0);
+        assertThat(compared.path("comparable").asBoolean()).isTrue();
+        assertThat(new java.math.BigDecimal(compared.path("delta").asText())).isEqualByComparingTo("10");
+        assertThat(compared.path("baseline").path("sourceReference").asText()).isEqualTo("PO:" + compatible + ":R:1:L:1");
+        assertThat(compared.path("baseline").path("currencyBasis").asText()).isEqualTo("SOURCE");
+        assertThat(compared.path("baseline").path("purchaseDate").asText()).isEqualTo("2026-10-07");
+    }
+
     @Test void anUnverifiedLegacyPriceIsShownButCannotBeUsedToAssertACertainPriceDifference() throws Exception {
         var session = login("*"); var request = preview(session, requestFile(false), "REQUEST"); long sourceId = request.path("id").asLong();
         var requestBody = confirmation(request, "Legacy comparison", "1");

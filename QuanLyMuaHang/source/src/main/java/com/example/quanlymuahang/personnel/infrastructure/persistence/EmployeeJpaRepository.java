@@ -15,4 +15,6 @@ public interface EmployeeJpaRepository extends JpaRepository<EmployeeEntity, Lon
     boolean existsByEmailIgnoreCase(String email);
     @Query("select e from EmployeeEntity e where (:query is null or :query = '' or lower(e.employeeCode) like lower(concat('%', :query, '%')) or lower(e.fullName) like lower(concat('%', :query, '%')) or lower(e.email) like lower(concat('%', :query, '%'))) and (:status is null or e.status = :status)")
     Page<EmployeeEntity> search(@Param("query") String query, @Param("status") EmployeeStatus status, Pageable pageable);
+    @Query("select e from EmployeeEntity e where (e.id = :employeeId or (e.status = com.example.quanlymuahang.personnel.infrastructure.persistence.EmployeeStatus.ACTIVE and not exists (select a.id from UserAccountEntity a where a.employeeId = e.id))) and (:query is null or :query = '' or lower(e.employeeCode) like lower(concat('%', :query, '%')) or lower(e.fullName) like lower(concat('%', :query, '%')))")
+    Page<EmployeeEntity> accountCandidates(@Param("query") String query, @Param("employeeId") Long employeeId, Pageable pageable);
 }

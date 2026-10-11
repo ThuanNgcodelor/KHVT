@@ -1,6 +1,23 @@
 # Kiểm thử API/database và workbook local
 
-## MySQL/Redis thật
+## PCVT và báo giá mới: sáu file thật
+
+Sau khi frontend/JAR `windows-web` đã build và Docker healthy, chạy từ root. Driver đọc `.env` riêng trong bộ nhớ; không log mật khẩu/cookie. Không dùng tài khoản của người sử dụng để test.
+
+```powershell
+$env:QMH_DOCUMENT_SAMPLE_ROOT = (Resolve-Path -LiteralPath '..').Path
+$env:QMH_DOCUMENT_BROWSER = 'true'
+node --max-old-space-size=128 --max-semi-space-size=2 tools/local-test/document-run.mjs
+Remove-Item Env:QMH_DOCUMENT_SAMPLE_ROOT, Env:QMH_DOCUMENT_BROWSER
+```
+
+Mẫu nằm ở thư mục cha KHVT; nếu đặt nơi khác thì sửa `QMH_DOCUMENT_SAMPLE_ROOT`. `QMH_TEST_JAVA` và `QMH_TEST_JAR` cho phép chỉ định JDK 21/JAR khác; mặc định driver dùng JDK 21 của máy này. Driver tạo `qmh_docs_test_*`, namespace UUID, backend cổng 8082 và tệp private riêng, không import vào database chính. MCP whitelist có origin `http://127.0.0.1:8082`. Bỏ `QMH_DOCUMENT_BROWSER` để chỉ chạy API; không báo browser đã qua khi bỏ biến.
+
+Lượt cuối 2026-10-11 **17:24 +07:00** đã hoàn tất 14 nhóm, gồm MCP thật; đối chiếu **2.124 dòng/10.671 trường hoặc chi tiết**, 0 sai lệch. Scan báo chưa OCR và test nhập tay riêng. Báo cáo `source/target/runtime/document-real-integration-report.json` có `completed: true`, `mainUnchanged: true`; source hash giữ nguyên. Schema test giữ lại phục vụ đối chiếu; backend/browser tự dừng, không xóa volume hay flush Redis. Xem [biên bản](../../docs/NGHIEM_THU_IMPORT_PCVT_VA_BAO_GIA.md).
+
+Hồi quy backend: trong `source/`, `mvn.cmd '-Dtest=SourceDocumentParserTest,SourceDocumentWorkflowIntegrationTest' test`; đặt `QMH_DOCUMENT_SAMPLE_ROOT` để bật hai test Excel thật. Lượt bản cuối có **33 test qua**, không bỏ qua. Khi dùng `-DforkCount=0`, phải gắn Mockito agent vào JVM Maven; Surefire argLine không gắn agent cho JVM đang chạy. Chạy browser fixtures từ frontend bằng `node node_modules/@playwright/test/cli.js test tests/e2e/documents.spec.ts --workers=1`; `QMH_E2E_BUILT_UI=true` dùng dist trên cổng 5190 để giảm RAM.
+
+## MySQL/Redis thật cho workbook legacy
 
 Từ repository, sau khi Docker `qmh-local` healthy, `.env` riêng đã có cấu hình đúng và JAR/frontend đã build:
 

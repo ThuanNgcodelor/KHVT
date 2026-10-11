@@ -2,7 +2,7 @@
 
 React + TypeScript + Vite, tổ chức theo tính năng. Router quản lý trang, TanStack Query quản lý dữ liệu API, React Hook Form + Zod xử lý form và kiểm tra đầu vào.
 
-Lượt cập nhật import cuối: build và 10 unit tests qua; 28 trường hợp import/mua hàng desktop/mobile với API giả lập qua sau chạy lại hai worker thiếu bộ nhớ. Có chuyển đúng tab workbook, CSV toàn bộ cảnh báo, kiểm tra lại lô và chống gửi lặp. Driver HTTP/MySQL/Redis riêng hoàn tất, đối chiếu 11.690 dòng/91.526 trường, commit và chống nhập trùng qua. JAR mới phục vụ `/imports` cùng API trên 8080; xem [bằng chứng và giới hạn](../../docs/HE_THONG_HIEN_TAI.md). Không coi browser fixtures là thao tác browser với database thật.
+Lượt PCVT/báo giá mới ngày 2026-10-11: TypeScript/Vite build và 10 unit tests qua; **46 trường hợp** import/mua hàng/chứng từ desktop/mobile với API fixtures qua sau sửa tràn trang. Driver HTTP/MySQL/Redis riêng hoàn tất 14 nhóm với sáu file thật; MCP mở sổ năm, PCVT đã lưu, tra NCC/giá, so sánh và kiểm tra mobile trên API thật. Xem [nghiệm thu và giới hạn](../../docs/NGHIEM_THU_IMPORT_PCVT_VA_BAO_GIA.md), [cách dùng](../../docs/HUONG_DAN_IMPORT_PCVT_VA_BAO_GIA.md). JAR mới đã đóng gói UI; server chính tiếp tục tắt. Không coi browser fixtures là thao tác browser với database thật.
 
 ## Cấu trúc
 
@@ -62,7 +62,8 @@ src/
     catalog/                       vật tư/NCC: pages, forms, hooks, API, types
     pricing/                       lịch sử/giá gần nhất, lọc và XLSX
     procurement/                   danh sách/giỏ/lập/sửa/chi tiết PO và tài liệu
-    imports/                       preview yêu cầu, dữ liệu dán, workbook cũ
+    imports/                       PCVT/báo giá lưu trên server, draft nhanh và workbook cũ
+      documents/                  workbench/preview/history/comparison, hook/API/types riêng
   services/
     apiClient.ts                   cookies, CSRF và lỗi HTTP tập trung
     dashboardApi.ts
@@ -73,6 +74,7 @@ tests/e2e/personnel.spec.ts         nhân sự bằng API fixtures
 tests/e2e/accounts.spec.ts          tài khoản bằng API fixtures
 tests/e2e/purchasing.spec.ts        danh mục/giá/PO/import bằng API fixtures
 tests/e2e/imports.spec.ts           tab workbook, cảnh báo CSV, đối chiếu/trạng thái và gửi lặp bằng API fixtures
+tests/e2e/documents.spec.ts         chọn phiếu/sheet, reload, scan nhập tay, NCC/so giá, quyền và PCVT theo ID
 ```
 
 Page là điểm vào của một URL; component dựng giao diện; hook chứa logic trạng thái/đồng bộ; service gọi HTTP. Không cần tạo các tầng trống cho tính năng chưa làm.

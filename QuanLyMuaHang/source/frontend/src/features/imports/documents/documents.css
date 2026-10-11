@@ -1,4 +1,5 @@
-.document-workbench { display: grid; gap: 20px; min-width: 0; }
+.document-workbench { display: grid; grid-template-columns: minmax(0, 1fr); gap: 20px; min-width: 0; }
+.document-workbench > .panel { min-width: 0; }
 .document-workbench .import-panel { margin-bottom: 0; }
 .document-fields, .document-confirm { padding: 20px 22px; }
 .document-confirm h3 { margin: 0 0 12px; font-size: 14px; }

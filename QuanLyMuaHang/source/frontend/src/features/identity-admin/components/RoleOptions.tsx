@@ -2,7 +2,7 @@ import type { UseFormRegisterReturn } from 'react-hook-form'
 import { roleLabels, type RoleCode } from '../../auth/types'
 import type { Role } from '../types'
 
-const moduleNames: Record<string, string> = { PURCHASING: 'Mua hàng', PERSONNEL: 'Nhân sự', ADMINISTRATION: 'Quản trị' }
+const moduleNames: Record<string, string> = { PURCHASING: 'Mua hàng', ADMINISTRATION: 'Quản trị' }
 function roleGroup(role: Role) {
   if (role.permissions.includes('*')) return 'Quản trị toàn hệ thống'
   return role.moduleCodes?.map((code) => moduleNames[code] ?? code).join(' · ') || 'Vai trò khác'
@@ -17,8 +17,9 @@ export function RoleOptions({ roles, unavailable, registration, pending, error }
       {groups.map((group) => <div className="role-group" key={group}>
         <p className="role-group-title">{group}</p>
         {roles.filter((role) => roleGroup(role) === group).map((role) => <div key={role.code}>
-          <label className="checkbox-field"><input type="checkbox" value={role.code} {...registration} />{roleLabels[role.code as RoleCode] ?? role.name}</label>
+          <label className="checkbox-field"><input type="checkbox" value={role.code} {...registration} disabled={role.assignable === false} />{roleLabels[role.code as RoleCode] ?? role.name}</label>
           {role.description && <p className="field-help">{role.description}</p>}
+          {role.assignable === false && <p className="field-help">Bạn không được cấp vai trò này. Liên hệ quản trị viên hệ thống để thay đổi.</p>}
         </div>)}
       </div>)}
       {unavailable.map((code) => <label key={code} className="checkbox-field"><input type="checkbox" value={code} {...registration} />{code} (không còn hoạt động; bỏ chọn trước khi lưu)</label>)}

@@ -5,37 +5,59 @@ import { Pagination } from '../../../components/Pagination'
 import { TableFeedback } from '../../../components/TableFeedback'
 import { hasPermission, roleLabels, type RoleCode } from '../../auth/types'
 import { useAuth } from '../../auth/hooks/useAuth'
-import { useUsers } from '../hooks/useUsers'
+import { useRoles, useUsers, useUserOptions } from '../hooks/useUsers'
 import { UserForm } from '../components/UserForm'
 import { ResetPasswordForm } from '../components/ResetPasswordForm'
-import type { UserAccount } from '../types'
+import type { AccountStatus, UserAccount } from '../types'
+import '../administration.css'
 
 const statusLabels = { ACTIVE: 'Hoạt động', LOCKED: 'Khóa', DISABLED: 'Vô hiệu hóa' }
 export function UsersPage() {
   const { user } = useAuth()
   const canManage = !!user && hasPermission(user, 'USER_MANAGE')
+  const unrestricted = !!user?.permissions.includes('*')
+  const roles = useRoles(canManage && !unrestricted)
   const [page, setPage] = useState(0)
+  const [search, setSearch] = useState('')
+  const [query, setQuery] = useState('')
+  const [status, setStatus] = useState<AccountStatus | ''>('')
+  const [departmentId, setDepartmentId] = useState('')
   const [editing, setEditing] = useState<UserAccount | 'new' | null>(null)
   const [resetting, setResetting] = useState<UserAccount | null>(null)
   const [notice, setNotice] = useState('')
-  const users = useUsers(page)
+  const options = useUserOptions()
+  const users = useUsers({ query, status, departmentId: departmentId ? Number(departmentId) : undefined, page, size: 25 })
   const data = users.data
+  const canManageAccount = (account: UserAccount) => canManage && (unrestricted || !!roles.data && account.roleCodes.every((code) => {
+    const role = roles.data.find((candidate) => candidate.code === code)
+    return !!role && role.permissions.every((permission) => hasPermission(user!, permission))
+  }))
   return <>
-    <PageHeader title="Tài khoản" description="Quản lý quyền truy cập, trạng thái đăng nhập và liên kết hồ sơ nhân viên."
+    <PageHeader title="Tài khoản" description="Tạo tài khoản đăng nhập, thông tin nhân viên cơ bản và cấp vai trò sử dụng ứng dụng."
       actions={canManage && <button className="primary-button" onClick={() => { setNotice(''); setEditing('new') }}><Icon name="plus" />Thêm tài khoản</button>} />
     {notice && <p className="notice" role="status">{notice}</p>}
-    <section className="panel" aria-label="Danh sách tài khoản">
+    <section className="panel account-list" aria-label="Danh sách tài khoản">
       <div className="panel-heading"><h2>Tài khoản hệ thống</h2><div className="header-actions">{data && !users.error && <span className="table-count">{data.totalElements} tài khoản</span>}<button className="text-button" disabled={users.isFetching} onClick={() => { void users.refetch() }}>Tải lại</button></div></div>
-      <TableFeedback pending={users.isPending} error={users.error} empty={!data?.content.length} onRetry={() => { void users.refetch() }} emptyTitle="Chưa có tài khoản" />
+      <form className="filter-bar" onSubmit={(event) => { event.preventDefault(); setQuery(search.trim()); setPage(0) }}>
+        <div className="form-field search-field"><label htmlFor="account-search">Email, họ tên hoặc mã nhân viên</label><input id="account-search" type="search" placeholder="Nhập email, họ tên hoặc mã…" value={search} onChange={(event) => setSearch(event.target.value)} /></div>
+        <div className="form-field"><label htmlFor="account-filter-status">Trạng thái</label><select id="account-filter-status" value={status} onChange={(event) => { setStatus(event.target.value as AccountStatus | ''); setPage(0) }}><option value="">Tất cả</option><option value="ACTIVE">Hoạt động</option><option value="LOCKED">Khóa</option><option value="DISABLED">Vô hiệu hóa</option></select></div>
+        <div className="form-field"><label htmlFor="account-filter-department">Phòng ban</label><select id="account-filter-department" value={departmentId} disabled={options.isPending || !!options.error} onChange={(event) => { setDepartmentId(event.target.value); setPage(0) }}><option value="">Tất cả</option>{options.data?.departments.map((unit) => <option key={unit.id} value={unit.id}>{unit.name}{!unit.active ? ' (ngừng hoạt động)' : ''}</option>)}</select></div>
+        <button className="secondary-button" type="submit"><Icon name="search" size={16} />Tìm kiếm</button>
+        <button className="text-button" type="button" onClick={() => { setSearch(''); setQuery(''); setStatus(''); setDepartmentId(''); setPage(0) }}>Xóa lọc</button>
+      </form>
+      {options.error && <p className="form-error account-lookup-error" role="alert">Chưa tải được bộ lọc phòng ban. <button className="text-button" type="button" onClick={() => { void options.refetch() }}>Tải lại phòng ban</button></p>}
+      {canManage && !unrestricted && roles.error && <p className="form-error account-lookup-error" role="alert">Chưa xác định được phạm vi quản lý tài khoản. <button className="text-button" type="button" onClick={() => { void roles.refetch() }}>Tải lại vai trò</button></p>}
+      <TableFeedback pending={users.isPending} error={users.error} empty={!data?.content.length} onRetry={() => { void users.refetch() }} emptyTitle={query || status || departmentId ? 'Không có tài khoản phù hợp' : 'Chưa có tài khoản'} emptyMessage={query || status || departmentId ? 'Thử từ khóa khác hoặc xóa bộ lọc.' : 'Thêm tài khoản để nhân viên đăng nhập vào ứng dụng được cấp.'} />
       {!users.error && data && !!data.content.length && <div className="table-wrap"><table>
         <caption className="sr-only">Danh sách tài khoản hệ thống</caption>
-        <thead><tr><th scope="col">Người dùng</th><th scope="col">Vai trò</th><th scope="col">Trạng thái</th><th scope="col">Đăng nhập gần nhất</th><th scope="col">Thao tác</th></tr></thead>
+        <thead><tr><th scope="col">Người dùng</th><th scope="col">Phòng ban / Chức vụ</th><th scope="col">Vai trò</th><th scope="col">Trạng thái</th><th scope="col">Đăng nhập gần nhất</th><th scope="col">Thao tác</th></tr></thead>
         <tbody>{data.content.map((account) => <tr key={account.id}>
           <td><strong className="cell-title">{account.displayName}</strong><span className="cell-subtitle">{account.email}</span></td>
+          <td>{account.departmentName ?? 'Chưa phân phòng ban'}<span className="cell-subtitle">{account.positionName ?? 'Chưa phân chức vụ'}</span>{account.employeeCode && <span className="cell-subtitle">{account.employeeCode}</span>}</td>
           <td>{account.roleCodes.map((code) => <span className="role-tag" key={code}>{roleLabels[code as RoleCode] ?? code}</span>)}</td>
           <td><span className={`status-badge ${account.status === 'ACTIVE' ? 'active' : account.status === 'LOCKED' ? 'locked' : 'inactive'}`}>{statusLabels[account.status]}</span>{account.mustChangePassword && <span className="cell-subtitle">Cần đổi mật khẩu</span>}{account.lockedUntil && new Date(account.lockedUntil).getTime() > Date.now() && <span className="cell-subtitle">Tạm khóa do đăng nhập sai</span>}</td>
           <td>{account.lastLoginAt ? new Intl.DateTimeFormat('vi-VN', { dateStyle: 'short', timeStyle: 'short', timeZone: 'Asia/Ho_Chi_Minh' }).format(new Date(account.lastLoginAt)) : 'Chưa đăng nhập'}</td>
-          <td>{canManage ? <div className="table-actions"><button className="text-button" aria-label={`Sửa tài khoản ${account.email}`} onClick={() => setEditing(account)}>Sửa</button><button className="text-button" aria-label={`Đặt lại mật khẩu ${account.email}`} onClick={() => { setNotice(''); setResetting(account) }}>Đặt lại mật khẩu</button></div> : '—'}</td>
+          <td>{canManageAccount(account) ? <div className="table-actions"><button className="text-button" aria-label={`Sửa tài khoản ${account.email}`} onClick={() => setEditing(account)}>Sửa</button><button className="text-button" aria-label={`Đặt lại mật khẩu ${account.email}`} onClick={() => { setNotice(''); setResetting(account) }}>Đặt lại mật khẩu</button></div> : '—'}</td>
         </tr>)}</tbody>
       </table></div>}
       {!users.error && data && <Pagination page={data.number} size={data.size} total={data.totalElements} pages={data.totalPages} busy={users.isFetching} onChange={setPage} />}
