@@ -4,6 +4,8 @@ import { AuthProvider } from './features/auth/AuthProvider'
 import { useAuth } from './features/auth/hooks/useAuth'
 import { LoginPage } from './features/auth/pages/LoginPage'
 import { ChangePasswordPage } from './features/auth/pages/ChangePasswordPage'
+import { ForgotPasswordPage } from './features/auth/pages/ForgotPasswordPage'
+import { ResetPasswordPage } from './features/auth/pages/ResetPasswordPage'
 import { AppShell } from './app/AppShell'
 import { DashboardPage } from './features/dashboard/pages/DashboardPage'
 import { PageState } from './components/PageState'
@@ -51,6 +53,8 @@ function RequireModule({ code }: { code: string }) {
 export function App() {
   return <QueryClientProvider client={queryClient}><BrowserRouter><AuthProvider><Routes>
     <Route path="/login" element={<LoginPage />} />
+    <Route path="/forgot-password" element={<ForgotPasswordPage />} />
+    <Route path="/reset-password" element={<ResetPasswordPage />} />
     <Route path="/change-password" element={<ChangePasswordPage />} />
     <Route element={<RequireSession />}>
       <Route index element={<Navigate to="/modules" replace />} />

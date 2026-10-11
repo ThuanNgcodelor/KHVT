@@ -11,6 +11,14 @@ export const authApi = {
   },
   changePassword: (currentPassword: string, newPassword: string) =>
     apiClient.post<CurrentUser>('/auth/change-password', { currentPassword, newPassword }),
+  requestPasswordReset: async (email: string) => {
+    await refreshCsrf()
+    return apiClient.post<{ message: string }>('/auth/forgot-password', { email })
+  },
+  resetPassword: async (token: string, newPassword: string) => {
+    await refreshCsrf()
+    return apiClient.post<{ message: string }>('/auth/reset-password', { token, newPassword })
+  },
   logout: async () => { await apiClient.post<void>('/auth/logout'); resetCsrf() },
   refreshCsrf,
 }

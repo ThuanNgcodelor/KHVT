@@ -287,3 +287,5 @@ label.checkbox-field { display: flex; align-items: center; gap: 8px; font-size: 
 .lookup-list button:hover { background: #edf4ee; }
 .group-preview { border: 1px solid var(--line); padding: 16px; margin: 14px 0; border-radius: 4px; }
 @media (max-width: 760px) { .import-panel { padding: 16px; } .record-info { grid-template-columns: 1fr; gap: 5px; } .record-info dd { margin-bottom: 10px; } .import-panel .header-actions { align-items: stretch; } .material-lookup .header-actions { flex-direction: column; } }
+.auth-link { color: #1b6350; text-decoration: none; font-size: 13px; font-weight: 500; transition: color 0.15s ease; }
+.auth-link:hover { text-decoration: underline; color: #123f33; }

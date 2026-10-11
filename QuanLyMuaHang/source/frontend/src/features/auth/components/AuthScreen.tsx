@@ -1,4 +1,4 @@
-import { Navigate } from 'react-router-dom'
+import { Link, Navigate } from 'react-router-dom'
 import { useAuthForm } from '../hooks/useAuthForm'
 import { PageState } from '../../../components/PageState'
 import { Brand } from '../../../components/layout/Brand'
@@ -25,7 +25,12 @@ export function AuthScreen({ mode }: { mode: 'login' | 'change-password' }) {
         {changing && <><div className="form-field"><label htmlFor="new-password">Mật khẩu mới</label><input id="new-password" type={showPassword ? 'text' : 'password'} autoComplete="new-password" {...form.register('newPassword')} aria-invalid={!!errors.newPassword} aria-describedby="new-password-help new-password-error" /><p id="new-password-help" className="field-help">Từ 12 đến 200 ký tự, khác mật khẩu hiện tại.</p><p id="new-password-error" className="field-error">{errors.newPassword?.message}</p></div><div className="form-field"><label htmlFor="confirmation">Nhập lại mật khẩu mới</label><input id="confirmation" type={showPassword ? 'text' : 'password'} autoComplete="new-password" {...form.register('confirmation')} aria-invalid={!!errors.confirmation} aria-describedby={errors.confirmation ? 'confirmation-error' : undefined} />{errors.confirmation && <p id="confirmation-error" className="field-error">{errors.confirmation.message}</p>}</div></>}
         <div className="auth-options" style={{ display: 'flex', flexWrap: 'wrap', gap: '12px', justifyContent: 'space-between', alignItems: 'center', margin: '10px 0 16px' }}>
           <label className="checkbox-field"><input type="checkbox" checked={showPassword} onChange={(event) => setShowPassword(event.target.checked)} />Hiện mật khẩu</label>
-          {!changing && <label className="checkbox-field"><input type="checkbox" {...form.register('rememberMe')} />Ghi nhớ đăng nhập trên máy này</label>}
+          {!changing && (
+            <div style={{ display: 'flex', gap: '14px', alignItems: 'center', flexWrap: 'wrap' }}>
+              <label className="checkbox-field"><input type="checkbox" {...form.register('rememberMe')} />Ghi nhớ đăng nhập</label>
+              <Link to="/forgot-password" className="auth-link" style={{ fontSize: '13px', color: '#1b6350', textDecoration: 'none', fontWeight: 500 }}>Quên mật khẩu?</Link>
+            </div>
+          )}
         </div>
         {serverError && <p className="form-error" role="alert">{serverError}</p>}
         <button className="primary-button auth-submit" type="submit">{form.formState.isSubmitting ? 'Đang xử lý…' : changing ? 'Lưu mật khẩu mới' : 'Đăng nhập'}</button>

@@ -47,6 +47,7 @@ public class UserAdministrationService {
     private final AuditRecorder audit;
     private final com.example.quanlymuahang.identity.infrastructure.security.RememberMeService rememberMeService;
 
+    @org.springframework.beans.factory.annotation.Autowired
     public UserAdministrationService(UserAccountJpaRepository accounts, RoleJpaRepository roles, PasswordEncoder encoder,
                                      EmployeeJpaRepository employees, DepartmentJpaRepository departments,
                                      PositionJpaRepository positions, SessionRevocationService sessions, AuditRecorder audit,

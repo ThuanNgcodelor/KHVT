@@ -206,8 +206,7 @@ class AuthApiIntegrationTest {
                 .contentType("application/json").content(json.writeValueAsString(Map.of("email", EMAIL, "password", PASSWORD, "rememberMe", true))))
                 .andExpect(status().isOk())
                 .andReturn();
-        String rememberHeader = loginResult.getResponse().getHeader("Set-Cookie");
-        assertThat(rememberHeader).contains("QMH_REMEMBER=");
+        assertThat(loginResult.getResponse().getHeaders("Set-Cookie")).anyMatch(h -> h.contains("QMH_REMEMBER="));
 
         Cookie rememberCookie = loginResult.getResponse().getCookie("QMH_REMEMBER");
         assertThat(rememberCookie).isNotNull();
@@ -219,8 +218,7 @@ class AuthApiIntegrationTest {
                 .andReturn();
 
         // Session was restored, and token was rotated
-        String rotatedHeader = restoredResult.getResponse().getHeader("Set-Cookie");
-        assertThat(rotatedHeader).contains("QMH_REMEMBER=");
+        assertThat(restoredResult.getResponse().getHeaders("Set-Cookie")).anyMatch(h -> h.contains("QMH_REMEMBER="));
     }
 
     @Test
