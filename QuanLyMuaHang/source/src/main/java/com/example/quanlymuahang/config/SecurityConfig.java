@@ -74,9 +74,9 @@ public class SecurityConfig {
                 .logout(logout -> logout.disable())
                 .authorizeHttpRequests(auth -> auth
                         .dispatcherTypeMatchers(DispatcherType.ERROR).permitAll()
-                        .requestMatchers("/api/auth/csrf", "/api/auth/login", "/actuator/health", "/actuator/info").permitAll()
+                        .requestMatchers("/api/auth/csrf", "/api/auth/login", "/api/auth/forgot-password", "/api/auth/reset-password", "/actuator/health", "/actuator/info").permitAll()
                         .requestMatchers(HttpMethod.GET, "/", "/index.html", "/assets/**", "/favicon.ico", "/robots.txt",
-                                "/login", "/change-password", "/modules", "/dashboard", "/purchase-orders", "/purchase-orders/**",
+                                "/login", "/forgot-password", "/reset-password", "/change-password", "/modules", "/dashboard", "/purchase-orders", "/purchase-orders/**",
                                 "/catalog/materials", "/catalog/suppliers", "/price-search", "/imports",
                                 "/admin/employees", "/admin/departments", "/admin/positions", "/admin/users").permitAll()
                         .requestMatchers(HttpMethod.OPTIONS, "/**").permitAll()

@@ -40,15 +40,18 @@ public class AuthController {
     private final CsrfTokenRepository csrfTokenRepository;
     private final SessionAuthenticationStrategy sessionAuthenticationStrategy;
     private final com.example.quanlymuahang.identity.infrastructure.security.RememberMeService rememberMeService;
+    private final com.example.quanlymuahang.identity.application.PasswordResetService passwordResetService;
 
     public AuthController(AuthenticationManager authenticationManager, SecurityContextRepository contextRepository,
                           AuthService authService, CsrfTokenRepository csrfTokenRepository,
                           SessionAuthenticationStrategy sessionAuthenticationStrategy,
-                          com.example.quanlymuahang.identity.infrastructure.security.RememberMeService rememberMeService) {
+                          com.example.quanlymuahang.identity.infrastructure.security.RememberMeService rememberMeService,
+                          com.example.quanlymuahang.identity.application.PasswordResetService passwordResetService) {
         this.authenticationManager = authenticationManager; this.contextRepository = contextRepository;
         this.authService = authService; this.csrfTokenRepository = csrfTokenRepository;
         this.sessionAuthenticationStrategy = sessionAuthenticationStrategy;
         this.rememberMeService = rememberMeService;
+        this.passwordResetService = passwordResetService;
     }
 
     @GetMapping("/csrf")
@@ -107,6 +110,20 @@ public class AuthController {
         return MeResponse.from(principal);
     }
 
+    @PostMapping("/forgot-password")
+    public ResponseEntity<?> forgotPassword(@Valid @RequestBody ForgotPasswordRequest body) {
+        passwordResetService.requestReset(body.email());
+        return ResponseEntity.ok(java.util.Map.of("message", "Nếu email tồn tại trong hệ thống, hướng dẫn đặt lại mật khẩu đã được gửi đến hòm thư của bạn."));
+    }
+
+    @PostMapping("/reset-password")
+    public ResponseEntity<?> resetPassword(@Valid @RequestBody ResetPasswordRequest body) {
+        passwordResetService.resetPassword(body.token(), body.newPassword());
+        return ResponseEntity.ok(java.util.Map.of("message", "Đặt lại mật khẩu thành công. Vui lòng đăng nhập bằng mật khẩu mới."));
+    }
+
+    public record ForgotPasswordRequest(@NotBlank @Email String email) {}
+    public record ResetPasswordRequest(@NotBlank String token, @NotBlank @Size(min = 12, max = 200) String newPassword) {}
     public record LoginRequest(@NotBlank @Email String email, @NotBlank String password, Boolean rememberMe) {
         public LoginRequest(String email, String password) { this(email, password, false); }
     }

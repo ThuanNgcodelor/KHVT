@@ -44,6 +44,7 @@ class AuthApiIntegrationTest {
     @Autowired RoleJpaRepository roles;
     @Autowired UserAccountJpaRepository users;
     @Autowired PasswordEncoder encoder;
+    @org.springframework.boot.test.mock.mockito.SpyBean com.example.quanlymuahang.identity.infrastructure.notification.EmailSenderService emailSender;
 
     @Test
     void anonymousAndMissingCsrfAreRejected() throws Exception {
@@ -246,6 +247,81 @@ class AuthApiIntegrationTest {
         // Calling /api/auth/me with old remember cookie should fail
         mvc.perform(get("/api/auth/me").cookie(rememberCookie))
                 .andExpect(status().isUnauthorized());
+    }
+
+    @Test
+    void forgotPasswordSendsEmailAndAllowsResettingPassword() throws Exception {
+        account("ADMIN", false, "*");
+        Csrf csrf = csrf(null);
+
+        // 1. Request forgot password
+        mvc.perform(post("/api/auth/forgot-password").cookie(csrf.cookie()).header(csrf.header(), csrf.token())
+                .contentType("application/json").content(json.writeValueAsString(Map.of("email", EMAIL))))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("message").exists());
+
+        org.mockito.ArgumentCaptor<String> urlCaptor = org.mockito.ArgumentCaptor.forClass(String.class);
+        org.mockito.Mockito.verify(emailSender).sendPasswordResetEmail(org.mockito.ArgumentMatchers.eq(EMAIL),
+                org.mockito.ArgumentMatchers.any(), urlCaptor.capture(), org.mockito.ArgumentMatchers.anyInt());
+
+        String resetUrl = urlCaptor.getValue();
+        assertThat(resetUrl).contains("token=");
+        String rawToken = resetUrl.substring(resetUrl.indexOf("token=") + 6);
+
+        // 2. Reset password using captured token
+        String newPassword = "super-brand-new-secret-password-1234";
+        mvc.perform(post("/api/auth/reset-password").cookie(csrf.cookie()).header(csrf.header(), csrf.token())
+                .contentType("application/json").content(json.writeValueAsString(Map.of("token", rawToken, "newPassword", newPassword))))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("message").exists());
+
+        // 3. Login with old password fails
+        mvc.perform(post("/api/auth/login").cookie(csrf.cookie()).header(csrf.header(), csrf.token())
+                .contentType("application/json").content(json.writeValueAsString(Map.of("email", EMAIL, "password", PASSWORD))))
+                .andExpect(status().isUnauthorized());
+
+        // 4. Login with new password succeeds
+        mvc.perform(post("/api/auth/login").cookie(csrf.cookie()).header(csrf.header(), csrf.token())
+                .contentType("application/json").content(json.writeValueAsString(Map.of("email", EMAIL, "password", newPassword))))
+                .andExpect(status().isOk());
+
+        // 5. Reusing the same reset token fails
+        mvc.perform(post("/api/auth/reset-password").cookie(csrf.cookie()).header(csrf.header(), csrf.token())
+                .contentType("application/json").content(json.writeValueAsString(Map.of("token", rawToken, "newPassword", "another-new-password-1234"))))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("code").value("INVALID_OR_EXPIRED_TOKEN"));
+    }
+
+    @Test
+    void resetPasswordWithInvalidTokenFails() throws Exception {
+        account("ADMIN", false, "*");
+        Csrf csrf = csrf(null);
+
+        mvc.perform(post("/api/auth/reset-password").cookie(csrf.cookie()).header(csrf.header(), csrf.token())
+                .contentType("application/json").content(json.writeValueAsString(Map.of("token", "completely-bogus-token", "newPassword", "another-new-password-1234"))))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("code").value("INVALID_OR_EXPIRED_TOKEN"));
+    }
+
+    @Test
+    void resetPasswordReusingOldPasswordFails() throws Exception {
+        account("ADMIN", false, "*");
+        Csrf csrf = csrf(null);
+
+        mvc.perform(post("/api/auth/forgot-password").cookie(csrf.cookie()).header(csrf.header(), csrf.token())
+                .contentType("application/json").content(json.writeValueAsString(Map.of("email", EMAIL))))
+                .andExpect(status().isOk());
+
+        org.mockito.ArgumentCaptor<String> urlCaptor = org.mockito.ArgumentCaptor.forClass(String.class);
+        org.mockito.Mockito.verify(emailSender).sendPasswordResetEmail(org.mockito.ArgumentMatchers.eq(EMAIL),
+                org.mockito.ArgumentMatchers.any(), urlCaptor.capture(), org.mockito.ArgumentMatchers.anyInt());
+
+        String rawToken = urlCaptor.getValue().substring(urlCaptor.getValue().indexOf("token=") + 6);
+
+        mvc.perform(post("/api/auth/reset-password").cookie(csrf.cookie()).header(csrf.header(), csrf.token())
+                .contentType("application/json").content(json.writeValueAsString(Map.of("token", rawToken, "newPassword", PASSWORD))))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("code").value("PASSWORD_REUSE"));
     }
 
     private void account(String role, boolean temporary, String... permissions) {
