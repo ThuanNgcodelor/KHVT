@@ -12,8 +12,6 @@ const schema = z.object({
   rememberMe: z.boolean().optional(),
 })
 type FormValues = z.infer<typeof schema>
-// Allow internal addresses (e.g. user@localhost) accepted by backend @Email.
-// The server remains the authority for the account and complete validation.
 const loginEmail = z.string().trim().regex(/^[^\s@]+@[^\s@]+$/)
 
 export function useAuthForm(mode: 'login' | 'change-password') {
