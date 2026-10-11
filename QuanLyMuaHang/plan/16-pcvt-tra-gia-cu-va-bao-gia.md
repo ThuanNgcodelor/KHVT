@@ -1,6 +1,6 @@
 # PCVT → tra giá/NCC cũ → gom hỏi giá → so sánh báo giá
 
-Ngày lập: **2026-10-11**. **Kế hoạch chưa triển khai**; không import/commit các file mới trong lượt này. Người dùng đã làm rõ mục tiêu: một PCVT có nhiều vật tư, từng vật tư có thể mua từ NCC khác nhau; hệ thống giúp tìm lịch sử và gom hỏi giá, sau đó so sánh giá hiện tại.
+Ngày lập: **2026-10-11**. Người dùng đã đổi ưu tiên sang **triển khai import trước, tự kiểm thử và nghiệm thu kỹ thuật**. Đã thêm luồng chứng từ riêng cho PCVT/báo giá, lưu trên server, tra lịch sử, gom hỏi giá và so sánh. Kiểm thử và giới hạn phải đọc theo bằng chứng hiện hành, không coi toàn bộ kế hoạch này đã hoàn thành. Mục tiêu: một PCVT có nhiều vật tư, từng vật tư có thể mua từ NCC khác nhau; tìm lịch sử và gom hỏi giá, sau đó so sánh giá hiện tại.
 
 ## 1. Ba nguồn dữ liệu có vai trò khác nhau
 
@@ -14,7 +14,7 @@ Luồng di trú workbook cũ đã qua kiểm thử đối chiếu đọc/ghi the
 
 Không nhập báo giá mới vào `historical_purchases` để giả thành giao dịch đã mua; không nhập PCVT bằng luồng `NCC/LICH_SU/DON_HANG`. Giữ nguồn cũ nguyên trạng, bổ sung liên kết/alias có xác nhận để tra cứu tốt hơn.
 
-**Khoảng cách với code hiện tại:** import operational mới trả draft ở client, đọc sheet đầu và chưa có yêu cầu PCVT lưu trên server. Giỏ PO nằm trong bộ nhớ trang; backend PO yêu cầu giá dương cả khi lưu draft. Vì vậy cần lưu PCVT riêng, cho phép chưa có giá/NCC; không dùng PO chưa đủ dữ liệu để thay yêu cầu. Parser hiện giới hạn 2.000 dòng, trong khi sổ CVT mẫu có 2.013 dòng có tên vật tư; cần chọn phiếu/vùng và báo đầy đủ giới hạn.
+**Code mới:** `/api/imports/documents` và migration V7 lưu tệp gốc/checksum, dữ liệu trích xuất, snapshot xác nhận và nhóm hỏi giá riêng. Parser mới giới hạn 5.000 dòng vật tư, đọc đủ sổ CVT mẫu 2.013 dòng và cho chọn phiếu; một sổ nguồn dùng lại cho nhiều phiếu. Operational cũ vẫn là công cụ tạo draft nhanh ở client. Giỏ PO vẫn nằm trong bộ nhớ trang; chưa lập PO trực tiếp từ phân bổ PCVT/báo giá. Xem [hướng dẫn import](../docs/HUONG_DAN_IMPORT_PCVT_VA_BAO_GIA.md).
 
 ## 2. Người dùng sẽ thao tác như thế nào?
 
@@ -108,7 +108,7 @@ Parser mẫu phải kiểm tra cả dòng không STT, đơn vị đóng gói, m�
 
 Tận dụng `catalog`, `pricing`, `procurement`, `importing` trong một ứng dụng. Bổ sung yêu cầu + dòng yêu cầu; tài liệu báo giá + dòng báo giá; nhóm/dòng hỏi giá; liên kết dòng yêu cầu–dòng báo giá–dòng PO; liên kết tên nguồn/alias đã được xác nhận. Không cần tách microservice.
 
-API mới dự kiến: tạo/đọc yêu cầu; preview/confirm import; tra lịch sử cho các dòng yêu cầu; lưu nhóm hỏi giá/xuất XLSX; import/confirm báo giá; bảng so sánh; chọn NCC và lập PO nháp. Đây là contract đề xuất, chưa phải endpoint có thể gọi.
+API đã thêm ở `/api/imports/documents`: preview, danh sách/đọc lại, tải tệp nguồn, confirm, lookup, lưu nhóm hỏi giá/xuất XLSX, comparison. Quyền hiện dùng `IMPORT_OPERATIONAL` và `PRICE_READ`; permission mới theo kế hoạch Quản trị chưa triển khai. Chọn NCC để lập PO nháp có phân bổ/liên kết nguồn vẫn là contract đề xuất cho bước tiếp theo.
 
 `GET /api/prices` và `/api/prices/latest`, API catalog, PO/export/import đang có là nền để tái sử dụng. Tách permission mới cho đọc yêu cầu, xử lý yêu cầu, báo giá, xuất hỏi giá và phát hành PO, theo [kế hoạch Quản trị](15-quan-tri-tai-khoan-va-phan-quyen.md). ID yêu cầu/tài liệu/PO phải được kiểm tra quyền phía server, gồm cả tải file.
 
@@ -116,7 +116,7 @@ Một dòng yêu cầu có thể hỏi nhiều NCC và tách số lượng mua c
 
 ## 7. Thứ tự triển khai và nghiệm thu
 
-1. **Quản trị trước:** tài khoản và quyền đủ để nhân viên dùng đúng chức năng; tham khảo kế hoạch 15.
+1. **Import trước theo yêu cầu mới:** PCVT/báo giá và kiểm thử kỹ thuật là phạm vi đợt này. Quản trị tài khoản/quyền theo kế hoạch 15 làm sau; chưa thay mô hình grant/deny hoặc phiên đăng nhập.
 2. **Giá trị chính của Mua hàng:** PCVT lưu được qua reload → xác nhận vật tư → tra toàn bộ lịch sử → gom NCC → xuất danh sách hỏi giá. Ưu tiên chọn dòng từ workbook CVT thật và nhập tay/dán để làm việc được sớm.
 3. **Báo giá và so sánh:** parser cho mẫu Excel/PDF text đã kiểm tra, sửa preview, nối dòng PCVT, so giá và chọn NCC.
 4. **PO và mở rộng:** giữ liên kết nguồn, chống đặt trùng, chia NCC/tiền tệ/điều kiện, quyền phát hành; OCR cho tài liệu scan/hỏng text khi có nhu cầu và tài nguyên phù hợp.

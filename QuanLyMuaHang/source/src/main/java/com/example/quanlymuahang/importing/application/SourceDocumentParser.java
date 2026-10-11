@@ -56,7 +56,9 @@ public class SourceDocumentParser {
     private ParsedDocument spreadsheet(String name, byte[] bytes, String kind, String selected) throws IOException {
         try (Workbook workbook = WorkbookFactory.create(new ByteArrayInputStream(bytes))) {
             if (workbook.getNumberOfSheets() > MAX_SHEETS) throw ApiException.badRequest("TOO_MANY_SHEETS", "Tối đa 20 sheet cho một chứng từ");
-            if (workbook.getSheet("NCC") != null && workbook.getSheet("LICH_SU") != null && workbook.getSheet("DON_HANG") != null)
+            Set<String> sheetNames = new HashSet<>();
+            for (Sheet sheet : workbook) sheetNames.add(sheet.getSheetName().toUpperCase(Locale.ROOT));
+            if (sheetNames.containsAll(Set.of("NCC", "LICH_SU", "DON_HANG")))
                 throw ApiException.badRequest("LEGACY_WORKBOOK_DETECTED", "Đây là dữ liệu Apps Script cũ; dùng luồng di trú lịch sử, không nhập như PCVT hoặc báo giá mới");
             List<SheetData> results = new ArrayList<>();
             int detectedLines = 0;
@@ -134,6 +136,13 @@ public class SourceDocumentParser {
             BigDecimal price = cellNumber(cell(row, columns, "price"), formatter);
             BigDecimal total = cellNumber(cell(row, columns, "total"), formatter);
             BigDecimal vat = cellNumber(cell(row, columns, "vat"), formatter);
+            for (String field : List.of("quantity", "price", "total", "vat")) {
+                Cell numericCell = cell(row, columns, field);
+                if (numericCell == null) continue;
+                CellType numericType = numericCell.getCellType() == CellType.FORMULA ? numericCell.getCachedFormulaResultType() : numericCell.getCellType();
+                if (numericType != CellType.NUMERIC && ambiguousNumber(display(numericCell, formatter)))
+                    issues.add("NUMERIC_SEPARATOR_REQUIRES_CONFIRMATION");
+            }
             if (vat != null && vat.signum() >= 0 && vat.compareTo(BigDecimal.ONE) <= 0) vat = vat.multiply(BigDecimal.valueOf(100));
             if (!columns.containsKey("vat")) vat = meta.vat;
             String currency = value(row, columns, "currency", formatter);
@@ -150,7 +159,8 @@ public class SourceDocumentParser {
             if (result.lines.size() > MAX_LINES) throw ApiException.badRequest("TOO_MANY_DOCUMENT_LINES", "Tối đa 5.000 dòng; hệ thống không tự cắt bớt");
         }
         List<BigDecimal> vats = result.lines.stream().map(DocumentLine::vatPercent).filter(Objects::nonNull).map(BigDecimal::stripTrailingZeros).distinct().toList();
-        if (vats.size() == 1) meta.vat = vats.getFirst();
+        if (vats.size() == 1 && result.lines.stream().allMatch(line -> line.vatPercent() != null)) meta.vat = vats.getFirst();
+        else if (vats.size() == 1) { meta.vat = null; result.warnings.add("PARTIAL_LINE_VAT_REQUIRES_CONFIRMATION"); }
         else if (vats.size() > 1) { meta.vat = null; result.warnings.add("MIXED_LINE_VAT"); }
         if ("QUOTATION".equals(kind)) {
             if (meta.currency == null) result.warnings.add("CURRENCY_UNKNOWN");
@@ -255,6 +265,8 @@ public class SourceDocumentParser {
                     BigDecimal quantity = number(values.get("quantity"));
                     String quantityText = quantity == null ? values.get("quantity") : null;
                     BigDecimal price = number(values.get("price")), total = number(values.get("total"));
+                    if (List.of("quantity", "price", "total").stream().anyMatch(field -> ambiguousNumber(values.get(field))))
+                        issues.add("NUMERIC_SEPARATOR_REQUIRES_CONFIRMATION");
                     if (minimumQuantity) { raw.put("__quantityBasis", "MINIMUM"); issues.add("MINIMUM_QUANTITY_NOT_REQUESTED_QUANTITY"); }
                     if (norm(itemName).startsWith("tien")) issues.add("ONE_TIME_COST");
                     review(issues, kind, values.get("unit"), quantity, quantityText, price, meta.vat, meta.currency, meta.priceBasis);
@@ -342,7 +354,7 @@ public class SourceDocumentParser {
     private static Map<String, String> rawCells(Row row, DataFormatter formatter, List<String> issues) {
         Map<String, String> raw = new LinkedHashMap<>();
         for (Cell cell : row) {
-            String address = new CellReference(cell).formatAsString();
+            String address = cell.getAddress().formatAsString();
             String value = display(cell, formatter);
             if (!value.isBlank()) raw.put(address, value);
             CellType type = cell.getCellType();
@@ -374,12 +386,17 @@ public class SourceDocumentParser {
     private static BigDecimal number(String text) {
         if (text == null || text.isBlank()) return null;
         String value = text.trim().replace("\u00a0", "").replace(" ", "").replace("%", "");
-        if (value.matches("[+-]?\\d{1,3}(?:[.,]\\d{3})+")) value = value.replace(".", "").replace(",", "");
+        if (value.matches("[+-]?[1-9]\\d{0,2}(?:[.,]\\d{3})+")) value = value.replace(".", "").replace(",", "");
         else if (value.contains(",") && value.contains(".")) {
             if (value.lastIndexOf(',') > value.lastIndexOf('.')) value = value.replace(".", "").replace(',', '.');
             else value = value.replace(",", "");
         } else if (value.contains(",")) value = value.replace(',', '.');
         try { return new BigDecimal(value); } catch (NumberFormatException exception) { return null; }
+    }
+
+    private static boolean ambiguousNumber(String text) {
+        return text != null && text.trim().replace("\u00a0", "").replace(" ", "")
+                .matches("[+-]?[1-9]\\d{0,2}[.,]\\d{3}");
     }
 
     private static String value(Row row, Map<String, Integer> columns, String field, DataFormatter formatter) { return clean(display(cell(row, columns, field), formatter)); }
@@ -408,20 +425,28 @@ public class SourceDocumentParser {
     private static List<String> distinct(List<String> values) { return List.copyOf(new LinkedHashSet<>(values)); }
 
     private static List<List<String>> csvRows(String text) {
-        String first = text.lines().findFirst().orElse("");
+        String first = text.lines().filter(line -> !line.isBlank()).findFirst().orElse("");
         char delimiter = first.contains("\t") ? '\t' : first.chars().filter(c -> c == ';').count() > first.chars().filter(c -> c == ',').count() ? ';' : ',';
-        List<List<String>> rows = new ArrayList<>(); List<String> row = new ArrayList<>(); StringBuilder cell = new StringBuilder(); boolean quote = false;
+        List<List<String>> rows = new ArrayList<>(); List<String> row = new ArrayList<>(); StringBuilder cell = new StringBuilder(); boolean quote = false, closedQuote = false;
         for (int i = 0; i < text.length(); i++) {
             char c = text.charAt(i);
-            if (c == '"') { if (quote && i + 1 < text.length() && text.charAt(i + 1) == '"') { cell.append(c); i++; } else quote = !quote; }
+            if (c == '"') {
+                if (quote && i + 1 < text.length() && text.charAt(i + 1) == '"') { cell.append(c); i++; }
+                else if (quote) { quote = false; closedQuote = true; }
+                else if (cell.isEmpty() && !closedQuote) quote = true;
+                else throw ApiException.badRequest("INVALID_CSV", "CSV có dấu ngoặc kép không hợp lệ; lưu lại bằng định dạng CSV UTF-8");
+            }
             else if (!quote && c == delimiter) {
                 if (row.size() >= MAX_COLUMNS - 1) throw ApiException.badRequest("TOO_MANY_COLUMNS", "Tối đa 100 cột");
-                row.add(cell.toString()); cell.setLength(0);
+                row.add(cell.toString()); cell.setLength(0); closedQuote = false;
             }
             else if (!quote && (c == '\r' || c == '\n')) {
                 if (c == '\r' && i + 1 < text.length() && text.charAt(i + 1) == '\n') i++;
                 if (rows.size() >= MAX_SCAN_ROWS) throw ApiException.badRequest("TOO_MANY_SOURCE_ROWS", "Chứng từ vượt quá 10.000 dòng");
-                row.add(cell.toString()); cell.setLength(0); rows.add(List.copyOf(row)); row.clear();
+                row.add(cell.toString()); cell.setLength(0); rows.add(List.copyOf(row)); row.clear(); closedQuote = false;
+            }
+            else if (closedQuote && !quote) {
+                if (!Character.isWhitespace(c)) throw ApiException.badRequest("INVALID_CSV", "CSV có dữ liệu sau dấu ngoặc kép đã đóng");
             }
             else cell.append(c);
         }

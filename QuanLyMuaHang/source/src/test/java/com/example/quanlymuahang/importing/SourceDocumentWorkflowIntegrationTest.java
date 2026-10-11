@@ -218,8 +218,8 @@ class SourceDocumentWorkflowIntegrationTest {
         assertThat(unitMismatch.path("comparable").asBoolean()).isFalse(); assertThat(unitMismatch.path("delta").isNull()).isTrue();
         var good = result.path("lines").get(0).path("quotes").get(2);
         assertThat(good.path("comparable").asBoolean()).isTrue(); assertThat(good.path("delta").asDouble()).isEqualTo(10); assertThat(good.path("percent").asDouble()).isEqualTo(10);
-        assertThat(good.path("baselineSourceReference").asText()).isEqualTo("PO:" + prior + ":R:1:L:1");
-        assertThat(good.path("baselineDate").asText()).isEqualTo("2026-10-07");
+        assertThat(good.path("baseline").path("sourceReference").asText()).isEqualTo("PO:" + prior + ":R:1:L:1");
+        assertThat(good.path("baseline").path("purchaseDate").asText()).isEqualTo("2026-10-07");
     }
 
     @Test void anExplicitMaterialCodeKeepsSpecificationVariantsSeparateWithoutInvalidatingCompatibleHistory() throws Exception {
@@ -246,7 +246,7 @@ class SourceDocumentWorkflowIntegrationTest {
         var compared = read(mvc.perform(get(BASE + "/" + id + "/comparison").session(session)).andExpect(status().isOk()).andReturn()).path("lines").get(0).path("quotes").get(0);
         assertThat(compared.path("comparable").asBoolean()).isTrue();
         assertThat(compared.path("delta").asDouble()).isEqualTo(10);
-        assertThat(compared.path("baselineSourceReference").asText()).isEqualTo("PO:" + compatible + ":R:1:L:1");
+        assertThat(compared.path("baseline").path("sourceReference").asText()).isEqualTo("PO:" + compatible + ":R:1:L:1");
     }
 
     @Test void anUnverifiedLegacyPriceIsShownButCannotBeUsedToAssertACertainPriceDifference() throws Exception {

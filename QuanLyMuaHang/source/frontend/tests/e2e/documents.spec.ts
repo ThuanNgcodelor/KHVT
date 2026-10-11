@@ -22,6 +22,7 @@ test('one item can be asked from two old suppliers and inquiry choices persist a
   await page.goto('/imports?document=1'); await page.getByRole('button', { name: 'Tra NCC và giá cũ', exact: true }).click()
   await page.getByRole('checkbox', { name: 'Hỏi NCC mẫu A cho Thép kiểm thử', exact: true }).check(); await page.getByRole('checkbox', { name: 'Hỏi NCC mẫu B cho Thép kiểm thử', exact: true }).check()
   await expect(page.getByText('NCC mẫu A: 1 món', { exact: true })).toBeVisible(); await expect(page.getByText('NCC mẫu B: 1 món', { exact: true })).toBeVisible()
+  await page.screenshot({ path: `../target/runtime/ui-document-history-${test.info().project.name}.png`, fullPage: true })
   const download = page.waitForEvent('download'); await page.getByRole('button', { name: 'Lưu nhóm hỏi giá và tải XLSX', exact: true }).click(); expect((await download).suggestedFilename()).toBe('hoi-gia-mau.xlsx')
   expect(state.inquiryCalls[0].selections).toHaveLength(2); expect(state.confirmCalls).toHaveLength(0)
   await page.reload(); await page.getByRole('button', { name: 'Tra NCC và giá cũ', exact: true }).click(); await expect(page.getByRole('checkbox', { name: 'Hỏi NCC mẫu A cho Thép kiểm thử', exact: true })).toBeChecked(); await expect(page.getByRole('checkbox', { name: 'Hỏi NCC mẫu B cho Thép kiểm thử', exact: true })).toBeChecked()

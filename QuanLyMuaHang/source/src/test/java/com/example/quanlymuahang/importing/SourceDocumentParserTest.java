@@ -19,6 +19,7 @@ import java.io.ByteArrayOutputStream;
 import java.math.BigDecimal;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.nio.charset.StandardCharsets;
 import java.util.*;
 import java.util.zip.ZipFile;
 
@@ -111,6 +112,34 @@ class SourceDocumentParserTest {
         }
     }
 
+    @Test void aPartiallySpecifiedLineVatMustNotBecomeADefaultForUnspecifiedRows() throws Exception {
+        try (var book = new XSSFWorkbook()) {
+            var sheet = book.createSheet("Quote");
+            String[] headers = {"Tên Hàng", "ĐVT", "SL", "Đơn giá chưa VAT", "VAT"};
+            var header = sheet.createRow(0);
+            for (int col = 0; col < headers.length; col++) header.createCell(col).setCellValue(headers[col]);
+            for (int index = 1; index <= 2; index++) {
+                var row = sheet.createRow(index); row.createCell(0).setCellValue("Vật tư " + index);
+                row.createCell(1).setCellValue("Cái"); row.createCell(2).setCellValue(1); row.createCell(3).setCellValue(100);
+            }
+            sheet.getRow(1).createCell(4).setCellValue(0.08);
+            var parsed = parse(book, "partial-vat.xlsx", "QUOTATION", null);
+            assertThat(parsed.lines()).hasSize(2); assertThat(parsed.lines().getFirst().vatPercent()).isEqualByComparingTo("8");
+            assertThat(parsed.lines().getLast().vatPercent()).isNull(); assertThat(parsed.vatPercent()).isNull();
+            assertThat(parsed.warnings()).contains("PARTIAL_LINE_VAT_REQUIRES_CONFIRMATION");
+        }
+    }
+
+    @Test void oldAppsScriptDataCannotBeImportedAsANewRequestOrSupplierQuotation() throws Exception {
+        try (var book = new XSSFWorkbook()) {
+            for (String sheet : List.of("NCC", "LICH_SU", "DON_HANG")) book.createSheet(sheet);
+            for (String kind : List.of("REQUEST", "QUOTATION")) {
+                assertThatThrownBy(() -> parse(book, "renamed-historical-data.xlsx", kind, "DON_HANG"))
+                        .isInstanceOfSatisfying(ApiException.class, error -> assertThat(error.code()).isEqualTo("LEGACY_WORKBOOK_DETECTED"));
+            }
+        }
+    }
+
     @Test void exactDecimalTokensAndTextQuantityAreNotRoundedOrSilentlyReplaced() throws Exception {
         try (var book = requestWorkbook()) {
             var sheet = book.getSheetAt(0);
@@ -132,6 +161,28 @@ class SourceDocumentParserTest {
         assertThat(parsed.format()).isEqualTo("PDF_SCAN");
         assertThat(parsed.lines()).isEmpty();
         assertThat(parsed.warnings()).anyMatch(issue -> issue.contains("OCR_NOT_SUPPORTED"));
+    }
+
+    @Test void malformedUtf8CannotReplaceSourceCharactersDuringCsvImport() {
+        var file = new MockMultipartFile("file", "broken.csv", "text/csv", new byte[]{(byte) 0xc3, 0x28});
+        assertThatThrownBy(() -> parser.parse(file, "REQUEST", null))
+                .isInstanceOfSatisfying(ApiException.class, error -> assertThat(error.code()).isEqualTo("FILE_READ_FAILED"));
+    }
+
+    @Test void csvLimitsRejectTooManyRowsOrColumnsBeforeBuildingTheWorkbook() {
+        var rows = new MockMultipartFile("file", "rows.csv", "text/csv", "value\n".repeat(10001).getBytes(StandardCharsets.UTF_8));
+        var columns = new MockMultipartFile("file", "columns.csv", "text/csv", String.join(",", Collections.nCopies(101, "column")).getBytes(StandardCharsets.UTF_8));
+        assertThatThrownBy(() -> parser.parse(rows, "REQUEST", null))
+                .isInstanceOfSatisfying(ApiException.class, error -> assertThat(error.code()).isEqualTo("TOO_MANY_SOURCE_ROWS"));
+        assertThatThrownBy(() -> parser.parse(columns, "REQUEST", null))
+                .isInstanceOfSatisfying(ApiException.class, error -> assertThat(error.code()).isEqualTo("TOO_MANY_COLUMNS"));
+    }
+
+    @Test void anUnrecognizedCsvLayoutShowsAnExplicitWarningInsteadOfPretendingItFoundItems() {
+        var file = new MockMultipartFile("file", "notes.csv", "text/csv", "Metadata,Comment\nA note,No item table".getBytes(StandardCharsets.UTF_8));
+        var parsed = parser.parse(file, "REQUEST", null);
+        assertThat(parsed.lines()).isEmpty();
+        assertThat(parsed.warnings()).anyMatch(issue -> issue.contains("ITEM_HEADER_NOT_FOUND_OR_EMPTY"));
     }
 
     @Test void malformedAndOversizedFilesCannotBecomeSuccessfulPreviews() {
