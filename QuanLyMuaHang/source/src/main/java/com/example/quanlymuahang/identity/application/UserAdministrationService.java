@@ -144,7 +144,7 @@ public class UserAdministrationService {
                 && nextRoles.stream().noneMatch(role -> role.getCode().equals("ADMIN"));
         boolean willBeInactive = command.status() != AccountStatus.ACTIVE;
         boolean isAdmin = account.getRoles().stream().anyMatch(role -> role.getCode().equals("ADMIN"));
-        if ((removesAdmin || willBeInactive) && isAdmin) {
+        if (account.getStatus() == AccountStatus.ACTIVE && (removesAdmin || willBeInactive) && isAdmin) {
             roles.lockIdByCode("ADMIN").orElseThrow(() -> new IllegalStateException("Role ADMIN chưa được khởi tạo"));
             if (accounts.lockActiveAdministrators("ADMIN").size() <= 1)
                 throw ApiException.badRequest("LAST_ADMIN", "Không thể gỡ hoặc khóa quản trị viên hoạt động cuối cùng");

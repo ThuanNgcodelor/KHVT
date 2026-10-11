@@ -16,6 +16,8 @@ Driver đọc `.env` riêng trong bộ nhớ, tạo schema `qmh_admin_phase1_*`,
 
 Báo cáo tại `source/target/runtime/admin-phase1-real-integration-report.json` và tên schema tương ứng: chỉ xem là qua khi `completed: true`, `mainUnchanged: true` và browser đã chạy nếu đặt biến. Đối chiếu database chính gồm số bản ghi, Flyway và metadata tài khoản/liên kết vai trò; không đọc hash để đối chiếu. Schema thử giữ lại; backend/browser tự dừng, không xóa volume hay flush Redis. `QMH_TEST_JAVA` và `QMH_TEST_JAR` cho phép chỉ định JDK 21/JAR khác. Mật khẩu, hash, cookie và CSRF không được ghi vào báo cáo.
 
+Lượt bản cuối **2026-10-11 18:25:27 +07:00** hoàn tất **15 nhóm** trên `qmh_admin_phase1_c0c3eea29b84`, gồm MCP thật; báo cáo có `completed: true`, `mainUnchanged: true`. Đã kiểm tra thêm gỡ role ADMIN của tài khoản đã DISABLED và hai admin đồng thời tự hạ quyền: một HTTP 200, một HTTP 400 `LAST_ADMIN`, còn một admin hoạt động; phiên của người hạ quyền trả 401. Test backend liên quan bản cuối có **31 test qua** (14 tài khoản, 11 auth, 6 cổng ứng dụng) và JAR `windows-web` build thành công. Không cộng các lượt chạy lại vào số test. Server chính vẫn tắt và MySQL/Redis healthy. Xem [biên bản Quản trị Phase 1](../../docs/NGHIEM_THU_QUAN_TRI_PHASE_1.md).
+
 ## PCVT và báo giá mới: sáu file thật
 
 Sau khi frontend/JAR `windows-web` đã build và Docker healthy, chạy từ root. Driver đọc `.env` riêng trong bộ nhớ; không log mật khẩu/cookie. Không dùng tài khoản của người sử dụng để test.

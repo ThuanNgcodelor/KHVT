@@ -16,7 +16,7 @@ Tạo tài khoản và hồ sơ mới được thực hiện trong cùng transac
 
 Tìm kiếm và bộ lọc được gửi đến server, áp dụng trên toàn danh sách trước khi phân trang. Không phải tìm riêng các dòng trên trang đang mở.
 
-Sửa vai trò/trạng thái hoặc reset mật khẩu có thể thu hồi các phiên của tài khoản đó. Người quản trị cần đọc xác nhận trước khi lưu. Mật khẩu reset là mật khẩu tạm và người dùng phải đổi lại khi đăng nhập.
+Lưu sửa tài khoản hoặc reset mật khẩu thu hồi các phiên của tài khoản đó. Người quản trị cần đọc xác nhận trước khi lưu. Mật khẩu reset là mật khẩu tạm và người dùng phải đổi lại khi đăng nhập.
 
 Backend bảo vệ việc tự khóa và admin hoạt động cuối cùng. Người có quyền quản lý tài khoản được ủy quyền chỉ được gán vai trò và quản lý tài khoản nằm trong phạm vi quyền của mình; không được cấp wildcard hoặc reset tài khoản có quyền cao hơn để chiếm quyền quản trị.
 

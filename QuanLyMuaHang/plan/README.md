@@ -15,6 +15,7 @@ Thay Google Apps Script/Google Sheet bằng hệ thống mua hàng có dữ li�
 - Workbook migration có preview/report/idempotency; xử lý đúng các thiếu dữ liệu đã kiểm kê.
 - Không có OpenAI API feature trong MVP. Dùng [skill UI riêng của KHVT](../skills/khvt-ui/SKILL.md), ảnh tham chiếu và checklist; skill repository này không phải skill chính thức của OpenAI.
 - Giao diện xanh rêu/xanh ngọc, không dùng màu cam theo yêu cầu mới. Login/đổi mật khẩu tạm dẫn tới cổng chọn ứng dụng theo quyền backend; admin cấp quyền qua role hiện có. [Thiết kế cổng ứng dụng](../docs/CONG_UNG_DUNG_VA_PHAN_QUYEN.md) tách rõ triển khai hiện tại và hướng grant độc lập/Bán hàng.
+- Phase 1 gom danh bạ/phòng ban/chức vụ vào Quản trị; chỉ đăng ký hai ứng dụng Mua hàng và Quản trị. Quyền danh bạ không tự cấp quyền quản lý tài khoản. Tài khoản có thể có hồ sơ cơ bản tùy chọn trong cùng form/transaction.
 
 ## Stack
 
@@ -64,15 +65,19 @@ Thay Google Apps Script/Google Sheet bằng hệ thống mua hàng có dữ li�
 
 Không cần ứng dụng Nhân sự riêng: Quản trị phục vụ tạo tài khoản, thông tin phòng ban/chức vụ cơ bản và cấp/cấm module/hành động cho từng người. Chức vụ không tự sinh quyền. Giữ đăng nhập là bổ sung đề xuất; hiện hệ thống dùng Redis session idle 30 phút, không có cặp access token/refresh token.
 
-`QUANLYMUAHANGKHVT.xlsx` chỉ là dữ liệu cũ của Apps Script. File PCVT mới dùng để tra từng món từng mua NCC nào/giá nào, gom hỏi giá theo NCC; file báo giá mới dùng so sánh. Người dùng đổi ưu tiên sang import trước: kế hoạch 16 đã triển khai phần nhập/lưu/tra/gom/so sánh và qua [nghiệm thu kỹ thuật theo phạm vi](../docs/NGHIEM_THU_IMPORT_PCVT_VA_BAO_GIA.md); phần alias/phân bổ PO còn làm tiếp. Kế hoạch 15 Quản trị chưa triển khai. Không coi route/API đề xuất ở phần còn lại là tính năng đã có.
+`QUANLYMUAHANGKHVT.xlsx` chỉ là dữ liệu cũ của Apps Script. File PCVT mới dùng để tra từng món từng mua NCC nào/giá nào, gom hỏi giá theo NCC; file báo giá mới dùng so sánh. Người dùng đổi ưu tiên sang import trước: kế hoạch 16 đã triển khai phần nhập/lưu/tra/gom/so sánh và qua [nghiệm thu kỹ thuật theo phạm vi](../docs/NGHIEM_THU_IMPORT_PCVT_VA_BAO_GIA.md); phần OCR/alias/phân bổ PO còn làm tiếp.
+
+Theo yêu cầu tiếp theo, **bước 1 của kế hoạch 15 đã triển khai và nghiệm thu kỹ thuật theo phạm vi**: Quản trị tài khoản kèm hồ sơ tùy chọn, tìm kiếm/lọc/phân trang phía server, gom danh bạ và giới hạn thao tác của người được ủy quyền. Driver MySQL/Redis/MCP thật hoàn tất 15 nhóm, báo cáo cuối ghi lúc 18:25:27 +07:00, gồm tạo tài khoản qua UI/reload/mobile và bảo vệ hai admin tự bỏ quyền đồng thời. Xem [biên bản Phase 1](../docs/NGHIEM_THU_QUAN_TRI_PHASE_1.md) và [hướng dẫn dùng](../docs/HUONG_DAN_QUAN_TRI_PHASE_1.md). Bước 2 grant/deny cá nhân và bước 3 giữ đăng nhập chưa triển khai. Không coi route/API đề xuất ở phần còn lại là tính năng đã có.
 
 ## Current source status
 
-Cập nhật 2026-10-11: `source/` có auth/cổng ứng dụng/nhân sự/tài khoản, danh mục/giá/PO/PDF/XLSX/import/dashboard và chứng từ PCVT–tra giá/NCC–gom hỏi–so sánh báo giá. Quyền hiện tính từ vai trò; chưa có grant/deny từng tài khoản. UI/code tồn tại không đồng nghĩa nghiệm thu đủ nghiệp vụ; xem biên bản kiểm tra thực tế và giới hạn theo từng phần.
+Cập nhật 2026-10-11: `source/` có auth/cổng ứng dụng, Quản trị tài khoản/danh bạ/phòng ban/chức vụ, danh mục/giá/PO/PDF/XLSX/import/dashboard và chứng từ PCVT–tra giá/NCC–gom hỏi–so sánh báo giá. Cổng chỉ có Mua hàng và Quản trị; backend `personnel` và dữ liệu vẫn giữ. Quyền hiện tính từ vai trò; chưa có grant/deny từng tài khoản. UI/code tồn tại không đồng nghĩa nghiệm thu đủ nghiệp vụ; xem biên bản kiểm tra thực tế và giới hạn theo từng phần.
+
+Phase 1: full package backend lúc 18:01:06 có 138 test liệt kê/136 thực thi qua/2 opt-in bỏ qua; sau các sửa cuối hồ sơ và điều kiện last-admin đã chạy package mục tiêu 31 test qua lúc 18:24:28, chưa chạy lại toàn suite. Frontend build/10 unit tests/56 browser cases desktop/mobile qua; browser dùng API giả lập. Driver thật hoàn tất trên schema `qmh_admin_phase1_c0c3eea29b84`, [báo cáo cuối](../source/target/runtime/admin-phase1-real-integration-report.json) xác nhận `completed: true`, `mainUnchanged: true`; không cộng lượt test chạy lại thành tổng mới.
 
 Luồng workbook cũ đã qua 91 test backend thực thi và driver MySQL/Redis riêng: đối chiếu 11.690 dòng nguồn/91.526 trường, 0 sai lệch theo mapping; đủ 10.561 lịch sử, 262 PO, 850 dòng PO. Cảnh báo nguồn vẫn cần xác minh. Kết quả frontend và giới hạn kiểm thử xem [hệ thống hiện tại](../docs/HE_THONG_HIEN_TAI.md), không dùng các con số của lượt build cũ để mô tả bản hiện tại.
 
-Server chính tiếp tục tắt theo yêu cầu người dùng; backend test 8082 và browser riêng đã tự dừng sau nghiệm thu import. Docker/MySQL/Redis vẫn chạy healthy, số bản ghi và Flyway V6 database chính giữ nguyên. JAR/UI mới đóng gói; V7 chỉ áp dụng trên schema thử. Backend demo đã xóa; Cloudflare/production chưa nghiệm thu.
+Server chính tiếp tục tắt theo yêu cầu người dùng. Driver Quản trị dùng backend 8082, schema/namespace UUID riêng, backend/browser helper đã tự dừng; không chạy lại ứng dụng chính để chứng minh nghiệm thu. Báo cáo Phase 1 xác nhận dữ liệu chính, metadata tài khoản và liên kết vai trò giữ nguyên; Flyway chính vẫn V6. JAR/UI mới đóng gói; V7 chỉ áp dụng trên schema thử. Backend demo đã xóa; Cloudflare/production chưa nghiệm thu.
 
 ## Global Definition of Done
 

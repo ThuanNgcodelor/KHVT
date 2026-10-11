@@ -253,6 +253,19 @@ class UserAdministrationIntegrationTest {
     }
 
     @Test
+    void removingRoleFromInactiveAdminDoesNotBlockOrReduceTheLastActiveAdmin() {
+        var otherAdmin = account("inactive-admin@example.test", "ADMIN");
+        service.update(otherAdmin.getId(), new UpdateUser("Ngừng quản trị", null, AccountStatus.DISABLED, Set.of("ADMIN")), adminId);
+        assertThat(users.countActiveAdministrators("ADMIN")).isEqualTo(1);
+        var cleaned = service.update(otherAdmin.getId(), new UpdateUser("Ngừng quản trị", null, AccountStatus.DISABLED, Set.of("VIEWER")), adminId);
+        assertThat(cleaned.status()).isEqualTo(AccountStatus.DISABLED);
+        assertThat(cleaned.roleCodes()).containsExactly("VIEWER");
+        assertThat(users.countActiveAdministrators("ADMIN")).isEqualTo(1);
+        expectCode(() -> service.update(adminId, new UpdateUser("Admin", null, AccountStatus.ACTIVE, Set.of("VIEWER")), adminId), "LAST_ADMIN");
+        assertThat(users.findById(adminId).orElseThrow().getRoles()).extracting("code").containsExactly("ADMIN");
+    }
+
+    @Test
     void directoryOnlyUserCannotCreateOrResetAccountsThroughService() {
         long directory = account("directory@example.test", "DIRECTORY").getId();
         expectCode(() -> service.create(create("forbidden@example.test", null, null), directory), "ROLE_ASSIGNMENT_FORBIDDEN");

@@ -153,7 +153,12 @@ try {
   const selfCommand = { displayName: 'Quản trị nghiệm thu Phase 1', employeeId: null, status: 'ACTIVE', roleCodes: ['ADMIN'] };
   await call(admin, `/api/admin/users/${me.id}`, 'PUT', { ...selfCommand, status: 'DISABLED' }, { status: 400, code: 'CANNOT_DISABLE_SELF' });
   await call(admin, `/api/admin/users/${me.id}`, 'PUT', { ...selfCommand, roleCodes: ['VIEWER'] }, { status: 400, code: 'LAST_ADMIN' });
-  checked('Self-disable and last-active-admin role removal remain blocked');
+  let inactiveAdministrator = await json(admin, '/api/admin/users', 'POST', { email: 'phase1-inactive-admin@khvt.test', displayName: 'Quản trị đã ngừng nghiệm thu', initialPassword: secret(), roleCodes: ['ADMIN'] });
+  inactiveAdministrator = await json(admin, `/api/admin/users/${inactiveAdministrator.id}`, 'PUT', updateCommand(inactiveAdministrator, { status: 'DISABLED' }));
+  inactiveAdministrator = await json(admin, `/api/admin/users/${inactiveAdministrator.id}`, 'PUT', updateCommand(inactiveAdministrator, { roleCodes: ['VIEWER'] }));
+  assert.equal(inactiveAdministrator.status, 'DISABLED'); assert.deepEqual(inactiveAdministrator.roleCodes, ['VIEWER']);
+  await call(admin, `/api/admin/users/${me.id}`, 'PUT', { ...selfCommand, roleCodes: ['VIEWER'] }, { status: 400, code: 'LAST_ADMIN' });
+  checked('Self-disable and last-active-admin removal remain blocked; removing the ADMIN role of an already disabled account is allowed');
 
   const department = await json(admin, '/api/personnel/departments', 'POST', { code: 'P1-KHVT', name: 'Phòng KHVT nghiệm thu', active: true });
   const otherDepartment = await json(admin, '/api/personnel/departments', 'POST', { code: 'P1-KT', name: 'Phòng kỹ thuật nghiệm thu', active: true });
@@ -298,11 +303,49 @@ try {
     await browser.call('browser_run_code_unsafe', { code: `async(page)=>{await page.context().addCookies(${JSON.stringify((await admin.storageState()).cookies)});await page.goto('http://127.0.0.1:${port}/modules');await page.getByRole('link',{name:/Quản trị/}).waitFor();if(await page.getByRole('link',{name:/Nhân sự/}).count())throw new Error('Personnel must not remain a separate application tile');await page.getByRole('link',{name:/Quản trị/}).click();await page.getByRole('heading',{name:'Tài khoản',exact:true}).waitFor();return 'Admin portal and landing page checked';}` });
     const browserEmail = 'phase1-browser-created@khvt.test', browserSecret = secret();
     report.browserStep = 'Inline profile creation';
-    await browser.call('browser_run_code_unsafe', { code: `async(page)=>{await page.getByRole('button',{name:'Thêm tài khoản',exact:true}).click();const form=page.getByRole('dialog');await form.getByLabel('Email đăng nhập *',{exact:true}).fill(${JSON.stringify(browserEmail)});await form.getByLabel('Tên hiển thị *',{exact:true}).fill('Tài khoản tạo từ browser thật');await form.getByLabel('Mật khẩu tạm *',{exact:true}).fill(${JSON.stringify(browserSecret)});await form.getByLabel('Nhập lại mật khẩu tạm *',{exact:true}).fill(${JSON.stringify(browserSecret)});await form.getByLabel('Phòng ban',{exact:true}).selectOption('${department.id}');await form.getByLabel('Chức vụ',{exact:true}).selectOption('${position.id}');await form.locator('input[type="checkbox"][value="VIEWER"]').check();await form.getByRole('button',{name:'Tạo tài khoản',exact:true}).click();await page.getByRole('dialog').waitFor({state:'hidden'});await page.getByRole('cell',{name:${JSON.stringify(browserEmail)},exact:false}).waitFor();return 'Inline account/profile created with real API';}` });
+    const inlineResult = await browser.call('browser_run_code_unsafe', { code: `async(page)=>{
+      let step='open-form';
+      try {
+        await page.getByRole('button',{name:'Thêm tài khoản',exact:true}).click();
+        const form=page.getByRole('dialog',{name:'Thêm tài khoản',exact:true});
+        step='email'; await form.getByLabel('Email đăng nhập *',{exact:true}).fill(${JSON.stringify(browserEmail)});
+        step='name'; await form.getByLabel('Tên hiển thị *',{exact:true}).fill('Tài khoản tạo từ browser thật');
+        step='password'; await form.getByLabel('Mật khẩu tạm *',{exact:true}).fill(${JSON.stringify(browserSecret)});
+        step='confirmation'; await form.getByLabel('Nhập lại mật khẩu tạm *',{exact:true}).fill(${JSON.stringify(browserSecret)});
+        step='department'; await form.getByLabel('Phòng ban',{exact:true}).selectOption('${department.id}');
+        step='position'; await form.getByLabel('Chức vụ',{exact:true}).selectOption('${position.id}');
+        step='viewer-role'; await form.locator('input[type="checkbox"][value="VIEWER"]').check();
+        step='submit'; await form.getByRole('button',{name:'Tạo tài khoản',exact:true}).click();
+        step='form-closed'; await form.waitFor({state:'hidden'});
+        step='created-row'; await page.getByText(${JSON.stringify(browserEmail)},{exact:true}).waitFor();
+        return {ok:true};
+      } catch (error) {
+        return {ok:false,step,reason:/strict mode/i.test(String(error.message))?'STRICT_MATCH':/timeout/i.test(String(error.message))?'TIMEOUT':'ACTION_FAILED'};
+      }
+    }` });
+    // Inspect only the returned scalar diagnostics, never the echoed code or args.
+    const inlineText = inlineResult.content.filter((part) => part.type === 'text').map((part) => part.text).join('\n');
+    const resultSection = inlineText.match(/### Result\s*\n([\s\S]*?)(?=\n### |$)/);
+    assert(resultSection, 'Missing safe inline browser diagnostic result');
+    const inlineDiagnostic = JSON.parse(resultSection[1].trim());
+    if (!inlineDiagnostic.ok) throw new Error(`Inline browser ${inlineDiagnostic.step}: ${inlineDiagnostic.reason}`);
     const fromBrowser = await json(admin, '/api/admin/users?query=' + encodeURIComponent(browserEmail));
     assert.equal(fromBrowser.totalElements, 1); assert.equal(fromBrowser.content[0].departmentId, department.id); assert.equal(fromBrowser.content[0].positionId, position.id); assert.match(fromBrowser.content[0].employeeCode, /^NV-/);
     report.browserStep = 'Filter, reload and mobile';
-    await browser.call('browser_run_code_unsafe', { code: `async(page)=>{await page.getByLabel('Email, họ tên hoặc mã nhân viên',{exact:true}).fill(${JSON.stringify(browserEmail)});await page.getByRole('button',{name:'Tìm kiếm',exact:true}).click();await page.getByRole('cell',{name:${JSON.stringify(browserEmail)},exact:false}).waitFor();if(await page.locator('tbody tr').count()!==1)throw new Error('Server filter should return one row');await page.reload();await page.getByRole('heading',{name:'Tài khoản',exact:true}).waitFor();await page.setViewportSize({width:390,height:844});if(await page.evaluate(()=>document.documentElement.scrollWidth>innerWidth+1))throw new Error('Mobile page overflow');await page.screenshot({path:${JSON.stringify(join(runtime, `${db}-users-mobile.png`))},fullPage:true});return 'Real server filter, reload and mobile layout checked';}` });
+    await browser.call('browser_run_code_unsafe', { code: `async(page)=>{
+      await page.getByLabel('Email, họ tên hoặc mã nhân viên',{exact:true}).fill(${JSON.stringify(browserEmail)});
+      await page.getByRole('button',{name:'Tìm kiếm',exact:true}).click();
+      await page.getByText(${JSON.stringify(browserEmail)},{exact:true}).waitFor();
+      await page.waitForFunction(()=>document.querySelectorAll('tbody tr').length===1);
+      if(await page.locator('tbody tr').count()!==1)throw new Error('Server filter should return one row');
+      await page.reload();
+      await page.getByRole('heading',{name:'Tài khoản',exact:true}).waitFor();
+      await page.getByText(${JSON.stringify(browserEmail)},{exact:true}).waitFor();
+      await page.setViewportSize({width:390,height:844});
+      if(await page.evaluate(()=>document.documentElement.scrollWidth>innerWidth+1))throw new Error('Mobile page overflow');
+      await page.screenshot({path:${JSON.stringify(join(runtime, `${db}-users-mobile.png`))},fullPage:true});
+      return 'Real server filter, reload and mobile layout checked';
+    }` });
     report.browserStep = 'Directory portal and denied accounts';
     await browser.call('browser_run_code_unsafe', { code: `async(page)=>{await page.context().clearCookies();await page.context().addCookies(${JSON.stringify((await signedHr.ctx.storageState()).cookies)});await page.goto('http://127.0.0.1:${port}/modules');await page.getByRole('link',{name:/Quản trị/}).click();await page.waitForURL('**/admin/employees');if(await page.getByRole('link',{name:'Tài khoản',exact:true}).count())throw new Error('Directory-only role must not see accounts navigation');await page.goto('http://127.0.0.1:${port}/admin/users');await page.getByRole('heading',{name:'Bạn không có quyền truy cập',exact:true}).waitFor();return 'Real directory-only portal and denied account route checked';}` });
     await browser.close(); browser = undefined;
