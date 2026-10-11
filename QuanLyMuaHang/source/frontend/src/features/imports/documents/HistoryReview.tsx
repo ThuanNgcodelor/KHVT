@@ -1,6 +1,6 @@
 import { useMemo, useState } from 'react'
 import { Pagination } from '../../../components/Pagination'
-import { decimalLabel, matchLabels, sourceLabels } from './documentLabels'
+import { decimalLabel, historySource, matchLabels, priceBasisLabels, warningLabels } from './documentLabels'
 import type { DocumentView, HistoryLookup, InquirySelection } from './types'
 
 export function HistoryReview({ document, lookup, busy, onSave, onExport }: {
@@ -31,9 +31,9 @@ export function HistoryReview({ document, lookup, busy, onSave, onExport }: {
         <td>{line.materialName}<span className="cell-subtitle">{item?.specification} · {item?.unit} · SL {decimalLabel(item?.quantity)}</span></td>
         <td><input type="checkbox" aria-label={`Hỏi ${candidate.supplierName} cho ${line.materialName}`} disabled={busy} checked={choices.some((row) => row.lineKey === line.lineKey && row.supplierKey === candidate.supplierKey)} onChange={(event) => toggle(line.lineKey, candidate.supplierKey, event.target.checked)} /></td>
         <td>{candidate.supplierName}<span className="cell-subtitle">{candidate.supplierCode ?? 'Thiếu mã NCC'} · {candidate.count} bản ghi phù hợp</span></td>
-        <td className="numeric-cell">{decimalLabel(candidate.unitPrice)}<span className="cell-subtitle">{candidate.currency ?? 'Chưa rõ tiền tệ'} / {candidate.unit ?? 'Chưa rõ ĐVT'}</span>{candidate.currencyBasis === 'ASSUMED_LEGACY' && <span className="cell-subtitle">Tiền tệ giả định từ nguồn cũ</span>}</td>
-        <td>{candidate.purchaseDate ?? 'Chưa xác định ngày'}<span className="cell-subtitle">{sourceLabels[candidate.source] ?? candidate.source} · {candidate.sourceReference}</span></td>
-        <td>{matchLabels[line.matchStatus] ?? line.matchStatus}<span className="cell-subtitle">{candidate.materialCode} · {candidate.materialName}</span>{!!candidate.qualityWarnings?.length && <ul className="document-warnings">{candidate.qualityWarnings.map((warning, offset) => <li key={offset}>{warning}</li>)}</ul>}</td>
+        <td className="numeric-cell">{decimalLabel(candidate.unitPrice)}<span className="cell-subtitle">{candidate.currency ?? 'Chưa rõ tiền tệ'} / {candidate.unit ?? 'Chưa rõ ĐVT'}</span><span className="cell-subtitle">{priceBasisLabels[candidate.priceBasis ?? 'UNKNOWN'] ?? candidate.priceBasis}{candidate.vatPercent != null ? ` · VAT ${decimalLabel(candidate.vatPercent)}%` : ''}</span>{candidate.currencyBasis === 'ASSUMED_LEGACY' && <span className="cell-subtitle">Tiền tệ giả định từ nguồn cũ</span>}</td>
+        <td>{candidate.purchaseDate ?? 'Chưa xác định ngày'}<span className="cell-subtitle">{historySource(candidate)} · {candidate.sourceReference}</span></td>
+        <td>{matchLabels[line.matchStatus] ?? line.matchStatus}<span className="cell-subtitle">{candidate.materialCode} · {candidate.materialName}</span><span className="cell-subtitle">Quy cách nguồn: {candidate.specification || 'Chưa có'}</span>{!!candidate.qualityWarnings?.length && <ul className="document-warnings">{candidate.qualityWarnings.map((warning, offset) => <li key={offset}>{warningLabels[warning] ?? warning}</li>)}</ul>}</td>
       </tr>)
     })}</tbody></table>{!lookup.lines.length && <p className="empty-message">PCVT không có dòng để tra.</p>}</div>
     <Pagination page={page} size={25} total={lookup.lines.length} pages={Math.ceil(lookup.lines.length / 25)} busy={busy} onChange={setPage} />

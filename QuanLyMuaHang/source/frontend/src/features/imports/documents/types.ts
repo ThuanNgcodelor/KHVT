@@ -22,12 +22,14 @@ export type Confirmation = {
 export type DocumentView = {
   id: number; kind: DocumentKind; title: string; fileName: string; status: string; duplicate: boolean
   parsed: ParsedDocument; confirmed: Confirmation | null; inquirySelections: InquirySelection[]
+  sourceDocumentId?: number | null
 }
 export type HistoryCandidate = {
   supplierKey: string; supplierId?: number | null; supplierCode: string | null; supplierName: string
   materialCode: string | null; materialName: string; unit: string | null; unitPrice: Decimal
   currency: string | null; currencyBasis: string | null; purchaseDate: string | null
   source: string; sourceReference: string; qualityWarnings: string[]; count: number
+  specification?: string | null; priceBasis?: string | null; vatPercent?: Decimal
 }
 export type HistoryLookup = { lines: {
   lineKey: string; matchStatus: string; materialCode: string | null; materialName: string; candidates: HistoryCandidate[]
@@ -36,5 +38,5 @@ export type QuoteComparison = { lines: {
   lineKey: string; materialName: string; unit: string | null; quantity: Decimal; history: HistoryCandidate[]
   quotes: { documentId: number; supplierName: string; unit: string | null; quantity: Decimal; unitPrice: Decimal
     currency: string | null; vatPercent: Decimal; priceBasis: string | null; comparable: boolean
-    reason: string | null; delta: Decimal; percent: Decimal }[]
+    reason: string | null; delta: Decimal; percent: Decimal; baseline?: HistoryCandidate | null }[]
 }[] }

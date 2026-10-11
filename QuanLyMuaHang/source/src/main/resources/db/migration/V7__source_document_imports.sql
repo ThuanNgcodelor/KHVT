@@ -5,6 +5,8 @@ CREATE TABLE source_document_imports (
     file_name VARCHAR(255) NOT NULL,
     checksum VARCHAR(64) NOT NULL,
     sheet_key VARCHAR(80) NOT NULL DEFAULT '',
+    scope_key VARCHAR(100) NOT NULL DEFAULT '',
+    source_document_id BIGINT,
     storage_key VARCHAR(200) NOT NULL,
     parsed_json LONGTEXT NOT NULL,
     confirmed_json LONGTEXT,
@@ -14,6 +16,6 @@ CREATE TABLE source_document_imports (
     created_at TIMESTAMP(6) NOT NULL,
     updated_at TIMESTAMP(6) NOT NULL,
     version BIGINT NOT NULL DEFAULT 0,
-    CONSTRAINT uk_source_document UNIQUE (checksum, kind, sheet_key),
+    CONSTRAINT uk_source_document UNIQUE (checksum, kind, sheet_key, scope_key),
     INDEX ix_source_document_kind_status (kind, status, id)
 );

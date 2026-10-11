@@ -6,6 +6,8 @@ import com.example.quanlymuahang.sharedkernel.application.AuditRecorder;
 import com.example.quanlymuahang.sharedkernel.web.ApiException;
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.fasterxml.jackson.databind.annotation.JsonSerialize;
+import com.fasterxml.jackson.databind.ser.std.ToStringSerializer;
 import org.apache.poi.xssf.usermodel.XSSFWorkbook;
 import org.apache.poi.ss.usermodel.*;
 import org.springframework.beans.factory.annotation.Value;
@@ -46,13 +48,13 @@ public class DocumentImportService {
         try {
             byte[] content = file.getBytes();
             String checksum = checksum(content);
-            var existing = documents.findByChecksumAndKindAndSheetKey(checksum, kind, sheetKey);
+            var existing = documents.findByChecksumAndKindAndSheetKeyAndScopeKey(checksum, kind, sheetKey, "");
             if (existing.isPresent()) return view(existing.get(), true);
             ParsedDocument parsed = parser.parse(file, kind, sheetKey.isBlank() ? null : sheetKey);
             String fileName = clean(parsed.fileName()).replaceAll("[\\r\\n\\x00]", "");
             if (fileName.isBlank() || fileName.length() > 255) throw bad("FILE_NAME_INVALID", "Tên tệp không hợp lệ hoặc quá dài");
             String extension = fileName.substring(fileName.lastIndexOf('.')).toLowerCase(Locale.ROOT);
-            if (!Set.of(".xlsx", ".xls", ".csv", ".pdf").contains(extension)) throw bad("UNSUPPORTED_FILE", "Định dạng tệp chưa hỗ trợ");
+            if (!Set.of(".xlsx", ".xls", ".csv", ".tsv", ".txt", ".pdf").contains(extension)) throw bad("UNSUPPORTED_FILE", "Định dạng tệp chưa hỗ trợ");
             String key = "source-imports/" + checksum + extension;
             Path path = path(key); Files.createDirectories(path.getParent());
             try { Files.write(path, content, StandardOpenOption.CREATE_NEW); }
@@ -73,6 +75,23 @@ public class DocumentImportService {
         if (input == null || !input.acknowledged()) throw bad("REVIEW_REQUIRED", "Xác nhận đã kiểm tra chứng từ trước khi lưu");
         ParsedDocument parsed = read(entity.getParsedJson(), ParsedDocument.class);
         Confirmation reviewed = review(entity.getKind(), parsed, input);
+        if ("REQUEST".equals(entity.getKind()) && entity.getScopeKey().isBlank() && parsed.lines().stream().anyMatch(l -> !clean(l.requestNumber()).isBlank())) {
+            // The annual source remains reusable; each selected request is a separate reviewed snapshot.
+            var existing = documents.findByChecksumAndKindAndSheetKeyAndScopeKey(entity.getChecksum(), entity.getKind(), entity.getSheetKey(), reviewed.requestNumber());
+            if (existing.isPresent()) {
+                if (read(existing.get().getConfirmedJson(), Confirmation.class).equals(reviewed)) return view(existing.get(), true);
+                throw ApiException.conflict("DOCUMENT_ALREADY_CONFIRMED", "Phiếu này đã lưu với dữ liệu khác; mở phiếu đã lưu để đối chiếu");
+            }
+            Set<String> selectedKeys = new HashSet<>(); reviewed.lines().forEach(l -> selectedKeys.add(l.lineKey()));
+            ParsedDocument childSource = new ParsedDocument(parsed.kind(), parsed.fileName(), parsed.format(), parsed.sheets(),
+                    parsed.lines().stream().filter(l -> selectedKeys.contains(l.lineKey())).toList(), parsed.supplierName(), parsed.quotationDate(),
+                    parsed.currency(), parsed.vatPercent(), parsed.priceBasis(), parsed.validityNote(), parsed.warnings(), parsed.parserVersion());
+            DocumentImportEntity child = new DocumentImportEntity(entity.getKind(), entity.getFileName(), entity.getChecksum(), entity.getSheetKey(), entity.getStorageKey(), write(childSource), actor);
+            child.scope(reviewed.requestNumber(), entity.getId()); child.confirm(reviewed.title(), write(reviewed));
+            documents.saveAndFlush(child);
+            audit.record(actor, "DOCUMENT_CONFIRMED", "SOURCE_DOCUMENT", child.getId(), Map.of("kind", child.getKind(), "rows", reviewed.lines().size(), "sourceDocumentId", entity.getId()));
+            return view(child, false);
+        }
         if (entity.getConfirmedJson() != null) {
             if (read(entity.getConfirmedJson(), Confirmation.class).equals(reviewed)) return view(entity, true);
             throw ApiException.conflict("DOCUMENT_ALREADY_CONFIRMED", "Lô đã lưu; tải bản chứng từ mới để thay đổi, không ghi đè bản đã xác nhận");
@@ -106,6 +125,8 @@ public class DocumentImportService {
             decimal(l.quantity()); decimal(l.unitPrice()); decimal(l.lineTotal()); vat(l.vatPercent());
             if (l.quantity() != null && l.quantity().signum() <= 0) throw bad("QUANTITY_INVALID", "Số lượng phải lớn hơn 0");
             if (l.unitPrice() != null && l.unitPrice().signum() < 0) throw bad("PRICE_INVALID", "Đơn giá không được âm");
+            if (l.lineTotal() != null && l.lineTotal().signum() < 0) throw bad("TOTAL_INVALID", "Thành tiền không được âm");
+            if (manual && l.sourcePage() != null && (l.sourcePage() < 1 || l.sourcePage() > 30)) throw bad("SOURCE_PAGE_INVALID", "Trang nguồn phải từ 1 đến 30");
             String qtyText = bounded(l.quantityText(), 255, "Số lượng chữ");
             if ("REQUEST".equals(kind) && l.quantity() == null && qtyText.isBlank()) throw bad("QUANTITY_REQUIRED", "Yêu cầu mua cần số lượng hoặc số lượng dạng chữ");
             String group = "REQUEST".equals(kind) && !requestNumber.isBlank() ? requestNumber : clean(l.requestNumber());
@@ -122,7 +143,7 @@ public class DocumentImportService {
                     original == null ? l.sourcePage() : original.sourcePage(), group, bounded(l.materialCode(), 80, "Mã vật tư"), name,
                     bounded(l.specification(), 1000, "Quy cách"), bounded(l.unit(), 100, "ĐVT"), l.quantity(), qtyText,
                     l.unitPrice(), l.lineTotal(), l.vatPercent() == null ? input.vatPercent() : l.vatPercent(),
-                    clean(l.priceBasis()).isBlank() ? basis : basis(l.priceBasis()), lineCurrency, bounded(l.note(), 2000, "Ghi chú"),
+                    clean(l.priceBasis()).isBlank() || "UNKNOWN".equals(l.priceBasis()) ? basis : basis(l.priceBasis()), lineCurrency, bounded(l.note(), 2000, "Ghi chú"),
                     original == null ? Map.of() : original.raw(), List.copyOf(issues)));
         }
         Map<String, String> mappings = input.requestLineMappings() == null ? Map.of() : Map.copyOf(input.requestLineMappings());
@@ -154,7 +175,7 @@ public class DocumentImportService {
         if (input == null || input.selections() == null || input.selections().size() > 10000) throw bad("INQUIRY_INVALID", "Danh sách hỏi giá không hợp lệ");
         var lookup = history.lookup(request);
         Map<String, Set<String>> allowed = new HashMap<>();
-        lookup.lines().forEach(l -> { Set<String> keys = new HashSet<>(); l.candidates().forEach(c -> keys.add(c.supplierKey())); allowed.put(l.lineKey(), keys); });
+        lookup.lines().forEach(l -> { Set<String> keys = new HashSet<>(); l.candidates().forEach(c -> { if (!clean(c.supplierName()).isBlank()) keys.add(c.supplierKey()); }); allowed.put(l.lineKey(), keys); });
         Set<InquirySelection> selected = new LinkedHashSet<>();
         for (InquirySelection s : input.selections()) {
             if (s == null || !allowed.getOrDefault(s.lineKey(), Set.of()).contains(s.supplierKey())) throw bad("INQUIRY_SUPPLIER_INVALID", "NCC/dòng hỏi giá không thuộc kết quả tra cứu");
@@ -201,7 +222,7 @@ public class DocumentImportService {
     private DocumentView view(DocumentImportEntity d, boolean duplicate) {
         return new DocumentView(d.getId(), d.getKind(), d.getTitle(), d.getFileName(), d.getStatus(), duplicate,
                 read(d.getParsedJson(), ParsedDocument.class), d.getConfirmedJson() == null ? null : read(d.getConfirmedJson(), Confirmation.class),
-                readList(d.getInquiriesJson()));
+                readList(d.getInquiriesJson()), d.getSourceDocumentId());
     }
     private DocumentImportEntity document(long id, boolean lock) { return (lock ? documents.findLockedById(id) : documents.findById(id)).orElseThrow(() -> ApiException.notFound("Không tìm thấy lô nhập")); }
     private Path path(String key) { Path p = storage.resolve(key).normalize(); if (!p.startsWith(storage)) throw new IllegalStateException("Đường dẫn không hợp lệ"); return p; }
@@ -218,10 +239,10 @@ public class DocumentImportService {
     private static ApiException bad(String c, String m) { return ApiException.badRequest(c, m); }
 
     public record Confirmation(String title, String requestNumber, String supplierName, String quotationDate, String currency,
-                               String priceBasis, BigDecimal vatPercent, List<DocumentLine> lines, Long requestId,
+                               String priceBasis, @JsonSerialize(using = ToStringSerializer.class) BigDecimal vatPercent, List<DocumentLine> lines, Long requestId,
                                Map<String, String> requestLineMappings, boolean acknowledged) {}
     public record DocumentView(long id, String kind, String title, String fileName, String status, boolean duplicate,
-                               ParsedDocument parsed, Confirmation confirmed, List<InquirySelection> inquirySelections) {}
+                               ParsedDocument parsed, Confirmation confirmed, List<InquirySelection> inquirySelections, Long sourceDocumentId) {}
     public record InquirySelection(String lineKey, String supplierKey) {}
     public record InquiryBody(List<InquirySelection> selections) {}
     public record SourceFile(String fileName, byte[] content) {}

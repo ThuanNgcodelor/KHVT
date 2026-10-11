@@ -21,6 +21,7 @@ export async function purchasing(page: Page, role = 'ADMIN') {
     const reply = (body: unknown, status = 200) => route.fulfill({ status, contentType: 'application/json', body: JSON.stringify(body) })
     if (method !== 'GET' && req.headers()['x-xsrf-token'] !== `fixture-${auth.csrf}`) return reply({ code: 'CSRF', message: 'Thiếu CSRF' },403)
     const body = () => req.postDataJSON() as Record<string, unknown>
+    if (path === '/api/imports/documents' && method === 'GET') return reply([])
     if (path.startsWith('/api/catalog/')) {
       if (state.failCatalog) return reply({ message: 'Danh mục tạm thời không khả dụng' },503)
       const kind = path.includes('/materials') ? 'materials' : 'suppliers'

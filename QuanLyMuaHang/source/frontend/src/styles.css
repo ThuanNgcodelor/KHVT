@@ -107,7 +107,9 @@ tbody tr:hover { background: #fafcf9; }
 .pagination { display: flex; align-items: center; justify-content: space-between; gap: 16px; padding: 14px 20px; border-top: 1px solid var(--line); color: var(--muted); font-size: 12px; }
 .pagination-actions { display: flex; align-items: center; gap: 12px; }
 .pagination button { min-height: 32px; font-size: 12px; padding: 5px 10px; }
-.tab-list { display: flex; gap: 24px; margin: 0 0 20px; border-bottom: 1px solid #d5ded7; }
+.tab-list { display: flex; flex-wrap: wrap; gap: 8px 24px; margin: 0 0 20px; border-bottom: 1px solid #d5ded7; }
+.tab-list button { padding: 12px 0; color: #687b6e; background: transparent; font-size: 13px; border: 0; border-bottom: 2px solid transparent; }
+.tab-list button.active { color: var(--brand); border-bottom-color: var(--brand); font-weight: 600; }
 .tab-list a { padding: 12px 0; color: #687b6e; text-decoration: none; font-size: 13px; border-bottom: 2px solid transparent; }
 .tab-list a[aria-current='page'] { color: var(--brand); border-bottom-color: var(--brand); font-weight: 600; }
 .empty-message, .table-message { padding: 46px 24px; color: var(--muted); text-align: center; line-height: 1.7; }

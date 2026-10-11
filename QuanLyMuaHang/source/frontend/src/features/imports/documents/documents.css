@@ -1,0 +1,24 @@
+.document-workbench { display: grid; gap: 20px; min-width: 0; }
+.document-workbench .import-panel { margin-bottom: 0; }
+.document-fields, .document-confirm { padding: 20px 22px; }
+.document-confirm h3 { margin: 0 0 12px; font-size: 14px; }
+.document-confirm .header-actions { flex-wrap: wrap; }
+.document-lines { min-width: 1250px; }
+.document-lines td { min-width: 100px; vertical-align: top; }
+.document-lines td:first-child { min-width: 40px; }
+.document-lines td:nth-child(3), .document-lines td:nth-child(4) { min-width: 210px; }
+.document-lines input:not([type=checkbox]), .document-lines textarea, .document-lines select { width: 100%; min-width: 90px; max-width: 300px; border: 1px solid var(--line); padding: 7px 8px; margin-bottom: 6px; border-radius: 3px; background: #fff; color: inherit; }
+.document-lines input[type=checkbox], .document-history input[type=checkbox] { width: 16px; height: 16px; accent-color: var(--brand); }
+.document-lines .source-cell { min-width: 120px; font-size: 11px; color: var(--muted); }
+.document-lines details { font-size: 11px; line-height: 1.6; margin: 6px 0; }
+.document-raw { max-width: 300px; margin: 8px 0; white-space: normal; overflow-wrap: anywhere; }
+.document-raw dt { font-weight: 600; }
+.document-raw dd { margin: 0 0 7px; }
+.document-warnings { padding-left: 16px; margin: 8px 0 0; font-size: 11px; color: #8e4747; max-width: 300px; }
+.comparison-history + .comparison-history { border-top: 1px solid var(--line); padding-top: 8px; margin-top: 8px; }
+.document-history table, .document-comparison table { min-width: 1050px; }
+.document-history td, .document-comparison td { vertical-align: top; }
+.document-history td:first-child, .document-comparison td:first-child { min-width: 230px; }
+.document-history td:nth-child(3), .document-comparison td:nth-child(2) { min-width: 220px; }
+.document-workbench .filter-bar { flex-wrap: wrap; }
+@media (max-width: 760px) { .document-fields, .document-confirm { padding: 16px; } .document-confirm .header-actions { flex-direction: column; align-items: stretch; } .document-workbench .header-actions { flex-wrap: wrap; } }

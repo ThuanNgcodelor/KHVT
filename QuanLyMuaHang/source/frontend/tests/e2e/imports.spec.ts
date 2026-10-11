@@ -4,6 +4,7 @@ import { purchasing } from './purchasingFixtures'
 
 const workbook = { name: 'fixture.xlsx', mimeType: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet', buffer: Buffer.from('synthetic mocked workbook') }
 async function preview(page: Page) {
+  if (await page.getByRole('heading', { name: 'Nhập lịch sử từ workbook' }).count() === 0 && await page.getByRole('button', { name: 'Lập đơn nhanh từ tệp', exact: true }).getAttribute('class') !== 'active') await page.getByRole('button', { name: 'Workbook dữ liệu cũ', exact: true }).click()
   await page.getByLabel('Tệp dữ liệu').setInputFiles(workbook)
   await page.getByRole('button', { name: 'Preview tệp', exact: true }).click()
   await expect(page.getByRole('heading', { name: 'Preview workbook — lô 1' })).toBeVisible()
@@ -13,10 +14,11 @@ async function confirmCommit(page: Page) {
   await page.getByRole('button', { name: 'Commit dữ liệu cũ', exact: true }).click()
 }
 
-test('legacy is the default and commit updates status with backend verification', async ({ page }) => {
+test('legacy stays in its own tab and commit updates status with backend verification', async ({ page }) => {
   const state = await purchasing(page)
   await page.goto('/imports')
-  await expect(page.getByRole('heading', { name: 'Nhập lịch sử từ workbook' })).toBeVisible()
+  await expect(page.getByRole('heading', { name: 'PCVT và báo giá mới' })).toBeVisible()
+  await page.getByRole('button', { name: 'Workbook dữ liệu cũ', exact: true }).click()
   await preview(page)
   await confirmCommit(page)
   await page.getByRole('button', { name: 'Commit dữ liệu', exact: true }).click()
@@ -35,7 +37,7 @@ test('legacy is the default and commit updates status with backend verification'
 test('a workbook uploaded as an operational request switches to full legacy preview with the same file', async ({ page }) => {
   const state = await purchasing(page); state.legacyDetected = true
   await page.goto('/imports')
-  await page.getByRole('button', { name: 'Yêu cầu mua / báo giá', exact: true }).click()
+  await page.getByRole('button', { name: 'Lập đơn nhanh từ tệp', exact: true }).click()
   await preview(page)
   await expect(page.getByRole('heading', { name: 'Nhập lịch sử từ workbook' })).toBeVisible()
   await expect(page.getByRole('status')).toContainText('Tệp đã chọn được giữ nguyên')
@@ -48,6 +50,7 @@ test('a workbook uploaded as an operational request switches to full legacy prev
 test('detecting a legacy workbook without permission explains the required admin action', async ({ page }) => {
   const state = await purchasing(page, 'PLANNER'); state.legacyDetected = true
   await page.goto('/imports')
+  await page.getByRole('button', { name: 'Lập đơn nhanh từ tệp', exact: true }).click()
   await page.getByLabel('Tệp dữ liệu').setInputFiles(workbook)
   await page.getByRole('button', { name: 'Preview tệp', exact: true }).click()
   await expect(page.getByRole('alert')).toContainText('Tài khoản chưa có quyền nhập workbook')

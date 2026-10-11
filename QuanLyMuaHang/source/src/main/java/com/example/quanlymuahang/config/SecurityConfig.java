@@ -1,6 +1,5 @@
 package com.example.quanlymuahang.config;
 
-import com.example.quanlymuahang.identity.infrastructure.security.AccountUserDetailsService;
 import jakarta.servlet.DispatcherType;
 import jakarta.servlet.http.HttpServletResponse;
 import org.springframework.context.annotation.Bean;

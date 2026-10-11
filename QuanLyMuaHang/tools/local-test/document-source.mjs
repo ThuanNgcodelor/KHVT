@@ -106,6 +106,12 @@ export const PDF_EXPECTATIONS = {
   trungDong: { file: 'C021_PB&HC CAN THO 07.10.26.pdf', date: '2026-10-07', rows: [['1','10000','6740','67400000'],['2','1','5000000','5000000'],['3','8000','9700','77600000'],['4','1','6000000','6000000'],['5','10000','8450','84500000'],['6','1','6300000','6300000'],['7','10000','8450','84500000'],['8','1','6300000','6300000'],['9','8000','12350','74400000'],['10','10000','8450','84500000'],['11','1','5670000','5670000']] }
 };
 
+const PDF_NAME_FRAGMENTS = {
+  '2026-10-08': [['Vòng Đệm','M8'],['Vòng Đệm','M10'],['Tán','M8'],['Lục Giác','M8x60'],['Lục Giác','M8x120'],['Tắc Kê','M12x100'],['Pake','16mm'],['Pake','19mm']],
+  '2026-10-02': [['Dây vải','15x1366mm'],['silicone','M30'],['Than máy mài'],['chổi nhựa'],['Lõi lọc vi sinh'],['Lõi lọc sợi'],['xích','60-2R'],['Bánh xe','70x80'],['Đá mài','125mm'],['bàn chải'],['Lưỡi cắt','125mm'],['Kìm','licota'],['Apollo','A300'],['Đầu kẹp'],['Phốt','35x10'],['Kiềm','250mm'],['lục giác','1.5-10mm'],['lục giác sao','1.5-10mm'],['Cờ lê','24'],['Cờ lê','19'],['Cờ lê','17'],['Cờ lê','13'],['Cờ lê','10'],['Cờ lê','8'],['amiang','2mm'],['amiang','3mm'],['GXSV','1004','122K9321'],['GXSV','1003','121K2423'],['piston','RMS8'],['Đủa đánh lữa'],['Biến thế','RMS8']],
+  '2026-10-07': [['Bao trắng','45*78'],['Tiền làm mới bản in'],['Bao trắng','58*95'],['Tiền làm mới bản in'],['Bao TRONG','37+8*78'],['Tiền làm mới trục'],['Bao TRONG','37+8*78'],['Tiền làm mới trục'],['Bao trong','58*92'],['Bao TRONG','37+8*78'],['Tiền sửa trục']]
+};
+
 export function compareDocumentPdf(parsed, expectation) {
   const mismatches = []; let checkedFields = 0;
   if (parsed.quotationDate !== expectation.date) mismatches.push({ field: 'quotationDate', reason: 'document date mismatch' });
@@ -114,6 +120,8 @@ export function compareDocumentPdf(parsed, expectation) {
     const [stt, quantity, unitPrice, lineTotal] = expectation.rows[i], line = parsed.lines[i];
     if (!line) continue;
     for (const [field, expected] of Object.entries({ quantity, unitPrice, lineTotal })) { checkedFields++; if (!equalDecimal(line[field], expected)) mismatches.push({ row: stt, field, reason: 'exact decimal mismatch' }); }
+    const product = `${line.materialName ?? ''} ${line.specification ?? ''}`.replace(/\s+/g, ' ').toLowerCase();
+    for (const fragment of PDF_NAME_FRAGMENTS[expectation.date][i]) { checkedFields++; if (!product.includes(fragment.toLowerCase())) mismatches.push({ row: stt, field: 'materialName/specification', reason: 'source product detail missing' }); }
     if (!line.sourcePage || !trim(line.materialName) || !trim(line.unit)) mismatches.push({ row: stt, field: '__provenance', reason: 'name/unit/page absent' });
   }
   return { sourceRows: expectation.rows.length, parsedRows: parsed.lines.length, checkedFields, mismatches };

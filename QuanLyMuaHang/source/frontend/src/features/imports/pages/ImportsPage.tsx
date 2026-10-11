@@ -10,16 +10,18 @@ import { errorMessage } from '../../../services/errorMessage'
 import { ApiError, saveDownload } from '../../../services/apiClient'
 import { importApi } from '../importApi'
 import { LegacyImportReview } from '../components/LegacyImportReview'
+import { DocumentWorkbench } from '../documents/DocumentWorkbench'
 import type { DraftPreview, LegacyPreview, LegacyCommit } from '../types'
 
 export function ImportsPage() {
   const { user } = useAuth(), navigate = useNavigate(), client = useQueryClient()
   const operational = !!user && hasPermission(user, 'IMPORT_OPERATIONAL'), legacyAllowed = !!user && hasPermission(user, 'IMPORT_LEGACY')
-  const [mode, setMode] = useState<'operational' | 'legacy'>(legacyAllowed ? 'legacy' : 'operational')
+  const [mode, setMode] = useState<'documents' | 'operational' | 'legacy'>(operational ? 'documents' : 'legacy')
   const [file, setFile] = useState<File | null>(null), [paste, setPaste] = useState(''), [busy, setBusy] = useState(false), [error, setError] = useState('')
   const [draft, setDraft] = useState<DraftPreview | null>(null), [preview, setPreview] = useState<LegacyPreview | null>(null), [report, setReport] = useState<LegacyCommit | null>(null)
   const [selected, setSelected] = useState<number[]>([]), [page, setPage] = useState(0), [ack, setAck] = useState(false), [confirm, setConfirm] = useState(false), [notice, setNotice] = useState('')
   const pending = useRef(false)
+  const [documentBusy, setDocumentBusy] = useState(false)
   function begin() { if (pending.current) return false; pending.current = true; setBusy(true); setError(''); return true }
   function end() { pending.current = false; setBusy(false) }
   function resetPreview() { setDraft(null); setPreview(null); setReport(null); setSelected([]); setPage(0); setAck(false); setConfirm(false); setError(''); setNotice('') }
@@ -60,8 +62,9 @@ export function ImportsPage() {
   }
   const canCommit = !!preview && preview.status === 'PREVIEW' && preview.summary.errorRows === 0 && !preview.rowIssues.some((row) => row.issues.some((issue) => issue.includes('PO_HEADER_CONFLICT')))
   return <>
-    <PageHeader title="Nhập dữ liệu" description="Xem trước và kiểm tra cảnh báo trước khi chuyển sang lập đơn hoặc ghi dữ liệu cũ." />
-    <div className="tab-list" aria-label="Loại dữ liệu nhập">{operational && <button className={mode === 'operational' ? 'active' : ''} disabled={busy} onClick={() => { setMode('operational'); setFile(null); resetPreview() }}>Yêu cầu mua / báo giá</button>}{legacyAllowed && <button className={mode === 'legacy' ? 'active' : ''} disabled={busy} onClick={() => { setMode('legacy'); setFile(null); resetPreview() }}>Workbook dữ liệu cũ</button>}</div>
+    <PageHeader title="Nhập dữ liệu" description="PCVT, tra NCC và giá cũ, nhập báo giá mới; dữ liệu Apps Script cũ có luồng riêng." />
+    <div className="tab-list" aria-label="Loại dữ liệu nhập">{operational && <><button className={mode === 'documents' ? 'active' : ''} disabled={busy || documentBusy} onClick={() => { setMode('documents'); setFile(null); resetPreview() }}>PCVT / báo giá mới</button><button className={mode === 'operational' ? 'active' : ''} disabled={busy || documentBusy} onClick={() => { setMode('operational'); setFile(null); resetPreview() }}>Lập đơn nhanh từ tệp</button></>}{legacyAllowed && <button className={mode === 'legacy' ? 'active' : ''} disabled={busy || documentBusy} onClick={() => { setMode('legacy'); setFile(null); resetPreview() }}>Workbook dữ liệu cũ</button>}</div>
+    {mode === 'documents' && operational ? <DocumentWorkbench canReadPrices={!!user && hasPermission(user, 'PRICE_READ')} onBusy={setDocumentBusy} /> : <>
     <section className="panel import-panel"><h2>{mode === 'legacy' ? 'Nhập lịch sử từ workbook' : 'Nhận yêu cầu mua'}</h2>
       <p className="page-description">{mode === 'legacy' ? 'Cần các sheet NCC, LICH_SU, DON_HANG. CONFIG được bỏ qua. Commit sẽ ghi NCC, vật tư, lịch sử và PO vào database đang kết nối.' : 'XLSX, XLS, CSV hoặc PDF có lớp text. Preview giữ dữ liệu thành bản nháp; kiểm tra tên, số lượng và đơn giá trước khi lập đơn.'}</p>
       <div className="form-field"><label htmlFor="import-file">Tệp dữ liệu</label><input key={mode} id="import-file" type="file" accept={mode === 'legacy' ? '.xlsx,.xls' : '.xlsx,.xls,.csv,.pdf'} disabled={busy} onChange={(event) => { setFile(event.target.files?.[0] ?? null); resetPreview() }} /></div>
@@ -80,5 +83,6 @@ export function ImportsPage() {
     </section>}
     {preview && <LegacyImportReview preview={preview} report={report} busy={busy} canCommit={canCommit} acknowledged={ack} onAcknowledge={setAck} onCommit={() => setConfirm(true)} onRefresh={() => { void refreshPreview() }} onDownload={() => { void downloadIssues() }} />}
     {confirm && <ConfirmDialog title="Ghi dữ liệu workbook?" message={`Lô ${preview?.batchId} sẽ ghi dữ liệu vào database đang kết nối. Chỉ tiếp tục sau khi đã đối chiếu và đáp ứng điều kiện dữ liệu đã xác nhận.`} confirmLabel="Commit dữ liệu" busy={busy} error={error} onClose={() => setConfirm(false)} onConfirm={() => { void commit() }} />}
+    </>}
   </>
 }

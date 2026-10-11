@@ -145,6 +145,14 @@ class SourceDocumentParserTest {
         assertThatThrownBy(() -> parser.parse(new MockMultipartFile("file", "31-pages.pdf", "application/pdf", bytes), "QUOTATION", null)).isInstanceOf(ApiException.class);
     }
 
+    @Test void worksheetItemLimitDoesNotSilentlyDropRowsAtTheEnd() throws Exception {
+        try (var book = requestWorkbook()) {
+            var sheet = book.getSheetAt(0);
+            for (int i = 0; i < 5001; i++) requestRow(sheet.createRow(i + 5), String.valueOf(i + 1), "Item " + i, "", "Cái", "1", "1");
+            assertThatThrownBy(() -> parse(book, "large-request.xlsx", "REQUEST", null)).isInstanceOf(ApiException.class);
+        }
+    }
+
     @Test
     @EnabledIfEnvironmentVariable(named = "QMH_DOCUMENT_SAMPLE_ROOT", matches = ".+")
     void actualCvtWorkbookMatchesIndependentOpenXmlAtEveryItemCoordinate() throws Exception {
@@ -157,8 +165,8 @@ class SourceDocumentParserTest {
         for (var source : expected) {
             DocumentLine line = lines.remove(source.getKey()); assertThat(line).as("Source row %s", source.getKey()).isNotNull();
             assertThat(line.materialName()).isEqualTo(value(source.getValue(), "B"));
-            assertThat(line.specification()).isEqualTo(value(source.getValue(), "C"));
-            assertThat(line.unit()).isEqualTo(value(source.getValue(), "D"));
+            assertThat(Objects.toString(line.specification(), "")).isEqualTo(value(source.getValue(), "C"));
+            assertThat(Objects.toString(line.unit(), "")).isEqualTo(value(source.getValue(), "D"));
             assertDecimal(line.quantity(), value(source.getValue(), "E"));
             assertThat(Objects.toString(line.requestNumber(), "")).isEqualTo(value(source.getValue(), "O"));
         }
@@ -183,7 +191,7 @@ class SourceDocumentParserTest {
             for (var source : expected) {
                 var cells = source.getValue(); var line = lines.remove(source.getKey()); assertThat(line).isNotNull();
                 assertThat(line.materialName()).isEqualTo(value(cells, "C"));
-                assertThat(line.specification()).isEqualTo(value(cells, sheet.equals("BG") ? "E" : "F"));
+                assertThat(Objects.toString(line.specification(), "")).isEqualTo(value(cells, sheet.equals("BG") ? "E" : "F"));
                 assertDecimal(line.quantity(), value(cells, sheet.equals("BG") ? "G" : "H"));
                 assertDecimal(line.unitPrice(), value(cells, sheet.equals("BG") ? "F" : "G"));
                 assertDecimal(line.lineTotal(), value(cells, sheet.equals("BG") ? "H" : "I"));
@@ -193,6 +201,37 @@ class SourceDocumentParserTest {
             }
             assertThat(lines).isEmpty();
         }
+    }
+
+    @Test
+    @EnabledIfEnvironmentVariable(named = "QMH_DOCUMENT_SAMPLE_ROOT", matches = ".+")
+    void actualTextPdfsPreserveItemCountsPrintedSttPricesAndWrappedProductDetails() throws Exception {
+        var van = parser.parse(upload(sample("08.10.2026 BÁO GIÁ CÔNG TY PHÂN BÓN VÀ HÓA CHẤT CẦN THƠ - VẠN PHÚC.pdf")), "QUOTATION", null);
+        assertThat(van.lines()).hasSize(8); assertThat(van.quotationDate()).isEqualTo("2026-10-08"); assertThat(van.vatPercent()).isEqualByComparingTo("8");
+        assertThat(van.lines().getFirst().quantity()).isEqualByComparingTo("4000"); assertThat(van.lines().getFirst().unitPrice()).isEqualByComparingTo("350"); assertThat(van.lines().getFirst().lineTotal()).isEqualByComparingTo("1400000");
+        assertThat(van.lines().getFirst().materialName() + " " + van.lines().getFirst().specification()).contains("M8");
+        var aChau = parser.parse(upload(sample("BÁO GIÁ VẬT TƯ C.F.C - 02.10.2026.pdf")), "QUOTATION", null);
+        assertThat(aChau.lines()).hasSize(31); assertThat(aChau.quotationDate()).isEqualTo("2026-10-02");
+        assertThat(aChau.lines()).extracting(DocumentLine::sourceRow).doesNotContain(16, 28, 29).contains(34);
+        assertThat(aChau.vatPercent()).isNull();
+        var wrapped = aChau.lines().stream().filter(l -> l.sourceRow() == 30).findFirst().orElseThrow();
+        assertThat(wrapped.materialName() + " " + wrapped.specification()).contains("GXSV 1004", "122K9321");
+        assertThat(wrapped.unitPrice()).isEqualByComparingTo("5460000");
+        var trung = parser.parse(upload(sample("C021_PB&HC CAN THO 07.10.26.pdf")), "QUOTATION", null);
+        assertThat(trung.lines()).hasSize(11); assertThat(trung.quotationDate()).isEqualTo("2026-10-07"); assertThat(trung.vatPercent()).isEqualByComparingTo("8");
+        var sourceMismatch = trung.lines().stream().filter(l -> l.sourceRow() == 9).findFirst().orElseThrow();
+        assertThat(sourceMismatch.quantity()).isEqualByComparingTo("8000"); assertThat(sourceMismatch.unitPrice()).isEqualByComparingTo("12350"); assertThat(sourceMismatch.lineTotal()).isEqualByComparingTo("74400000");
+        assertThat(sourceMismatch.quantity().multiply(sourceMismatch.unitPrice())).isNotEqualByComparingTo(sourceMismatch.lineTotal());
+        assertThat(trung.lines().get(1).materialName()).contains("Tiền làm mới bản in");
+        assertThat(trung.lines()).allMatch(l -> l.sourcePage() != null && l.sourcePage() > 0);
+    }
+
+    @Test
+    @EnabledIfEnvironmentVariable(named = "QMH_DOCUMENT_SAMPLE_ROOT", matches = ".+")
+    void actualScannedQuoteIsExplicitlyMarkedUnsupportedRatherThanInventingItsSingleVisibleItem() throws Exception {
+        var parsed = parser.parse(upload(sample("BAO GIA CTY HOA CHAT CAN THO - 081026.pdf")), "QUOTATION", null);
+        assertThat(parsed.format()).isEqualTo("PDF_SCAN"); assertThat(parsed.lines()).isEmpty();
+        assertThat(parsed.warnings()).anyMatch(issue -> issue.contains("OCR_NOT_SUPPORTED"));
     }
 
     private ParsedDocument parse(XSSFWorkbook book, String filename, String kind, String sheet) throws Exception {
