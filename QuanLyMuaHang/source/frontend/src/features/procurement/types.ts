@@ -18,7 +18,7 @@ export type OrderCommand = {
   supplierId: number; orderDate: string | null; currency: Currency; vatPercent: Decimal
   note: string | null; preparedBy: string | null; changeReason: string | null; items: OrderItemCommand[]
 }
-export type OrderFilter = { q?: string; status?: OrderStatus | ''; page: number; size: number }
+export type OrderFilter = { q?: string; status?: OrderStatus | ''; page: number; size: number; sort?: string }
 export type OrderRevision = { revision: number; changedBy: number | null; changeReason: string | null; createdAt: string; pdfAvailable: boolean }
 
 // A preview stays in memory until the user confirms each supplier's draft.

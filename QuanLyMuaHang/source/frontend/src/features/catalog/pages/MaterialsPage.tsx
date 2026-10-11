@@ -11,6 +11,7 @@ import { CatalogTabs } from '../components/CatalogTabs'
 import { MaterialForm } from '../components/MaterialForm'
 import { useMaterials, useMaterialStatus } from '../hooks/useCatalog'
 import { materialCategoryLabels, type Material, type MaterialCategory } from '../types'
+import { SortTh } from '../../../components/SortTh'
 
 export function MaterialsPage() {
   const { user } = useAuth()
@@ -18,10 +19,16 @@ export function MaterialsPage() {
   const [search, setSearch] = useState(''), [q, setQuery] = useState('')
   const [active, setActive] = useState(''), [category, setCategory] = useState<MaterialCategory | ''>('')
   const [page, setPage] = useState(0)
+  const [sort, setSort] = useState('name,asc')
   const [editing, setEditing] = useState<Material | 'new' | null>(null)
   const [confirm, setConfirm] = useState<Material | null>(null), [notice, setNotice] = useState('')
-  const materials = useMaterials({ q, active: active === '' ? undefined : active === 'true', category: category || undefined, page, size: 25 })
+  const materials = useMaterials({ q, active: active === '' ? undefined : active === 'true', category: category || undefined, page, size: 25, sort })
   const changeStatus = useMaterialStatus(), data = materials.data
+
+  function handleSort(newSort: string) {
+    setSort(newSort)
+    setPage(0)
+  }
   async function confirmStatus() {
     if (!confirm) return
     try {
@@ -41,14 +48,21 @@ export function MaterialsPage() {
         <div className="form-field"><label htmlFor="material-active">Trạng thái</label><select id="material-active" value={active} onChange={(event) => { setActive(event.target.value); setPage(0) }}><option value="">Tất cả</option><option value="true">Đang sử dụng</option><option value="false">Đã ngừng</option></select></div>
         <div className="form-field"><label htmlFor="material-filter-category">Phân loại</label><select id="material-filter-category" value={category} onChange={(event) => { setCategory(event.target.value as MaterialCategory | ''); setPage(0) }}><option value="">Tất cả</option>{Object.entries(materialCategoryLabels).map(([value, label]) => <option key={value} value={value}>{label}</option>)}</select></div>
         <button className="secondary-button" type="submit"><Icon name="search" size={16} />Tìm kiếm</button>
-        <button className="text-button" type="button" onClick={() => { setSearch(''); setQuery(''); setActive(''); setCategory(''); setPage(0) }}>Xóa lọc</button>
+        <button className="text-button" type="button" onClick={() => { setSearch(''); setQuery(''); setActive(''); setCategory(''); setSort('name,asc'); setPage(0) }}>Xóa lọc</button>
         {data && !materials.error && <span className="table-count">{data.totalElements} vật tư</span>}
       </form>
       <TableFeedback pending={materials.isPending} error={materials.error} empty={!data?.content.length} onRetry={() => { void materials.refetch() }}
         emptyTitle={q || active || category ? 'Không có vật tư phù hợp' : 'Chưa có vật tư'} emptyMessage={q || active || category ? 'Thử từ khóa khác hoặc xóa bộ lọc.' : canManage ? 'Thêm vật tư để bắt đầu lập danh mục.' : 'Danh mục sẽ hiển thị khi có vật tư.'} />
       {!materials.error && data && data.content.length > 0 && <div className="table-wrap"><table>
         <caption className="sr-only">Danh sách vật tư KHVT</caption>
-        <thead><tr><th scope="col">Mã vật tư</th><th scope="col">Tên vật tư</th><th scope="col">Phân loại</th><th scope="col">Đơn vị tính</th><th scope="col">Trạng thái</th><th scope="col">Thao tác</th></tr></thead>
+        <thead><tr>
+          <SortTh label="Mã vật tư" column="code" currentSort={sort} onSort={handleSort} defaultDirection="asc" />
+          <SortTh label="Tên vật tư" column="name" currentSort={sort} onSort={handleSort} defaultDirection="asc" />
+          <SortTh label="Phân loại" column="category" currentSort={sort} onSort={handleSort} defaultDirection="asc" />
+          <SortTh label="Đơn vị tính" column="defaultUnit" currentSort={sort} onSort={handleSort} defaultDirection="asc" />
+          <SortTh label="Trạng thái" column="active" currentSort={sort} onSort={handleSort} defaultDirection="asc" />
+          <th scope="col">Thao tác</th>
+        </tr></thead>
         <tbody>{data.content.map((material) => <tr key={material.id}>
           <td className="code-cell">{material.code ?? '—'}</td><td><strong className="cell-title">{material.name}</strong></td>
           <td>{materialCategoryLabels[material.category]}</td><td>{material.defaultUnit ?? '—'}</td>

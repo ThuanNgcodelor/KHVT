@@ -9,6 +9,7 @@ import { hasPermission } from '../../auth/types'
 import { useOrders } from '../hooks/useProcurement'
 import { formatMoney, formatOrderDate } from '../format'
 import { orderStatusLabels, type OrderStatus } from '../types'
+import { SortTh } from '../../../components/SortTh'
 
 export function PurchaseOrdersPage() {
   const { user } = useAuth()
@@ -16,8 +17,15 @@ export function PurchaseOrdersPage() {
   const [q, setQuery] = useState('')
   const [status, setStatus] = useState<OrderStatus | ''>('')
   const [page, setPage] = useState(0)
-  const orders = useOrders({ q, status, page, size: 25 })
+  const [sort, setSort] = useState('orderDate,desc')
+  const orders = useOrders({ q, status, page, size: 25, sort }, { refetchInterval: 25000 })
   const data = orders.data
+
+  function handleSort(newSort: string) {
+    setSort(newSort)
+    setPage(0)
+  }
+
   return <>
     <PageHeader title="Đơn mua hàng" description="Lập bản nháp, phát hành đơn và theo dõi các lần sửa."
       actions={user && hasPermission(user, 'PO_CREATE') && <Link className="primary-button" to="/purchase-orders/new"><Icon name="plus" />Lập đơn mua</Link>} />
@@ -26,13 +34,20 @@ export function PurchaseOrdersPage() {
         <div className="form-field search-field"><label htmlFor="po-search">Số PO hoặc nhà cung cấp</label><input id="po-search" type="search" value={search} onChange={(event) => setSearch(event.target.value)} placeholder="Nhập số PO hoặc tên NCC…" /></div>
         <div className="form-field"><label htmlFor="po-status">Trạng thái</label><select id="po-status" value={status} onChange={(event) => { setStatus(event.target.value as OrderStatus | ''); setPage(0) }}><option value="">Tất cả</option>{Object.entries(orderStatusLabels).map(([value, label]) => <option key={value} value={value}>{label}</option>)}</select></div>
         <button className="secondary-button" type="submit"><Icon name="search" size={16} />Tìm kiếm</button>
-        <button className="text-button" type="button" onClick={() => { setSearch(''); setQuery(''); setStatus(''); setPage(0) }}>Xóa lọc</button>
+        <button className="text-button" type="button" onClick={() => { setSearch(''); setQuery(''); setStatus(''); setSort('orderDate,desc'); setPage(0) }}>Xóa lọc</button>
         {data && !orders.error && <span className="table-count">{data.totalElements} đơn mua</span>}
       </form>
       <TableFeedback pending={orders.isPending} error={orders.error} empty={!data?.content.length} onRetry={() => { void orders.refetch() }} emptyTitle={q || status ? 'Không có đơn mua phù hợp' : 'Chưa có đơn mua'} emptyMessage={q || status ? 'Thử số PO khác hoặc xóa bộ lọc.' : 'Lập đơn mua mới hoặc nhận dữ liệu từ màn Import.'} />
       {!orders.error && data && data.content.length > 0 && <div className="table-wrap"><table>
         <caption className="sr-only">Đơn mua hàng KHVT</caption>
-        <thead><tr><th scope="col">Số PO</th><th scope="col">Ngày</th><th scope="col">Nhà cung cấp</th><th scope="col">Trạng thái</th><th scope="col" className="numeric-cell">Tổng sau VAT</th><th scope="col">Thao tác</th></tr></thead>
+        <thead><tr>
+          <SortTh label="Số PO" column="poNumber" currentSort={sort} onSort={handleSort} defaultDirection="desc" />
+          <SortTh label="Ngày" column="orderDate" currentSort={sort} onSort={handleSort} defaultDirection="desc" />
+          <SortTh label="Nhà cung cấp" column="supplierName" currentSort={sort} onSort={handleSort} defaultDirection="asc" />
+          <SortTh label="Trạng thái" column="status" currentSort={sort} onSort={handleSort} defaultDirection="asc" />
+          <th scope="col" className="numeric-cell">Tổng sau VAT</th>
+          <th scope="col">Thao tác</th>
+        </tr></thead>
         <tbody>{data.content.map((order) => <tr key={order.id}>
           <td><Link className="cell-title" to={`/purchase-orders/${order.id}`}>{order.poNumber}</Link><span className="cell-subtitle">Phiên bản {order.revision} · {order.items.length} dòng</span></td>
           <td>{formatOrderDate(order.orderDate)}</td><td>{order.supplierName}</td>

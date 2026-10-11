@@ -108,6 +108,15 @@ h1, h2, p { overflow-wrap: anywhere; }
 .table-wrap { width: 100%; overflow-x: auto; }
 table { width: 100%; border-collapse: collapse; text-align: left; }
 th { background: #f8faf7; color: #66776c; font-size: 11px; font-weight: 600; padding: 13px 18px; border-bottom: 1px solid var(--line); white-space: nowrap; }
+th.sortable-th { cursor: pointer; user-select: none; transition: background-color 0.15s ease, color 0.15s ease; }
+th.sortable-th:hover { background: #edf4ee; color: #23523c; }
+th.sortable-th:focus-visible { outline: 2px solid var(--brand); outline-offset: -2px; }
+.sort-th-content { display: inline-flex; align-items: center; gap: 6px; }
+.numeric-cell .sort-th-content { justify-content: flex-end; width: 100%; }
+.sort-indicator { font-size: 11px; opacity: 0.35; transition: opacity 0.15s ease, color 0.15s ease; display: inline-block; width: 12px; text-align: center; }
+th.sortable-th:hover .sort-indicator { opacity: 0.8; }
+th.sortable-th.sorted { background: #eef6f0; color: #1e5239; font-weight: 700; border-bottom-color: var(--brand); }
+th.sortable-th.sorted .sort-indicator { opacity: 1; color: var(--brand); font-weight: 700; }
 td { padding: 15px 18px; border-bottom: 1px solid #edf0ec; vertical-align: middle; font-size: 13px; }
 tbody tr:last-child td { border-bottom: 0; }
 tbody tr:hover { background: #fafcf9; }

@@ -31,9 +31,33 @@ public class CatalogService {
         return materials.findTop50ByActiveTrueAndNormalizedNameContainingOrderByNameAsc(normalized).stream().map(MaterialView::from).toList();
     }
 
+    private static final java.util.Map<String, String> MATERIAL_SORT_MAPPING = java.util.Map.of(
+            "code", "code",
+            "name", "name",
+            "category", "category",
+            "defaultUnit", "defaultUnit",
+            "active", "active",
+            "id", "id"
+    );
+    private static final org.springframework.data.domain.Sort DEFAULT_MATERIAL_SORT = org.springframework.data.domain.Sort.by(
+            org.springframework.data.domain.Sort.Direction.ASC, "name"
+    ).and(org.springframework.data.domain.Sort.by(org.springframework.data.domain.Sort.Direction.ASC, "id"));
+
+    private static final java.util.Map<String, String> SUPPLIER_SORT_MAPPING = java.util.Map.of(
+            "code", "code",
+            "name", "name",
+            "taxCode", "taxCode",
+            "active", "active",
+            "id", "id"
+    );
+    private static final org.springframework.data.domain.Sort DEFAULT_SUPPLIER_SORT = org.springframework.data.domain.Sort.by(
+            org.springframework.data.domain.Sort.Direction.ASC, "name"
+    ).and(org.springframework.data.domain.Sort.by(org.springframework.data.domain.Sort.Direction.ASC, "id"));
+
     @Transactional(readOnly = true)
     public Page<MaterialView> materialPage(String query, Boolean active, MaterialCategory category, Pageable pageable) {
-        return materials.search(TextNormalizer.normalize(query), active, category, pageable).map(MaterialView::from);
+        Pageable safe = com.example.quanlymuahang.sharedkernel.web.SafeSortUtil.sanitize(pageable, MATERIAL_SORT_MAPPING, DEFAULT_MATERIAL_SORT);
+        return materials.search(TextNormalizer.normalize(query), active, category, safe).map(MaterialView::from);
     }
 
     @Transactional(readOnly = true)
@@ -72,7 +96,8 @@ public class CatalogService {
 
     @Transactional(readOnly = true)
     public Page<SupplierView> supplierPage(String query, Boolean active, Pageable pageable) {
-        return suppliers.search(TextNormalizer.normalize(query), active, pageable).map(SupplierView::from);
+        Pageable safe = com.example.quanlymuahang.sharedkernel.web.SafeSortUtil.sanitize(pageable, SUPPLIER_SORT_MAPPING, DEFAULT_SUPPLIER_SORT);
+        return suppliers.search(TextNormalizer.normalize(query), active, safe).map(SupplierView::from);
     }
 
     @Transactional(readOnly = true)

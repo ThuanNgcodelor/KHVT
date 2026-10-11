@@ -18,7 +18,6 @@ public interface SupplierRepository extends JpaRepository<Supplier, Long> {
     long countByActiveTrue();
 
     @Query("select s from Supplier s where (:q = '' or s.normalizedName like concat('%', :q, '%') " +
-            "or lower(s.code) like concat('%', :q, '%')) and (:active is null or s.active = :active) " +
-            "order by s.name asc, s.id asc")
+            "or lower(s.code) like concat('%', :q, '%')) and (:active is null or s.active = :active)")
     Page<Supplier> search(@Param("q") String query, @Param("active") Boolean active, Pageable pageable);
 }

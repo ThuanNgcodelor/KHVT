@@ -11,15 +11,22 @@ import { CatalogTabs } from '../components/CatalogTabs'
 import { SupplierForm } from '../components/SupplierForm'
 import { useSuppliers, useSupplierStatus } from '../hooks/useCatalog'
 import type { Supplier } from '../types'
+import { SortTh } from '../../../components/SortTh'
 
 export function SuppliersPage() {
   const { user } = useAuth()
   const canManage = !!user && hasPermission(user, 'CATALOG_MANAGE')
   const [search, setSearch] = useState(''), [q, setQuery] = useState(''), [active, setActive] = useState('')
   const [page, setPage] = useState(0), [editing, setEditing] = useState<Supplier | 'new' | null>(null)
+  const [sort, setSort] = useState('name,asc')
   const [confirm, setConfirm] = useState<Supplier | null>(null), [notice, setNotice] = useState('')
-  const suppliers = useSuppliers({ q, active: active === '' ? undefined : active === 'true', page, size: 25 })
+  const suppliers = useSuppliers({ q, active: active === '' ? undefined : active === 'true', page, size: 25, sort })
   const changeStatus = useSupplierStatus(), data = suppliers.data
+
+  function handleSort(newSort: string) {
+    setSort(newSort)
+    setPage(0)
+  }
   async function confirmStatus() {
     if (!confirm) return
     try {
@@ -38,14 +45,21 @@ export function SuppliersPage() {
         <div className="form-field search-field"><label htmlFor="supplier-search">Mã hoặc tên nhà cung cấp</label><input id="supplier-search" type="search" placeholder="Nhập mã hoặc tên…" value={search} onChange={(event) => setSearch(event.target.value)} /></div>
         <div className="form-field"><label htmlFor="supplier-active">Trạng thái</label><select id="supplier-active" value={active} onChange={(event) => { setActive(event.target.value); setPage(0) }}><option value="">Tất cả</option><option value="true">Đang sử dụng</option><option value="false">Đã ngừng</option></select></div>
         <button className="secondary-button" type="submit"><Icon name="search" size={16} />Tìm kiếm</button>
-        <button className="text-button" type="button" onClick={() => { setSearch(''); setQuery(''); setActive(''); setPage(0) }}>Xóa lọc</button>
+        <button className="text-button" type="button" onClick={() => { setSearch(''); setQuery(''); setActive(''); setSort('name,asc'); setPage(0) }}>Xóa lọc</button>
         {data && !suppliers.error && <span className="table-count">{data.totalElements} nhà cung cấp</span>}
       </form>
       <TableFeedback pending={suppliers.isPending} error={suppliers.error} empty={!data?.content.length} onRetry={() => { void suppliers.refetch() }}
         emptyTitle={q || active ? 'Không có nhà cung cấp phù hợp' : 'Chưa có nhà cung cấp'} emptyMessage={q || active ? 'Thử từ khóa khác hoặc xóa bộ lọc.' : canManage ? 'Thêm nhà cung cấp để bắt đầu lập danh mục.' : 'Danh mục sẽ hiển thị khi có nhà cung cấp.'} />
       {!suppliers.error && data && data.content.length > 0 && <div className="table-wrap"><table>
         <caption className="sr-only">Danh sách nhà cung cấp KHVT</caption>
-        <thead><tr><th scope="col">Mã NCC</th><th scope="col">Nhà cung cấp</th><th scope="col">Liên hệ</th><th scope="col">Mã số thuế</th><th scope="col">Trạng thái</th><th scope="col">Thao tác</th></tr></thead>
+        <thead><tr>
+          <SortTh label="Mã NCC" column="code" currentSort={sort} onSort={handleSort} defaultDirection="asc" />
+          <SortTh label="Nhà cung cấp" column="name" currentSort={sort} onSort={handleSort} defaultDirection="asc" />
+          <th scope="col">Liên hệ</th>
+          <SortTh label="Mã số thuế" column="taxCode" currentSort={sort} onSort={handleSort} defaultDirection="asc" />
+          <SortTh label="Trạng thái" column="active" currentSort={sort} onSort={handleSort} defaultDirection="asc" />
+          <th scope="col">Thao tác</th>
+        </tr></thead>
         <tbody>{data.content.map((supplier) => <tr key={supplier.id}>
           <td className="code-cell">{supplier.code ?? '—'}</td><td><strong className="cell-title">{supplier.name}</strong><span className="cell-subtitle">{supplier.address ?? 'Chưa có địa chỉ'}</span></td>
           <td>{supplier.email ?? '—'}<span className="cell-subtitle">{supplier.phone ?? '—'}</span></td><td>{supplier.taxCode ?? '—'}</td>

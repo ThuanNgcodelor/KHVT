@@ -25,9 +25,25 @@ public class PricingService {
         return search(query, currency, null, pageable);
     }
 
+    private static final java.util.Map<String, String> PRICE_SORT_MAPPING = java.util.Map.of(
+            "purchaseDate", "purchaseDate",
+            "materialName", "materialNameSnapshot",
+            "materialNameSnapshot", "materialNameSnapshot",
+            "materialCode", "materialCodeSnapshot",
+            "materialCodeSnapshot", "materialCodeSnapshot",
+            "unitPrice", "unitPrice",
+            "supplierName", "supplierSnapshot",
+            "supplierSnapshot", "supplierSnapshot",
+            "id", "id"
+    );
+    private static final org.springframework.data.domain.Sort DEFAULT_PRICE_SORT = org.springframework.data.domain.Sort.by(
+            org.springframework.data.domain.Sort.Direction.DESC, "purchaseDate"
+    ).and(org.springframework.data.domain.Sort.by(org.springframework.data.domain.Sort.Direction.DESC, "id"));
+
     @Transactional(readOnly = true)
     public Page<PriceView> search(String query, CurrencyCode currency, MaterialCategory category, Pageable pageable) {
-        return history.searchFiltered(TextNormalizer.normalize(query), currency, category, pageable).map(PriceView::from);
+        Pageable safe = com.example.quanlymuahang.sharedkernel.web.SafeSortUtil.sanitize(pageable, PRICE_SORT_MAPPING, DEFAULT_PRICE_SORT);
+        return history.searchFiltered(TextNormalizer.normalize(query), currency, category, safe).map(PriceView::from);
     }
 
     @Transactional(readOnly = true)

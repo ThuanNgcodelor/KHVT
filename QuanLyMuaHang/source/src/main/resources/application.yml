@@ -5,6 +5,12 @@ spring:
     url: ${SPRING_DATASOURCE_URL:jdbc:mysql://localhost:3307/quanlymuahang}
     username: ${SPRING_DATASOURCE_USERNAME:app}
     password: ${DB_PASSWORD}
+    hikari:
+      maximum-pool-size: 15
+      minimum-idle: 5
+      connection-timeout: 20000
+      idle-timeout: 300000
+      max-lifetime: 1200000
   jpa:
     open-in-view: false
     hibernate:

@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react'
+import { useMemo, useRef, useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { Pagination } from '../../../components/Pagination'
 import { errorMessage } from '../../../services/errorMessage'
@@ -23,6 +23,8 @@ export function DocumentPreview({ document, requests, busy, onConfirm, onSource,
   const [requestId, setRequestId] = useState<number | null>(saved?.requestId ?? null)
   const [requestIdInput, setRequestIdInput] = useState('')
   const [mappings, setMappings] = useState<Record<string, string>>(saved?.requestLineMappings ?? {})
+  const lastClickedIndexRef = useRef<number | null>(null)
+
   const listedRequest = requests.find((item) => item.id === requestId)
   const requestQuery = useQuery({ queryKey: ['imports', 'documents', requestId], queryFn: () => documentApi.get(requestId!), enabled: quotation && !!requestId && !listedRequest, retry: false })
   const request = listedRequest ?? requestQuery.data
@@ -33,10 +35,41 @@ export function DocumentPreview({ document, requests, busy, onConfirm, onSource,
   const chosen = lines.filter((line) => selected.includes(line.lineKey))
   const multiRequest = new Set(chosen.map((line) => line.requestNumber).filter(Boolean)).size > 1
   const canConfirm = chosen.length > 0 && title.trim() && (!quotation || (supplierName.trim() && quotationDate && currency && (!requestId || requestValid))) && !multiRequest
+
+  const pageRows = useMemo(() => visible.slice(page * 25, (page + 1) * 25), [visible, page])
+  const pageKeys = useMemo(() => pageRows.map((line) => line.lineKey), [pageRows])
+  const isAllPageSelected = pageKeys.length > 0 && pageKeys.every((key) => selected.includes(key))
+  const isSomePageSelected = pageKeys.some((key) => selected.includes(key)) && !isAllPageSelected
+  const isAllVisibleSelected = visible.length > 0 && visible.every((line) => selected.includes(line.lineKey))
+
   function changeLine(key: string, field: keyof DocumentLine, value: string) {
     setLines((current) => current.map((line) => line.lineKey === key ? { ...line, [field]: value === '' && field !== 'materialName' ? null : value } : line)); setAck(false)
   }
   function chooseFilter(value: string) { setFilter(value); setPage(0); setSelected([]); setAck(false); if (value && value !== '__unassigned') setRequestNumber(value) }
+
+  function handleHeaderCheckbox(checked: boolean) {
+    if (checked) {
+      setSelected((prev) => Array.from(new Set([...prev, ...pageKeys])))
+    } else {
+      setSelected((prev) => prev.filter((key) => !pageKeys.includes(key)))
+    }
+    setAck(false)
+  }
+
+  function handleRowCheck(key: string, indexInPage: number, shiftKey: boolean) {
+    const isChecked = selected.includes(key)
+    if (shiftKey && lastClickedIndexRef.current !== null) {
+      const start = Math.min(lastClickedIndexRef.current, indexInPage)
+      const end = Math.max(lastClickedIndexRef.current, indexInPage)
+      const rangeKeys = pageRows.slice(start, end + 1).map((l) => l.lineKey)
+      setSelected((prev) => Array.from(new Set([...prev, ...rangeKeys])))
+    } else {
+      setSelected((prev) => (isChecked ? prev.filter((k) => k !== key) : [...prev, key]))
+      lastClickedIndexRef.current = indexInPage
+    }
+    setAck(false)
+  }
+
   function confirm() {
     if (!canConfirm || !ack || busy) return
     onConfirm({ title: title.trim(), requestNumber: requestNumber.trim() || null, supplierName: quotation ? supplierName.trim() : null, quotationDate: quotationDate || null, currency: currency || null, priceBasis, vatPercent: vat || null, lines: chosen, requestId, requestLineMappings: Object.fromEntries(chosen.filter((line) => mappings[line.lineKey]).map((line) => [line.lineKey, mappings[line.lineKey]])), acknowledged: true })
@@ -66,20 +99,45 @@ export function DocumentPreview({ document, requests, busy, onConfirm, onSource,
     <div className="filter-bar">
       {document.parsed.sheets?.length > 1 && <div className="form-field"><label htmlFor="document-sheet">Sheet / phiên bản nguồn</label><select id="document-sheet" disabled={busy || readOnly} value={lines[0]?.sourceSheet ?? ''} onChange={(event) => { if (event.target.value) onSheet(event.target.value) }}><option value="">Chọn sheet cần kiểm tra</option>{document.parsed.sheets.map((sheet) => <option key={sheet.name} value={sheet.name}>{sheet.name} · {sheet.detectedLines} dòng{sheet.quotationDate ? ` · ${sheet.quotationDate}` : ''}</option>)}</select></div>}
       {!quotation && !!requestNumbers.length && <div className="form-field"><label htmlFor="document-request-filter">Lọc số phiếu nguồn</label><select id="document-request-filter" value={filter} disabled={busy} onChange={(event) => chooseFilter(event.target.value)}><option value="">Tất cả phiếu — chọn từng dòng</option>{requestNumbers.map((number) => <option key={number} value={number}>Phiếu {number}</option>)}{lines.some((line) => !line.requestNumber) && <option value="__unassigned">Chưa gán phiếu</option>}</select></div>}
-      {!readOnly && <><button className="secondary-button" disabled={busy || !visible.length || (!quotation && requestNumbers.length > 1 && !filter)} onClick={() => { setSelected(visible.map((line) => line.lineKey)); setAck(false) }}>{quotation ? 'Chọn dòng đang hiển thị' : 'Chọn các dòng phiếu đang lọc'}</button><button className="secondary-button" disabled={busy} onClick={() => { const line = newManualLine(); line.requestNumber = requestNumber || null; setLines((current) => [...current, line]); setSelected((current) => [...current, line.lineKey]); setFilter(''); setPage(Math.floor(lines.length / 25)); setAck(false) }}>Thêm dòng thủ công</button></>}
+      {!readOnly && <button className="secondary-button" disabled={busy} onClick={() => { const line = newManualLine(); line.requestNumber = requestNumber || null; setLines((current) => [...current, line]); setSelected((current) => [...current, line.lineKey]); setFilter(''); setPage(Math.floor(lines.length / 25)); setAck(false) }}>Thêm dòng thủ công</button>}
       <span className="table-count">{visible.length} dòng trong bộ lọc</span>
     </div>
+
+    {!readOnly && <div className="selection-toolbar" role="region" aria-label="Thao tác chọn dòng">
+      <div className="selection-stats">
+        <span className="selection-badge"><strong>{chosen.length}</strong> / {visible.length} dòng đã chọn</span>
+        {visible.length > 25 && <span className="selection-hint">Mẹo: Giữ phím <strong>Shift + Click</strong> để chọn nhanh nhiều dòng liên tiếp</span>}
+      </div>
+      <div className="selection-actions">
+        <button type="button" className="secondary-button" disabled={busy || isAllPageSelected || !pageKeys.length} onClick={() => { setSelected((prev) => Array.from(new Set([...prev, ...pageKeys]))); setAck(false) }}>
+          Chọn trang này ({pageKeys.length} dòng)
+        </button>
+        <button type="button" className="primary-button" disabled={busy || isAllVisibleSelected || !visible.length} onClick={() => { setSelected(visible.map((line) => line.lineKey)); setAck(false) }}>
+          {isAllVisibleSelected ? 'Đã chọn tất cả' : `Chọn tất cả ${visible.length} dòng`}
+        </button>
+        {selected.length > 0 && <button type="button" className="text-button" disabled={busy} onClick={() => { setSelected([]); setAck(false) }}>Bỏ chọn tất cả</button>}
+      </div>
+    </div>}
+
     <p className="import-note">Số thập phân dùng dấu chấm, không nhập dấu phân nhóm nghìn. Giữ tên và quy cách nguồn; sửa mã nội bộ chỉ khi đã đối chiếu. {!readOnly && 'Dòng không chọn sẽ không nằm trong chứng từ xác nhận; tệp gốc vẫn được giữ.'}</p>
-    <div className="table-wrap" tabIndex={0} aria-label="Bảng dòng chứng từ, cuộn ngang để xem đủ cột"><table className="document-lines"><thead><tr>{!readOnly && <th>Chọn</th>}<th>Nguồn</th><th>Tên vật tư / mã nội bộ</th><th>Quy cách</th><th>ĐVT</th><th>Số lượng</th>{quotation && <><th>Đơn giá</th><th>VAT / cơ sở / tiền tệ</th>{requestId && <th>Dòng PCVT tương ứng</th>}</>}<th>Ghi chú / kiểm tra</th></tr></thead><tbody>{visible.slice(page * 25, (page + 1) * 25).map((line) => <tr key={line.lineKey}>
-      {!readOnly && <td><input type="checkbox" aria-label={`Chọn ${sourceLocation(line)}`} disabled={busy} checked={selected.includes(line.lineKey)} onChange={(event) => { setSelected((current) => event.target.checked ? [...current, line.lineKey] : current.filter((key) => key !== line.lineKey)); setAck(false) }} /></td>}
-      <td className="source-cell">{sourceLocation(line)}{line.requestNumber && <span className="cell-subtitle">Phiếu {line.requestNumber}</span>}</td>
-      <td>{readOnly ? <>{line.materialName}<span className="cell-subtitle">{line.materialCode}</span></> : <><input aria-label={`Tên vật tư ${line.lineKey}`} disabled={busy} value={line.materialName} maxLength={500} onChange={(event) => changeLine(line.lineKey, 'materialName', event.target.value)} /><input aria-label={`Mã nội bộ ${line.lineKey}`} disabled={busy} value={line.materialCode ?? ''} placeholder="Mã nội bộ đã xác nhận" maxLength={80} onChange={(event) => changeLine(line.lineKey, 'materialCode', event.target.value)} /></>}</td>
-      <td>{readOnly ? line.specification : <textarea aria-label={`Quy cách ${line.lineKey}`} disabled={busy} rows={2} value={line.specification ?? ''} maxLength={1000} onChange={(event) => changeLine(line.lineKey, 'specification', event.target.value)} />}</td>
-      <td>{readOnly ? line.unit : <input aria-label={`ĐVT ${line.lineKey}`} disabled={busy} value={line.unit ?? ''} maxLength={50} onChange={(event) => changeLine(line.lineKey, 'unit', event.target.value)} />}</td>
-      <td>{readOnly ? decimalLabel(line.quantity ?? line.quantityText) : <><input aria-label={`Số lượng ${line.lineKey}`} disabled={busy} inputMode="decimal" value={line.quantity ?? ''} onChange={(event) => changeLine(line.lineKey, 'quantity', event.target.value)} /><input aria-label={`Số lượng chữ ${line.lineKey}`} disabled={busy} value={line.quantityText ?? ''} placeholder="SL bằng chữ nếu có" maxLength={200} onChange={(event) => changeLine(line.lineKey, 'quantityText', event.target.value)} /></>}</td>
-      {quotation && <><td>{readOnly ? decimalLabel(line.unitPrice) : <input aria-label={`Đơn giá ${line.lineKey}`} disabled={busy} inputMode="decimal" value={line.unitPrice ?? ''} onChange={(event) => changeLine(line.lineKey, 'unitPrice', event.target.value)} />}<span className="cell-subtitle">Thành tiền nguồn: {decimalLabel(line.lineTotal)}</span></td><td>{readOnly ? <>{line.vatPercent == null ? 'Chưa rõ VAT' : `${decimalLabel(line.vatPercent)}%`}<span className="cell-subtitle">{priceBasisLabels[line.priceBasis ?? 'UNKNOWN'] ?? line.priceBasis} · {line.currency ?? currency ?? 'Chưa rõ tiền tệ'}</span></> : <><input aria-label={`VAT ${line.lineKey}`} disabled={busy} inputMode="decimal" value={line.vatPercent ?? ''} placeholder="Theo VAT chung nếu trống" onChange={(event) => changeLine(line.lineKey, 'vatPercent', event.target.value)} /><select aria-label={`Cơ sở giá ${line.lineKey}`} disabled={busy} value={line.priceBasis ?? 'UNKNOWN'} onChange={(event) => changeLine(line.lineKey, 'priceBasis', event.target.value)}>{Object.entries(priceBasisLabels).map(([value, label]) => <option key={value} value={value}>{label}</option>)}</select><select aria-label={`Tiền tệ ${line.lineKey}`} disabled={busy} value={line.currency ?? ''} onChange={(event) => changeLine(line.lineKey, 'currency', event.target.value)}><option value="">Theo chứng từ</option><option value="VND">VND</option><option value="USD">USD</option></select></>}</td>{requestId && <td><select aria-label={`Liên kết PCVT ${line.lineKey}`} value={mappings[line.lineKey] ?? ''} disabled={busy || readOnly || !requestValid} onChange={(event) => { setMappings((current) => ({ ...current, [line.lineKey]: event.target.value })); setAck(false) }}><option value="">Chọn dòng đã đối chiếu</option>{requestValid && request.confirmed!.lines.map((target) => <option key={target.lineKey} value={target.lineKey}>{target.materialName} · {target.specification} · {target.unit}</option>)}</select></td>}</>}
-      <td>{!readOnly && <textarea aria-label={`Ghi chú ${line.lineKey}`} disabled={busy} value={line.note ?? ''} rows={2} maxLength={2000} onChange={(event) => changeLine(line.lineKey, 'note', event.target.value)} />}{readOnly && line.note}{!!line.issues?.length && <details><summary>{line.issues.length} cảnh báo</summary><ul>{line.issues.map((issue, index) => <li key={index}>{issue}</li>)}</ul></details>}{Object.keys(line.raw ?? {}).length > 0 && <details><summary>Giá trị gốc</summary><dl className="document-raw">{Object.entries(line.raw).map(([key, value]) => <div key={key}><dt>{key}</dt><dd>{value}</dd></div>)}</dl></details>}</td>
-    </tr>)}</tbody></table>{!visible.length && <p className="empty-message">Không có dòng trong bộ lọc này.</p>}</div>
+    <div className="table-wrap" tabIndex={0} aria-label="Bảng dòng chứng từ, cuộn ngang để xem đủ cột"><table className="document-lines"><thead><tr>
+      {!readOnly && <th className="select-col" scope="col"><input type="checkbox" aria-label="Chọn tất cả dòng trang này" title={isAllPageSelected ? 'Bỏ chọn trang này' : 'Chọn cả 25 dòng trang này'} disabled={busy || !pageKeys.length} checked={isAllPageSelected} ref={(el) => { if (el) el.indeterminate = isSomePageSelected }} onChange={(e) => handleHeaderCheckbox(e.target.checked)} /></th>}
+      <th scope="col">Nguồn</th><th scope="col">Tên vật tư / mã nội bộ</th><th scope="col">Quy cách</th><th scope="col">ĐVT</th><th scope="col">Số lượng</th>
+      {quotation && <><th scope="col">Đơn giá</th><th scope="col">VAT / cơ sở / tiền tệ</th>{requestId && <th scope="col">Dòng PCVT tương ứng</th>}</>}
+      <th scope="col">Ghi chú / kiểm tra</th>
+    </tr></thead><tbody>{pageRows.map((line, indexInPage) => {
+      const isSelected = selected.includes(line.lineKey)
+      return <tr key={line.lineKey} className={isSelected ? 'document-line-row row-selected' : 'document-line-row'}>
+        {!readOnly && <td className="select-col"><input type="checkbox" aria-label={`Chọn ${sourceLocation(line)}`} disabled={busy} checked={isSelected} onChange={(event) => { const nativeEvent = event.nativeEvent as MouseEvent; handleRowCheck(line.lineKey, indexInPage, !!nativeEvent.shiftKey) }} /></td>}
+        <td className="source-cell">{sourceLocation(line)}{line.requestNumber && <span className="cell-subtitle">Phiếu {line.requestNumber}</span>}</td>
+        <td>{readOnly ? <>{line.materialName}<span className="cell-subtitle">{line.materialCode}</span></> : <><input aria-label={`Tên vật tư ${line.lineKey}`} disabled={busy} value={line.materialName} maxLength={500} onChange={(event) => changeLine(line.lineKey, 'materialName', event.target.value)} /><input aria-label={`Mã nội bộ ${line.lineKey}`} disabled={busy} value={line.materialCode ?? ''} placeholder="Mã nội bộ đã xác nhận" maxLength={80} onChange={(event) => changeLine(line.lineKey, 'materialCode', event.target.value)} /></>}</td>
+        <td>{readOnly ? line.specification : <textarea aria-label={`Quy cách ${line.lineKey}`} disabled={busy} rows={2} value={line.specification ?? ''} maxLength={1000} onChange={(event) => changeLine(line.lineKey, 'specification', event.target.value)} />}</td>
+        <td>{readOnly ? line.unit : <input aria-label={`ĐVT ${line.lineKey}`} disabled={busy} value={line.unit ?? ''} maxLength={50} onChange={(event) => changeLine(line.lineKey, 'unit', event.target.value)} />}</td>
+        <td>{readOnly ? decimalLabel(line.quantity ?? line.quantityText) : <><input aria-label={`Số lượng ${line.lineKey}`} disabled={busy} inputMode="decimal" value={line.quantity ?? ''} onChange={(event) => changeLine(line.lineKey, 'quantity', event.target.value)} /><input aria-label={`Số lượng chữ ${line.lineKey}`} disabled={busy} value={line.quantityText ?? ''} placeholder="SL bằng chữ nếu có" maxLength={200} onChange={(event) => changeLine(line.lineKey, 'quantityText', event.target.value)} /></>}</td>
+        {quotation && <><td>{readOnly ? decimalLabel(line.unitPrice) : <input aria-label={`Đơn giá ${line.lineKey}`} disabled={busy} inputMode="decimal" value={line.unitPrice ?? ''} onChange={(event) => changeLine(line.lineKey, 'unitPrice', event.target.value)} />}<span className="cell-subtitle">Thành tiền nguồn: {decimalLabel(line.lineTotal)}</span></td><td>{readOnly ? <>{line.vatPercent == null ? 'Chưa rõ VAT' : `${decimalLabel(line.vatPercent)}%`}<span className="cell-subtitle">{priceBasisLabels[line.priceBasis ?? 'UNKNOWN'] ?? line.priceBasis} · {line.currency ?? currency ?? 'Chưa rõ tiền tệ'}</span></> : <><input aria-label={`VAT ${line.lineKey}`} disabled={busy} inputMode="decimal" value={line.vatPercent ?? ''} placeholder="Theo VAT chung nếu trống" onChange={(event) => changeLine(line.lineKey, 'vatPercent', event.target.value)} /><select aria-label={`Cơ sở giá ${line.lineKey}`} disabled={busy} value={line.priceBasis ?? 'UNKNOWN'} onChange={(event) => changeLine(line.lineKey, 'priceBasis', event.target.value)}>{Object.entries(priceBasisLabels).map(([value, label]) => <option key={value} value={value}>{label}</option>)}</select><select aria-label={`Tiền tệ ${line.lineKey}`} disabled={busy} value={line.currency ?? ''} onChange={(event) => changeLine(line.lineKey, 'currency', event.target.value)}><option value="">Theo chứng từ</option><option value="VND">VND</option><option value="USD">USD</option></select></>}</td>{requestId && <td><select aria-label={`Liên kết PCVT ${line.lineKey}`} value={mappings[line.lineKey] ?? ''} disabled={busy || readOnly || !requestValid} onChange={(event) => { setMappings((current) => ({ ...current, [line.lineKey]: event.target.value })); setAck(false) }}><option value="">Chọn dòng đã đối chiếu</option>{requestValid && request.confirmed!.lines.map((target) => <option key={target.lineKey} value={target.lineKey}>{target.materialName} · {target.specification} · {target.unit}</option>)}</select></td>}</>}
+        <td>{!readOnly && <textarea aria-label={`Ghi chú ${line.lineKey}`} disabled={busy} value={line.note ?? ''} rows={2} maxLength={2000} onChange={(event) => changeLine(line.lineKey, 'note', event.target.value)} />}{readOnly && line.note}{!!line.issues?.length && <details><summary>{line.issues.length} cảnh báo</summary><ul>{line.issues.map((issue, index) => <li key={index}>{issue}</li>)}</ul></details>}{Object.keys(line.raw ?? {}).length > 0 && <details><summary>Giá trị gốc</summary><dl className="document-raw">{Object.entries(line.raw).map(([key, value]) => <div key={key}><dt>{key}</dt><dd>{value}</dd></div>)}</dl></details>}</td>
+      </tr>
+    })}</tbody></table>{!visible.length && <p className="empty-message">Không có dòng trong bộ lọc này.</p>}</div>
     <Pagination page={page} size={25} total={visible.length} pages={Math.ceil(visible.length / 25)} busy={busy} onChange={setPage} />
     {!readOnly && <div className="document-confirm"><label className="checkbox-field"><input type="checkbox" checked={ack} disabled={busy || !canConfirm} onChange={(event) => setAck(event.target.checked)} />Tôi đã kiểm tra tệp gốc, các dòng được chọn và thông tin đã sửa.</label>{multiRequest && <p className="field-error">Các dòng thuộc nhiều số phiếu. Lọc và xác nhận từng PCVT riêng.</p>}{requestId && chosen.some((line) => !mappings[line.lineKey]) && <p className="field-help">Dòng báo giá chưa liên kết sẽ được lưu riêng và chưa tham gia so sánh PCVT.</p>}<button className="primary-button" disabled={busy || !canConfirm || !ack} onClick={confirm}>{busy ? 'Đang xử lý…' : `Xác nhận và lưu ${chosen.length} dòng`}</button><p className="field-help">Lưu chứng từ để tra và so giá. Thao tác này không ghi lịch sử mua, không phát hành PO.</p></div>}
   </section>

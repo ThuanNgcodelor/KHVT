@@ -78,9 +78,22 @@ public class PurchaseOrderService {
         this.zoneId = ZoneId.of(timezone);
     }
 
+    private static final java.util.Map<String, String> PO_SORT_MAPPING = java.util.Map.of(
+            "poNumber", "poNumber",
+            "orderDate", "orderDate",
+            "supplierName", "supplierNameSnapshot",
+            "supplierNameSnapshot", "supplierNameSnapshot",
+            "status", "status",
+            "id", "id"
+    );
+    private static final org.springframework.data.domain.Sort DEFAULT_PO_SORT = org.springframework.data.domain.Sort.by(
+            org.springframework.data.domain.Sort.Direction.DESC, "orderDate"
+    ).and(org.springframework.data.domain.Sort.by(org.springframework.data.domain.Sort.Direction.DESC, "id"));
+
     @Transactional(readOnly = true)
     public Page<OrderView> search(String query, PurchaseOrderStatus status, Pageable pageable) {
-        return orders.search(query == null ? null : query.trim(), status, pageable).map(OrderView::from);
+        Pageable safe = com.example.quanlymuahang.sharedkernel.web.SafeSortUtil.sanitize(pageable, PO_SORT_MAPPING, DEFAULT_PO_SORT);
+        return orders.search(query == null ? null : query.trim(), status, safe).map(OrderView::from);
     }
 
     @Transactional(readOnly = true)

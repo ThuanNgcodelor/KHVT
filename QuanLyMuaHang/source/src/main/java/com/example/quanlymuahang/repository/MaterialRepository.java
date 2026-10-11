@@ -21,7 +21,7 @@ public interface MaterialRepository extends JpaRepository<Material, Long> {
 
     @Query("select m from Material m where (:q = '' or m.normalizedName like concat('%', :q, '%') " +
             "or lower(m.code) like concat('%', :q, '%')) and (:active is null or m.active = :active) " +
-            "and (:category is null or m.category = :category) order by m.name asc, m.id asc")
+            "and (:category is null or m.category = :category)")
     Page<Material> search(@Param("q") String query, @Param("active") Boolean active,
                           @Param("category") MaterialCategory category, Pageable pageable);
 }

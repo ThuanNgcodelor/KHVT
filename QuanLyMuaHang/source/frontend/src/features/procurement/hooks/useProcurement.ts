@@ -2,8 +2,12 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { procurementApi } from '../procurementApi'
 import type { OrderCommand, OrderFilter } from '../types'
 
-export function useOrders(filters: OrderFilter) {
-  return useQuery({ queryKey: ['procurement', 'orders', filters], queryFn: ({ signal }) => procurementApi.orders(filters, signal) })
+export function useOrders(filters: OrderFilter, options?: { refetchInterval?: number }) {
+  return useQuery({
+    queryKey: ['procurement', 'orders', filters],
+    queryFn: ({ signal }) => procurementApi.orders(filters, signal),
+    refetchInterval: options?.refetchInterval,
+  })
 }
 export function useOrder(id: number) {
   return useQuery({ queryKey: ['procurement', 'order', id], queryFn: ({ signal }) => procurementApi.order(id, signal), enabled: Number.isSafeInteger(id) && id > 0 })

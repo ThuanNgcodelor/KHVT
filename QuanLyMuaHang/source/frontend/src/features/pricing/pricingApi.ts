@@ -2,7 +2,7 @@ import { apiClient } from '../../services/apiClient'
 import { queryParams } from '../../services/queryParams'
 import type { PageResponse } from '../../types/api'
 import type { PriceRecord } from './types'
-export type PriceFilter = { q: string; currency: string; category: string; page: number; size: number }
+export type PriceFilter = { q: string; currency: string; category: string; page: number; size: number; sort?: string }
 export const pricingApi = {
   history: (filters: PriceFilter, signal?: AbortSignal) => apiClient.get<PageResponse<PriceRecord>>(`/prices${queryParams(filters)}`, { signal }),
   latest: (row: PriceRecord) => apiClient.get<PriceRecord>(`/prices/latest${queryParams({ materialCode: row.materialCode, materialName: row.materialName, currency: row.currency })}`),

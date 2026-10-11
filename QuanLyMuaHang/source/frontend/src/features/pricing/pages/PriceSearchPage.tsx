@@ -11,16 +11,23 @@ import { saveDownload } from '../../../services/apiClient'
 import { errorMessage } from '../../../services/errorMessage'
 import { pricingApi } from '../pricingApi'
 import type { PriceRecord } from '../types'
+import { SortTh } from '../../../components/SortTh'
 
 const money = (row: PriceRecord) => row.unitPrice == null ? 'Chưa có giá' : new Intl.NumberFormat('vi-VN', { maximumFractionDigits: row.currency === 'USD' ? 2 : 0 }).format(Number(row.unitPrice))
 export function PriceSearchPage() {
   const { user } = useAuth(), navigate = useNavigate()
   const [search, setSearch] = useState(''), [q, setQ] = useState(''), [currency, setCurrency] = useState(''), [category, setCategory] = useState(''), [page, setPage] = useState(0)
+  const [sort, setSort] = useState('purchaseDate,desc')
   const [busy, setBusy] = useState(false), [notice, setNotice] = useState(''), [failure, setFailure] = useState('')
   const [latest, setLatest] = useState<PriceRecord | null>(null)
-  const filters = { q, currency, category, page, size: 25 }
+  const filters = { q, currency, category, page, size: 25, sort }
   const history = useQuery({ queryKey: ['pricing', filters], queryFn: ({ signal }) => pricingApi.history(filters, signal) })
   const data = history.data
+
+  function handleSort(newSort: string) {
+    setSort(newSort)
+    setPage(0)
+  }
   async function latestFor(row: PriceRecord) {
     setBusy(true); setFailure(''); setNotice('')
     try { setLatest(await pricingApi.latest(row)) } catch (error) { setFailure(errorMessage(error)) } finally { setBusy(false) }
@@ -43,10 +50,17 @@ export function PriceSearchPage() {
         <div className="form-field"><label htmlFor="price-currency">Loại tiền</label><select id="price-currency" value={currency} onChange={(event) => { setCurrency(event.target.value); setPage(0) }}><option value="">Tất cả</option><option>VND</option><option>USD</option></select></div>
         <div className="form-field"><label htmlFor="price-category">Nhóm</label><select id="price-category" value={category} onChange={(event) => { setCategory(event.target.value); setPage(0) }}><option value="">Tất cả</option><option value="MATERIAL">Vật tư</option><option value="SERVICE">Dịch vụ</option><option value="OTHER">Khác</option></select></div>
         <button type="submit" className="secondary-button">Tìm kiếm</button>
-        <button type="button" className="text-button" onClick={() => { setSearch(''); setQ(''); setCurrency(''); setCategory(''); setPage(0) }}>Xóa lọc</button>
+        <button type="button" className="text-button" onClick={() => { setSearch(''); setQ(''); setCurrency(''); setCategory(''); setSort('purchaseDate,desc'); setPage(0) }}>Xóa lọc</button>
       </form>
       <TableFeedback pending={history.isPending} error={history.error} empty={!data?.content.length} onRetry={() => { void history.refetch() }} emptyTitle="Chưa có lịch sử giá phù hợp" emptyMessage="Thử tên khác hoặc xóa bộ lọc. Giá được ghi khi import lịch sử hoặc phát hành đơn." />
-      {!history.error && data && data.content.length > 0 && <div className="table-wrap"><table><caption className="sr-only">Lịch sử giá mua hàng</caption><thead><tr><th>Vật tư</th><th>Ngày mua</th><th>Đơn giá</th><th>NCC</th><th>Nguồn</th><th>Thao tác</th></tr></thead><tbody>{data.content.map((row) => <tr key={row.id}>
+      {!history.error && data && data.content.length > 0 && <div className="table-wrap"><table><caption className="sr-only">Lịch sử giá mua hàng</caption><thead><tr>
+        <SortTh label="Vật tư" column="materialName" currentSort={sort} onSort={handleSort} defaultDirection="asc" />
+        <SortTh label="Ngày mua" column="purchaseDate" currentSort={sort} onSort={handleSort} defaultDirection="desc" />
+        <SortTh label="Đơn giá" column="unitPrice" currentSort={sort} onSort={handleSort} defaultDirection="desc" className="numeric-cell" />
+        <SortTh label="NCC" column="supplierName" currentSort={sort} onSort={handleSort} defaultDirection="asc" />
+        <th scope="col">Nguồn</th>
+        <th scope="col">Thao tác</th>
+      </tr></thead><tbody>{data.content.map((row) => <tr key={row.id}>
         <td><strong className="cell-title">{row.materialName}</strong><span className="cell-subtitle">{row.materialCode || 'Chưa có mã'} · {row.unit || 'Chưa có ĐVT'}</span></td>
         <td>{row.purchaseDate ? new Date(`${row.purchaseDate}T00:00:00`).toLocaleDateString('vi-VN') : 'Chưa có ngày'}</td>
         <td className="numeric-cell">{money(row)} {row.currency}<span className="cell-subtitle">{row.currencyBasis === 'ASSUMED_LEGACY' ? 'Loại tiền giả định từ dữ liệu cũ' : ''}</span></td>
