@@ -83,7 +83,7 @@ public class PasswordResetService {
         }
 
         // Invalidate previous tokens
-        tokens.invalidateAllForUser(user.getId());
+        tokens.invalidateAllForUser(user.getId(), Instant.now());
 
         // Generate cryptographically secure token
         byte[] randomBytes = new byte[32];

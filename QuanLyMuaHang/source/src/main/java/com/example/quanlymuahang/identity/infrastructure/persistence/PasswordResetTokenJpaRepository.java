@@ -11,6 +11,6 @@ public interface PasswordResetTokenJpaRepository extends JpaRepository<PasswordR
     Optional<PasswordResetTokenEntity> findByTokenHash(String tokenHash);
 
     @Modifying
-    @Query("UPDATE PasswordResetTokenEntity t SET t.usedAt = CURRENT_TIMESTAMP WHERE t.userId = :userId AND t.usedAt IS NULL")
-    void invalidateAllForUser(@Param("userId") Long userId);
+    @Query("UPDATE PasswordResetTokenEntity t SET t.usedAt = :now WHERE t.userId = :userId AND t.usedAt IS NULL")
+    void invalidateAllForUser(@Param("userId") Long userId, @Param("now") java.time.Instant now);
 }
