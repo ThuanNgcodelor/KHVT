@@ -38,6 +38,7 @@ Thay Google Apps Script/Google Sheet bằng hệ thống mua hàng có dữ li�
 8. 09–10 — test/acceptance và phase triển khai.
 9. 11 — hướng dẫn vibecoding.
 10. 13–14 — Identity/Personnel model và code mapping từ demo.
+11. 15–16 — hướng ưu tiên ngày 2026-10-11: Quản trị tài khoản/quyền và PCVT → tra giá/NCC cũ → gom hỏi giá → so sánh báo giá.
 
 ## Danh sách tài liệu
 
@@ -56,12 +57,22 @@ Thay Google Apps Script/Google Sheet bằng hệ thống mua hàng có dữ li�
 - [12-react-vite-playwright-openai.md](12-react-vite-playwright-openai.md)
 - [13-ddd-identity-personnel.md](13-ddd-identity-personnel.md)
 - [14-demo-auth-personnel-port.md](14-demo-auth-personnel-port.md)
+- [15-quan-tri-tai-khoan-va-phan-quyen.md](15-quan-tri-tai-khoan-va-phan-quyen.md)
+- [16-pcvt-tra-gia-cu-va-bao-gia.md](16-pcvt-tra-gia-cu-va-bao-gia.md)
+
+## Ưu tiên được người dùng làm rõ ngày 2026-10-11
+
+Không cần ứng dụng Nhân sự riêng: Quản trị phục vụ tạo tài khoản, thông tin phòng ban/chức vụ cơ bản và cấp/cấm module/hành động cho từng người. Chức vụ không tự sinh quyền. Giữ đăng nhập là bổ sung đề xuất; hiện hệ thống dùng Redis session idle 30 phút, không có cặp access token/refresh token.
+
+`QUANLYMUAHANGKHVT.xlsx` chỉ là dữ liệu cũ của Apps Script. File PCVT mới dùng để tra từng món từng mua NCC nào/giá nào, gom hỏi giá theo NCC; file báo giá mới dùng so sánh và chọn NCC từng dòng. Hai kế hoạch 15–16 mô tả hướng mới, chưa triển khai. Chúng điều chỉnh phạm vi Nhân sự và luồng import nghiệp vụ trong các tài liệu cũ; không coi các route/API đề xuất là tính năng đã có.
 
 ## Current source status
 
-Cập nhật 2026-10-10: `source/` có code auth/personnel/catalog/pricing/procurement/import/export/dashboard và registry ứng dụng theo quyền. Compose chỉ chạy MySQL/Redis ở localhost 3307/6380. Backend `mvn package` bằng Maven 3.9.11/JDK 21 thành công lúc 00:29:59 +07:00, 32 test/0 failure/error/skipped; log `source/target/runtime/backend-verified-build.log`. Có 31 unit/mock/H2 tests và một test Redis thật opt-in với namespace UUID/phiên tổng hợp. Test Redis xác nhận Boot indexed repository và service giữ/thu hồi phiên theo principal; chưa xác nhận HTTP hai phiên, last-admin hoặc CRUD MySQL. Backend/frontend đã khởi động lại, MySQL/Redis healthy, backend/proxy health `UP`, frontend HTTP 200. Một lần login thật bằng thông tin bootstrap nạp riêng nhận 401, đã dừng không retry/đổi mật khẩu; chưa xác định thông tin đăng nhập hiện hành. Smoke MySQL/Redis ngày 2026-10-09 là lịch sử, không xác nhận auth thật mới.
+Cập nhật 2026-10-11: `source/` có auth/cổng ứng dụng/nhân sự/tài khoản, danh mục/giá/PO/PDF/XLSX/import/dashboard. Quyền hiện tính từ vai trò; chưa có grant/deny từng tài khoản hoặc quy trình PCVT–gom hỏi giá–so sánh nhiều báo giá. UI/code tồn tại không đồng nghĩa nghiệm thu đủ nghiệp vụ.
 
-Frontend có login/đổi mật khẩu lần đầu/session/CSRF, dashboard API, cổng chọn ứng dụng, UI nhân sự/tài khoản và layout theo pages/hooks/components. Giao diện đã đổi palette và thêm footer bản quyền; build, 7 Vitest tests và 42 trường hợp Playwright riêng biệt trên API giả lập đã qua sau sửa/chạy lại (20 auth/cổng, 22 nhân sự/tài khoản; desktop/mobile). Đã kiểm tra ảnh và sửa footer/bố cục account mobile; các kết quả này chưa nghiệm thu CRUD MySQL/Redis. UI danh mục/giá/PO/import còn thiếu; chưa có grant module độc lập, xin/duyệt quyền hay Bán hàng. Backend demo đã xóa. Cấu trúc backend chưa đồng nhất hoàn toàn theo DDD trong plan. Xem [hệ thống hiện tại](../docs/HE_THONG_HIEN_TAI.md) và [AGENTS.md](../AGENTS.md) để biết bằng chứng và phần còn thiếu; không đánh dấu acceptance từ việc đã có code.
+Luồng workbook cũ đã qua 91 test backend thực thi và driver MySQL/Redis riêng: đối chiếu 11.690 dòng nguồn/91.526 trường, 0 sai lệch theo mapping; đủ 10.561 lịch sử, 262 PO, 850 dòng PO. Cảnh báo nguồn vẫn cần xác minh. Kết quả frontend và giới hạn kiểm thử xem [hệ thống hiện tại](../docs/HE_THONG_HIEN_TAI.md), không dùng các con số của lượt build cũ để mô tả bản hiện tại.
+
+Server ứng dụng đã dừng theo yêu cầu người dùng trong lượt lập kế hoạch ngày 2026-10-11; các cổng 8080/5173/5174 không còn listener tại lần kiểm tra đó. Docker/MySQL/Redis vẫn chạy healthy; không xóa hay thay dữ liệu. Không có thay đổi tính năng hoặc bộ test mới trong lượt lập kế hoạch này. Backend demo đã xóa; Cloudflare/production chưa nghiệm thu.
 
 ## Global Definition of Done
 

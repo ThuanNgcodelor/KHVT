@@ -1,10 +1,12 @@
 # Import dữ liệu, xuất file và PDF
 
+**Bổ sung phạm vi ngày 2026-10-11:** workbook cũ là dữ liệu Apps Script để di trú/tra cứu. PCVT mới cần tra lịch sử từng vật tư, gom NCC hỏi giá và so báo giá mới theo [kế hoạch 16](16-pcvt-tra-gia-cu-va-bao-gia.md). Luồng operational vào draft dưới đây là thiết kế ban đầu, chưa đáp ứng toàn bộ nhu cầu mới. Bằng chứng thực thi hiện hành nằm ở [báo cáo workbook](../docs/DOI_CHIEU_CSDL_VA_WORKBOOK.md).
+
 ## Hai luồng import tách biệt
 
 ### A. Legacy workbook migration
 
-Mục đích: đưa dữ liệu database cũ từ 4 sheet vào MySQL một lần, có preview và report. Không dùng luồng này để tạo draft mua hàng.
+Mục đích: đưa dữ liệu cũ từ **3 sheet nghiệp vụ NCC, LICH_SU, DON_HANG** vào MySQL một lần, có preview và report. CONFIG bị bỏ qua, không đọc/import. Không dùng luồng này để tạo yêu cầu mua mới.
 
 Pipeline:
 
@@ -38,7 +40,7 @@ Mapping:
 
 Chính sách các dữ liệu thiếu trong workbook đã kiểm kê:
 
-- 10.563 LICH_SU không có currency column: gán VND theo cách app cũ hiển thị và gắn ASSUMED_LEGACY.
+- 10.561 LICH_SU không có currency column: gán VND theo cách app cũ hiển thị và gắn ASSUMED_LEGACY; đây là giả định cần xác minh khi so với báo giá mới.
 - 38 DON_HANG thiếu LoaiTien: gán VND kèm warning.
 - 2 DON_HANG thiếu VAT: lưu null/unknown, warning; không mặc định VAT.
 - Khi group 850 dòng theo SoPO, các header fields của cùng PO phải nhất quán; nếu khác nhau, giữ raw row và yêu cầu admin chọn snapshot đúng trước commit.
@@ -48,7 +50,7 @@ Chính sách các dữ liệu thiếu trong workbook đã kiểm kê:
 - Số lượng chữ có một dòng đã biết: lưu quantity_text, không biến thành số.
 - Tên/mã lặp hoặc xung đột NCC cần preview; không merge dựa trên fuzzy match đơn thuần.
 
-Acceptance baseline cho file đang có: 10.563 dòng LICH_SU, 850 dòng DON_HANG thành 262 PO, 279 dòng nguồn NCC; số supplier master sau deduplicate/review có thể khác số dòng sheet. Report phải phân loại đủ warning ở trên. Nếu file người dùng chọn khác checksum/số dòng, hiển thị thực tế và yêu cầu xác nhận, không hard-fail theo con số baseline.
+Baseline đã kiểm đếm cho file đang có: 10.561 dòng LICH_SU, 850 dòng DON_HANG thành 262 PO, 279 dòng nguồn NCC; số supplier master có thể khác số dòng sheet. Report phải phân loại đủ warning theo validator thực tế. Nếu file người dùng chọn khác checksum/số dòng, hiển thị thực tế và yêu cầu xác nhận, không hard-fail theo con số baseline.
 
 ### B. Import operational request/quotation
 

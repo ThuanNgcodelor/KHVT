@@ -2,6 +2,8 @@
 
 Ngày cập nhật: 2026-10-10. Tài liệu phân biệt phần đã có trong code với hướng mở rộng; kết quả kiểm thử được ghi riêng tại [hệ thống hiện tại](HE_THONG_HIEN_TAI.md).
 
+**Yêu cầu mới ngày 2026-10-11:** người dùng cần gom danh bạ cơ bản vào Quản trị, bỏ ứng dụng Nhân sự riêng và cấp/cấm module/hành động cho từng tài khoản. Hướng triển khai mới ở [kế hoạch 15](../plan/15-quan-tri-tai-khoan-va-phan-quyen.md). Registry và cơ chế quyền hiện tại mô tả dưới đây chưa thay đổi; không coi đề xuất grant/deny hoặc giữ đăng nhập là đã có.
+
 ## Trải nghiệm sau đăng nhập
 
 Sau khi đăng nhập và hoàn tất đổi mật khẩu tạm, người dùng tới `/modules`. Trang này hiển thị các ứng dụng được cấp quyền dưới dạng ô có biểu tượng, tên và mô tả. Chọn một ô để vào khu vực làm việc; nút Đổi ứng dụng cho phép quay lại cổng. Người không có quyền nào thấy thông báo liên hệ quản trị viên, không thấy ô giả hoặc ứng dụng chưa triển khai.

@@ -98,8 +98,8 @@ export const apiClient = {
   put: <T>(path: string, body: unknown) =>
     request<T>(path, { method: 'PUT', body: JSON.stringify(body) }),
   upload: <T>(path: string, body: FormData) => request<T>(path, { method: 'POST', body }),
-  download: async (path: string, method: 'GET' | 'POST' = 'GET'): Promise<DownloadFile> => {
-    const response = await fetchResponse(path, { method }, 'application/pdf, application/vnd.openxmlformats-officedocument.spreadsheetml.sheet, text/csv')
+  download: async (path: string, method: 'GET' | 'POST' = 'GET', body?: unknown): Promise<DownloadFile> => {
+    const response = await fetchResponse(path, { method, body: body === undefined ? undefined : JSON.stringify(body) }, 'application/pdf, application/vnd.openxmlformats-officedocument.spreadsheetml.sheet, text/csv, application/octet-stream')
     const disposition = response.headers.get('Content-Disposition') ?? ''
     const encoded = disposition.match(/filename\*=UTF-8''([^;]+)/i)?.[1]
     const plain = disposition.match(/filename="([^"]+)"|filename=([^;]+)/i)

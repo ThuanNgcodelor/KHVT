@@ -1,6 +1,14 @@
 # Hệ thống hiện tại — Quản lý mua hàng KHVT
 
-Cập nhật ngày 2026-10-11. Tài liệu mô tả code và bằng chứng kiểm tra, không phải biên bản nghiệm thu. Import workbook đã qua kiểm thử backend và MySQL/Redis riêng: 11.690 dòng nguồn, 91.526 trường, 0 sai lệch; đủ 10.561 lịch sử, 262 PO và 850 dòng hàng. Có CSV cảnh báo đầy đủ, đối chiếu trước commit, rollback khi lệch và bảo vệ nhập đồng thời. Server chính đã chạy lại JAR mới trên 8080, V6 thành công và số bản ghi trước/sau giữ nguyên. Thông tin thiếu hoặc giả định trong nguồn vẫn cần xác minh nghiệp vụ. Chưa kết nối Cloudflare hoặc nghiệm thu production.
+Cập nhật ngày 2026-10-11. Tài liệu mô tả code và bằng chứng kiểm tra, không phải biên bản nghiệm thu. Import workbook đã qua kiểm thử backend và MySQL/Redis riêng: 11.690 dòng nguồn, 91.526 trường, 0 sai lệch; đủ 10.561 lịch sử, 262 PO và 850 dòng hàng. Có CSV cảnh báo đầy đủ, đối chiếu trước commit, rollback khi lệch và bảo vệ nhập đồng thời. JAR mới đã kiểm tra trên 8080, V6 thành công và số bản ghi trước/sau giữ nguyên; server sau đó đã dừng theo yêu cầu người dùng để lập kế hoạch tiếp. Thông tin thiếu hoặc giả định trong nguồn vẫn cần xác minh nghiệp vụ. Chưa kết nối Cloudflare hoặc nghiệm thu production.
+
+## Hướng tiếp theo được người dùng xác nhận ngày 2026-10-11
+
+Đã dừng ứng dụng bằng `CHAY_KHVT.cmd stop`; tại lần kiểm tra, cổng 8080/5173/5174 không có listener. Hai container `qmh-local` MySQL/Redis vẫn healthy, không thay đổi database hoặc volume.
+
+Người dùng cần **Quản trị** để tạo tài khoản, quản lý phòng ban/chức vụ cơ bản và cấp/cấm ứng dụng/hành động, không cần ứng dụng Nhân sự riêng. Hiện `/admin/users` có thể tạo tài khoản không liên kết nhân viên; grant/deny cá nhân và giữ đăng nhập chưa triển khai. Cấu hình Redis session idle 30 phút, không có access/refresh JWT. Xem [kế hoạch Quản trị và phiên đăng nhập](../plan/15-quan-tri-tai-khoan-va-phan-quyen.md).
+
+`QUANLYMUAHANGKHVT.xlsx` là **dữ liệu lịch sử của Apps Script**. Luồng mới cần nhập PCVT, tra từng món đã mua NCC nào/giá nào, gom hỏi giá theo NCC và so với báo giá mới. Báo giá chưa phải giao dịch đã mua. Xem [kế hoạch PCVT, tra lịch sử và báo giá](../plan/16-pcvt-tra-gia-cu-va-bao-gia.md). Lượt này chỉ rà soát/lập kế hoạch; chưa nhập các file mới hoặc triển khai tính năng mới, không chạy lại suite đã có.
 
 ## Bổ sung kiểm tra độ chính xác khi nhập workbook
 

@@ -1,0 +1,259 @@
+package com.example.quanlymuahang.importing;
+
+import com.example.quanlymuahang.importing.application.SourceDocumentParser;
+import com.example.quanlymuahang.importing.application.SourceDocumentModels.DocumentLine;
+import com.example.quanlymuahang.importing.application.SourceDocumentModels.ParsedDocument;
+import com.example.quanlymuahang.sharedkernel.web.ApiException;
+import org.apache.pdfbox.pdmodel.PDDocument;
+import org.apache.pdfbox.pdmodel.PDPage;
+import org.apache.poi.xssf.usermodel.XSSFWorkbook;
+import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.condition.EnabledIfEnvironmentVariable;
+import org.springframework.mock.web.MockMultipartFile;
+import org.w3c.dom.Element;
+import org.w3c.dom.NodeList;
+
+import javax.xml.XMLConstants;
+import javax.xml.parsers.DocumentBuilderFactory;
+import java.io.ByteArrayOutputStream;
+import java.math.BigDecimal;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.util.*;
+import java.util.zip.ZipFile;
+
+import static org.assertj.core.api.Assertions.*;
+
+class SourceDocumentParserTest {
+    private final SourceDocumentParser parser = new SourceDocumentParser();
+
+    @Test void classifiesContentAndPreservesSeparateRequestNumbersRatherThanGuessingFromTheFilename() throws Exception {
+        try (var book = requestWorkbook()) {
+            var sheet = book.getSheetAt(0);
+            requestRow(sheet.createRow(5), "1", "Vòng bi 6204", "6204 2RS", "Cái", "2", "11");
+            requestRow(sheet.createRow(6), "2", "Dây curoa A42", "A42", "Sợi", "3", "12");
+            var parsed = parse(book, "report-renamed.xlsx", "REQUEST", null);
+            assertThat(parsed.lines()).hasSize(2);
+            assertThat(parsed.lines()).extracting(DocumentLine::requestNumber).containsExactly("11", "12");
+            assertThat(parsed.lines().getFirst().unitPrice()).isNull();
+            assertThat(parsed.lines().getFirst().sourceRow()).isEqualTo(6);
+            assertThat(parsed.lines().getFirst().specification()).isEqualTo("6204 2RS");
+        }
+    }
+
+    @Test void sourceSeparatorsAreExcludedButAnItemWithoutAPhieuIsVisibleAndNotAssignedToItsNeighbour() throws Exception {
+        try (var book = requestWorkbook()) {
+            var sheet = book.getSheetAt(0);
+            requestRow(sheet.createRow(5), "1", "Vòng bi", "6204", "Cái", "1", "7");
+            sheet.createRow(6).createCell(0).setCellValue(2);
+            requestRow(sheet.createRow(7), "3", "Vật tư chưa có phiếu", "M8", "Cái", "5", "");
+            var parsed = parse(book, "anything.xlsx", "REQUEST", null);
+            assertThat(parsed.lines()).hasSize(2);
+            var unassigned = parsed.lines().getLast();
+            assertThat(unassigned.requestNumber()).isNullOrEmpty();
+            assertThat(unassigned.issues()).anyMatch(issue -> issue.contains("REQUEST_NUMBER_MISSING"));
+        }
+    }
+
+    @Test void multipleSheetsRequireExplicitChoiceAndOnlyTheChosenSheetSuppliesRows() throws Exception {
+        try (var book = requestWorkbook()) {
+            requestRow(book.getSheetAt(0).createRow(5), "1", "First material", "Model 1", "Cái", "2", "1");
+            var other = book.createSheet("Other");
+            copyRequestHeaders(other);
+            requestRow(other.createRow(5), "1", "Second material", "Model 2", "Cái", "3", "2");
+            var undecided = parse(book, "both.xlsx", "REQUEST", null);
+            assertThat(undecided.lines()).isEmpty();
+            assertThat(undecided.sheets()).hasSize(2);
+            assertThat(undecided.warnings()).anyMatch(issue -> issue.contains("SHEET_SELECTION_REQUIRED"));
+            var chosen = parse(book, "both.xlsx", "REQUEST", "Other");
+            assertThat(chosen.lines()).extracting(DocumentLine::materialName).containsExactly("Second material");
+            assertThat(chosen.lines().getFirst().sourceSheet()).isEqualTo("Other");
+        }
+    }
+
+    @Test void quotationOptionsWithoutSttAreRetainedAndVendorCodeIsNotAnInternalMaterialIdentity() throws Exception {
+        try (var book = new XSSFWorkbook()) {
+            var sheet = book.createSheet("Quote");
+            sheet.createRow(0).createCell(0).setCellValue("Công Ty TNHH Thiên Phú");
+            sheet.createRow(1).createCell(0).setCellValue("Ngày báo giá: 05/05/2026");
+            String[] headers = {"STT", "Code", "Tên Hàng", "NXS", "Quy cách", "Đơn giá / chưa VAT", "SL", "Thành tiền (đã VAT)", "VAT", "Ghi chú"};
+            var header = sheet.createRow(2);
+            for (int col = 0; col < headers.length; col++) header.createCell(col).setCellValue(headers[col]);
+            var first = sheet.createRow(3);
+            String[] row = {"1", "vendor-code", "Nitric acid", "Merck", "2.5L/chai", "970000", "2", "2095200", "8", "Có sẵn"};
+            for (int col = 0; col < row.length; col++) first.createCell(col).setCellValue(row[col]);
+            var option = sheet.createRow(4);
+            option.createCell(2).setCellValue("Nitric acid"); option.createCell(4).setCellValue("500ml/chai");
+            option.createCell(5).setCellValue(65000); option.createCell(6).setCellValue(10);
+            option.createCell(7).setCellValue(702000); option.createCell(8).setCellValue(0.08);
+            var parsed = parse(book, "sctx.xlsx", "QUOTATION", null);
+            assertThat(parsed.lines()).hasSize(2);
+            assertThat(parsed.lines().getFirst().materialCode()).isNullOrEmpty();
+            assertThat(parsed.lines().getFirst().raw().get("B4")).isEqualTo("vendor-code");
+            assertThat(parsed.lines().getLast().vatPercent()).isEqualByComparingTo("8");
+            assertThat(parsed.lines().getLast().unit()).isEqualTo("chai");
+            assertThat(parsed.quotationDate()).isEqualTo("2026-05-05");
+        }
+    }
+
+    @Test void cachedFormulaIsNeverRecalculatedAndItsUntrustedSourceIsRetained() throws Exception {
+        try (var book = requestWorkbook()) {
+            var sheet = book.getSheetAt(0);
+            requestRow(sheet.createRow(5), "1", "Vật tư có công thức", "", "Cái", "2", "1");
+            var formula = sheet.getRow(5).getCell(4);
+            formula.setCellValue(2);
+            formula.setCellFormula("99+1"); formula.getCTCell().setV("2");
+            var parsed = parse(book, "cached.xlsx", "REQUEST", null);
+            var line = parsed.lines().getFirst();
+            assertThat(line.quantity()).isEqualByComparingTo("2");
+            assertThat(line.raw().get("E6.formula")).isEqualTo("99+1");
+            assertThat(line.issues()).anyMatch(issue -> issue.contains("CACHED_FORMULA_NOT_RECALCULATED"));
+        }
+    }
+
+    @Test void exactDecimalTokensAndTextQuantityAreNotRoundedOrSilentlyReplaced() throws Exception {
+        try (var book = requestWorkbook()) {
+            var sheet = book.getSheetAt(0);
+            requestRow(sheet.createRow(5), "1", "Decimal item", "", "kg", "2", "1");
+            var cell = sheet.getRow(5).getCell(4); cell.setCellValue(1); cell.getCTCell().setV("1.123456789012345678");
+            requestRow(sheet.createRow(6), "2", "Weighed item", "", "kg", "Qua cân thực tế", "1");
+            var parsed = parse(book, "precise.xlsx", "REQUEST", null);
+            assertThat(parsed.lines().getFirst().quantity()).isEqualByComparingTo("1.123456789012345678");
+            assertThat(parsed.lines().getFirst().raw().get("E6.numeric")).isEqualTo("1.123456789012345678");
+            assertThat(parsed.lines().getLast().quantity()).isNull();
+            assertThat(parsed.lines().getLast().quantityText()).isEqualTo("Qua cân thực tế");
+        }
+    }
+
+    @Test void scannedOrBlankPdfReturnsAnExplicitManualReviewStateRatherThanAnEmptySuccess() throws Exception {
+        byte[] bytes;
+        try (var pdf = new PDDocument(); var out = new ByteArrayOutputStream()) { pdf.addPage(new PDPage()); pdf.save(out); bytes = out.toByteArray(); }
+        var parsed = parser.parse(new MockMultipartFile("file", "new-quote.pdf", "application/pdf", bytes), "QUOTATION", null);
+        assertThat(parsed.format()).isEqualTo("PDF_SCAN");
+        assertThat(parsed.lines()).isEmpty();
+        assertThat(parsed.warnings()).anyMatch(issue -> issue.contains("OCR_NOT_SUPPORTED"));
+    }
+
+    @Test void malformedAndOversizedFilesCannotBecomeSuccessfulPreviews() {
+        assertThatThrownBy(() -> parser.parse(new MockMultipartFile("file", "broken.xlsx", "application/octet-stream", new byte[]{1,2,3}), "REQUEST", null)).isInstanceOf(ApiException.class);
+        assertThatThrownBy(() -> parser.parse(new MockMultipartFile("file", "huge.xlsx", "application/octet-stream", new byte[10 * 1024 * 1024 + 1]), "REQUEST", null)).isInstanceOf(ApiException.class);
+    }
+
+    @Test void pdfPageLimitFailsExplicitlyInsteadOfTruncatingToTheFirstPages() throws Exception {
+        byte[] bytes;
+        try (var pdf = new PDDocument(); var out = new ByteArrayOutputStream()) { for (int i = 0; i < 31; i++) pdf.addPage(new PDPage()); pdf.save(out); bytes = out.toByteArray(); }
+        assertThatThrownBy(() -> parser.parse(new MockMultipartFile("file", "31-pages.pdf", "application/pdf", bytes), "QUOTATION", null)).isInstanceOf(ApiException.class);
+    }
+
+    @Test
+    @EnabledIfEnvironmentVariable(named = "QMH_DOCUMENT_SAMPLE_ROOT", matches = ".+")
+    void actualCvtWorkbookMatchesIndependentOpenXmlAtEveryItemCoordinate() throws Exception {
+        Path path = sample("Copy of CVT 2026 - SCTX.xlsx");
+        var parsed = parser.parse(upload(path), "REQUEST", "2026");
+        Map<Integer, Map<String, String>> xml = openXmlSheet(path, "2026");
+        var expected = xml.entrySet().stream().filter(e -> e.getKey() >= 6 && !value(e.getValue(), "B").isBlank()).toList();
+        assertThat(expected).hasSize(2013); assertThat(parsed.lines()).hasSize(expected.size());
+        Map<Integer, DocumentLine> lines = uniqueCoordinates(parsed);
+        for (var source : expected) {
+            DocumentLine line = lines.remove(source.getKey()); assertThat(line).as("Source row %s", source.getKey()).isNotNull();
+            assertThat(line.materialName()).isEqualTo(value(source.getValue(), "B"));
+            assertThat(line.specification()).isEqualTo(value(source.getValue(), "C"));
+            assertThat(line.unit()).isEqualTo(value(source.getValue(), "D"));
+            assertDecimal(line.quantity(), value(source.getValue(), "E"));
+            assertThat(Objects.toString(line.requestNumber(), "")).isEqualTo(value(source.getValue(), "O"));
+        }
+        assertThat(lines).isEmpty();
+        assertThat(parsed.lines().stream().filter(l -> l.sourceRow() == 1416).findFirst().orElseThrow().requestNumber()).isNullOrEmpty();
+        assertThat(parsed.lines().stream().map(DocumentLine::requestNumber).filter(Objects::nonNull).filter(n -> !n.isBlank()).distinct()).hasSize(40);
+    }
+
+    @Test
+    @EnabledIfEnvironmentVariable(named = "QMH_DOCUMENT_SAMPLE_ROOT", matches = ".+")
+    void bothActualQuotationSheetsMatchIndependentExactOpenXmlIncludingMixedVatAndAlternatives() throws Exception {
+        Path path = sample("08.09.2026-Báo Giá Công ty Cổ phần Phân Bón và Hóa Chất Cần Thơ.xlsx");
+        assertThat(parser.parse(upload(path), "QUOTATION", null).lines()).isEmpty();
+        for (String sheet : List.of("BG", "Sheet1")) {
+            var parsed = parser.parse(upload(path), "QUOTATION", sheet);
+            var xml = openXmlSheet(path, sheet);
+            int end = sheet.equals("BG") ? 52 : 27;
+            var expected = xml.entrySet().stream().filter(e -> e.getKey() >= 10 && e.getKey() <= end && !value(e.getValue(), "C").isBlank()).toList();
+            assertThat(expected).hasSize(sheet.equals("BG") ? 43 : 18); assertThat(parsed.lines()).hasSize(expected.size());
+            assertThat(parsed.quotationDate()).isEqualTo(sheet.equals("BG") ? "2026-05-05" : "2026-09-08");
+            var lines = uniqueCoordinates(parsed);
+            for (var source : expected) {
+                var cells = source.getValue(); var line = lines.remove(source.getKey()); assertThat(line).isNotNull();
+                assertThat(line.materialName()).isEqualTo(value(cells, "C"));
+                assertThat(line.specification()).isEqualTo(value(cells, sheet.equals("BG") ? "E" : "F"));
+                assertDecimal(line.quantity(), value(cells, sheet.equals("BG") ? "G" : "H"));
+                assertDecimal(line.unitPrice(), value(cells, sheet.equals("BG") ? "F" : "G"));
+                assertDecimal(line.lineTotal(), value(cells, sheet.equals("BG") ? "H" : "I"));
+                String vat = value(cells, sheet.equals("BG") ? "I" : "J");
+                assertDecimal(line.vatPercent(), vat.isBlank() ? "" : new BigDecimal(vat).movePointRight(2).toPlainString());
+                assertThat(line.materialCode()).isNullOrEmpty();
+            }
+            assertThat(lines).isEmpty();
+        }
+    }
+
+    private ParsedDocument parse(XSSFWorkbook book, String filename, String kind, String sheet) throws Exception {
+        try (var out = new ByteArrayOutputStream()) { book.write(out); return parser.parse(new MockMultipartFile("file", filename, "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", out.toByteArray()), kind, sheet); }
+    }
+    private XSSFWorkbook requestWorkbook() {
+        var book = new XSSFWorkbook(); var sheet = book.createSheet("2026");
+        sheet.createRow(0).createCell(0).setCellValue("PHIẾU CẤP VẬT TƯ PKT NĂM 2026");
+        copyRequestHeaders(sheet); return book;
+    }
+    private void copyRequestHeaders(org.apache.poi.ss.usermodel.Sheet sheet) {
+        String[] headers = {"STT", "TÊN VẬT TƯ", "QUI CÁCH", "ĐVT", "SỐ LƯỢNG", "MỤC ĐÍCH SỬ DỤNG", "Vị trí sử dụng", "", "CẤP THEO", "BP THI CÔNG", "KẾ HOẠCH", "NGÀY CẦN VT CHẬM NHẤT", "GHI CHÚ", "NGÀY CẤP", "SỐ PHIẾU"};
+        var row = sheet.createRow(3); for (int col = 0; col < headers.length; col++) row.createCell(col).setCellValue(headers[col]);
+    }
+    private void requestRow(org.apache.poi.ss.usermodel.Row row, String stt, String name, String specification, String unit, String quantity, String request) {
+        String[] values = {stt, name, specification, unit, quantity};
+        for (int i = 0; i < values.length; i++) row.createCell(i).setCellValue(values[i]);
+        row.createCell(14).setCellValue(request);
+    }
+    private static Path sample(String name) { return Path.of(System.getenv("QMH_DOCUMENT_SAMPLE_ROOT"), name); }
+    private static MockMultipartFile upload(Path path) throws Exception { return new MockMultipartFile("file", "renamed" + (path.toString().endsWith(".pdf") ? ".pdf" : ".xlsx"), "application/octet-stream", Files.readAllBytes(path)); }
+    private static void assertDecimal(BigDecimal actual, String expected) { if (expected.isBlank()) assertThat(actual).isNull(); else assertThat(actual).isEqualByComparingTo(new BigDecimal(expected)); }
+    private static String value(Map<String,String> row, String col) { return row.getOrDefault(col, "").trim(); }
+    private static Map<Integer,DocumentLine> uniqueCoordinates(ParsedDocument parsed) {
+        Map<Integer,DocumentLine> out = new LinkedHashMap<>();
+        for (var line : parsed.lines()) assertThat(out.put(line.sourceRow(), line)).as("No duplicate source row").isNull();
+        return out;
+    }
+
+    // Independent ZIP/XML extraction: no POI DataFormatter and no production parser helpers.
+    private static Map<Integer,Map<String,String>> openXmlSheet(Path path, String name) throws Exception {
+        try (var zip = new ZipFile(path.toFile())) {
+            var shared = new ArrayList<String>();
+            var strings = xml(zip, "xl/sharedStrings.xml");
+            if (strings != null) { var nodes = strings.getElementsByTagName("si"); for (int i = 0; i < nodes.getLength(); i++) shared.add(text((Element) nodes.item(i))); }
+            String relId = null;
+            var sheets = xml(zip, "xl/workbook.xml").getElementsByTagName("sheet");
+            for (int i = 0; i < sheets.getLength(); i++) { var s = (Element) sheets.item(i); if (s.getAttribute("name").equals(name)) relId = s.getAttribute("r:id"); }
+            assertThat(relId).isNotNull(); String target = null;
+            var rels = xml(zip, "xl/_rels/workbook.xml.rels").getElementsByTagName("Relationship");
+            for (int i = 0; i < rels.getLength(); i++) { var r = (Element) rels.item(i); if (r.getAttribute("Id").equals(relId)) target = r.getAttribute("Target"); }
+            assertThat(target).isNotNull(); if (target.startsWith("/")) target = target.substring(1); else target = "xl/" + target;
+            Map<Integer,Map<String,String>> rows = new LinkedHashMap<>();
+            var xmlRows = xml(zip, target).getElementsByTagName("row");
+            for (int i = 0; i < xmlRows.getLength(); i++) {
+                var row = (Element) xmlRows.item(i); Map<String,String> cells = new HashMap<>();
+                var cn = row.getElementsByTagName("c");
+                for (int j = 0; j < cn.getLength(); j++) { var cell = (Element) cn.item(j); String type = cell.getAttribute("t"), value = child(cell, "v");
+                    if (type.equals("s")) value = shared.get(Integer.parseInt(value)); else if (type.equals("inlineStr")) value = text(cell);
+                    cells.put(cell.getAttribute("r").replaceAll("\\d+$", ""), value);
+                }
+                rows.put(Integer.parseInt(row.getAttribute("r")), cells);
+            }
+            return rows;
+        }
+    }
+    private static org.w3c.dom.Document xml(ZipFile zip, String path) throws Exception {
+        var entry = zip.getEntry(path); if (entry == null) return null;
+        var factory = DocumentBuilderFactory.newInstance(); factory.setFeature("http://apache.org/xml/features/disallow-doctype-decl", true); factory.setAttribute(XMLConstants.ACCESS_EXTERNAL_DTD, ""); factory.setAttribute(XMLConstants.ACCESS_EXTERNAL_SCHEMA, "");
+        try (var input = zip.getInputStream(entry)) { return factory.newDocumentBuilder().parse(input); }
+    }
+    private static String child(Element element, String tag) { NodeList nodes = element.getElementsByTagName(tag); return nodes.getLength() == 0 ? "" : nodes.item(0).getTextContent(); }
+    private static String text(Element element) { StringBuilder out = new StringBuilder(); NodeList nodes = element.getElementsByTagName("t"); for (int i = 0; i < nodes.getLength(); i++) out.append(nodes.item(i).getTextContent()); return out.toString(); }
+}
