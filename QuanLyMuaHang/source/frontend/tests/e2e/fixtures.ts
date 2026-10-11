@@ -6,8 +6,7 @@ import type { Employee, Unit } from '../../src/features/personnel/types'
 // Synthetic, per-test API state. These fixtures never access real accounts or MySQL/Redis.
 export const applicationModules: ApplicationModule[] = [
   { code: 'PURCHASING', name: 'Mua hàng', description: 'Đơn mua hàng và tra cứu giá', entryPath: '/dashboard' },
-  { code: 'PERSONNEL', name: 'Nhân sự', description: 'Nhân viên, phòng ban và chức vụ', entryPath: '/admin/employees' },
-  { code: 'ADMINISTRATION', name: 'Quản trị', description: 'Tài khoản và phân quyền', entryPath: '/admin/users' },
+  { code: 'ADMINISTRATION', name: 'Quản trị', description: 'Tài khoản, danh bạ và phân quyền', entryPath: '/admin/users' },
 ]
 const rolePermissions: Record<string, string[]> = {
   ADMIN: ['*'], HR_MANAGER: ['PERSONNEL_READ', 'PERSONNEL_MANAGE'],
@@ -16,7 +15,7 @@ const rolePermissions: Record<string, string[]> = {
 }
 export const roles: Role[] = [
   { code: 'ADMIN', name: 'Quản trị viên', description: 'Quản trị hệ thống', permissions: ['*'], moduleCodes: applicationModules.map((module) => module.code) },
-  { code: 'HR_MANAGER', name: 'Quản lý nhân sự', description: 'Quản lý danh bạ', permissions: rolePermissions.HR_MANAGER, moduleCodes: ['PERSONNEL'] },
+  { code: 'HR_MANAGER', name: 'Quản lý danh bạ', description: 'Quản lý danh bạ; không quản trị tài khoản đăng nhập', permissions: rolePermissions.HR_MANAGER, moduleCodes: ['ADMINISTRATION'] },
   { code: 'VIEWER', name: 'Chỉ xem', description: 'Đọc dữ liệu mua hàng', permissions: rolePermissions.VIEWER, moduleCodes: ['PURCHASING'] },
   { code: 'PLANNER', name: 'Nhân viên kế hoạch', description: 'Quản lý mua hàng', permissions: rolePermissions.PLANNER, moduleCodes: ['PURCHASING'] },
 ]
@@ -27,11 +26,13 @@ export async function mockApi(page: Page, options: Options = {}) {
   const permissions = options.permissions ?? rolePermissions[options.role ?? 'ADMIN'] ?? []
   const allowed = (permission: string) => permissions.includes('*') || permissions.includes(permission)
   const modules = options.modules ?? applicationModules.filter((module) => module.code === 'PURCHASING'
-    ? allowed('PO_READ') && allowed('CATALOG_READ') : allowed(module.code === 'PERSONNEL' ? 'PERSONNEL_READ' : 'USER_READ'))
+    ? allowed('PO_READ') && allowed('CATALOG_READ') : allowed('PERSONNEL_READ') || allowed('USER_READ'))
+    .map((module) => module.code === 'ADMINISTRATION' && !allowed('USER_READ') ? { ...module, entryPath: '/admin/employees' } : module)
   const state = {
     signedIn: options.signedIn ?? false, mustChange: options.mustChange ?? false,
     csrf: 0, dashboardCalls: 0, dashboardStatus: 200, changes: 0,
-    employeeFailures: 0, employeeListStatus: 200, lookupStatus: 200, roleStatus: 200, userStatus: 200,
+    employeeFailures: 0, employeeListStatus: 200, lookupStatus: 200, roleStatus: 200, userStatus: 200, accountFailures: 0,
+    accountListQueries: [] as { query: string; status: string; departmentId: string; page: string }[],
     writes: [] as Write[], unexpectedRequests: [] as string[],
     employees: [{ id: 10, employeeCode: 'NV001', fullName: 'Nhân viên mẫu An', email: 'an@fixture.test', phone: null,
       departmentId: 1, departmentName: 'Phòng KHVT', positionId: 1, positionName: 'Chuyên viên', status: 'ACTIVE',
@@ -115,23 +116,52 @@ export async function mockApi(page: Page, options: Options = {}) {
     }
     if (path.startsWith('/api/admin/')) {
       if (path === '/api/admin/roles') return allowed('USER_READ')
-        ? state.roleStatus === 200 ? reply(roles) : reply({ message: 'Chưa tải được vai trò.' }, state.roleStatus) : forbidden()
+        ? state.roleStatus === 200 ? reply(roles.map((role) => ({ ...role, assignable: allowed('USER_MANAGE') && role.permissions.every(allowed) }))) : reply({ message: 'Chưa tải được vai trò.' }, state.roleStatus) : forbidden()
       if (!allowed('USER_READ') || (method !== 'GET' && !allowed('USER_MANAGE'))) return forbidden()
+      if (path === '/api/admin/users/options') return state.lookupStatus === 200 ? reply({ departments: state.departments, positions: state.positions }) : reply({ message: 'Danh mục tạm thời không khả dụng.' }, state.lookupStatus)
+      if (path === '/api/admin/users/employees') {
+        if (state.employeeListStatus !== 200) return reply({ message: 'Chưa tải được danh sách nhân viên.' }, state.employeeListStatus)
+        const employeeId = Number(url.searchParams.get('employeeId') ?? 0), query = (url.searchParams.get('query') ?? '').toLocaleLowerCase()
+        return reply(paged(state.employees.filter((employee) => (employeeId ? employee.id === employeeId : employee.status === 'ACTIVE' && !state.accounts.some((account) => account.employeeId === employee.id))
+          && (!query || `${employee.employeeCode} ${employee.fullName}`.toLocaleLowerCase().includes(query))), url.searchParams))
+      }
       if (method !== 'GET') state.writes.push({ path, method, body: request.postDataJSON() })
       if (state.userStatus !== 200) return reply({ message: 'Chưa thực hiện được thao tác tài khoản.' }, state.userStatus)
-      if (path === '/api/admin/users' && method === 'GET') return reply(paged(state.accounts, url.searchParams))
+      const accountView = (account: UserAccount): UserAccount => {
+        const employee = state.employees.find((item) => item.id === account.employeeId)
+        return { ...account, employeeCode: employee?.employeeCode ?? null, employeeName: employee?.fullName ?? null, employeeStatus: employee?.status ?? null,
+          departmentId: employee?.departmentId ?? account.departmentId ?? null, departmentName: employee?.departmentName ?? account.departmentName ?? null,
+          positionId: employee?.positionId ?? account.positionId ?? null, positionName: employee?.positionName ?? account.positionName ?? null }
+      }
+      if (path === '/api/admin/users' && method === 'GET') {
+        const query = url.searchParams.get('query') ?? '', status = url.searchParams.get('status') ?? '', departmentId = url.searchParams.get('departmentId') ?? ''
+        state.accountListQueries.push({ query, status, departmentId, page: url.searchParams.get('page') ?? '0' })
+        return reply(paged(state.accounts.map(accountView).filter((account) => (!query || `${account.email} ${account.displayName} ${account.employeeCode ?? ''} ${account.employeeName ?? ''}`.toLocaleLowerCase().includes(query.toLocaleLowerCase()))
+          && (!status || account.status === status) && (!departmentId || account.departmentId === Number(departmentId))), url.searchParams))
+      }
       const accountPath = path.match(/^\/api\/admin\/users\/(\d+)(?:\/(reset-password))?$/)
       if (accountPath?.[2]) {
         state.accounts.find((account) => account.id === Number(accountPath[1]))!.mustChangePassword = true
         return route.fulfill({ status: 200, body: '' })
       }
       if (path === '/api/admin/users' || accountPath) {
+        if (state.accountFailures > 0) { state.accountFailures--; return reply({ code: 'EMPLOYEE_CODE_EXISTS', message: 'Mã nhân viên đã tồn tại.' }, 409) }
         const data = request.postDataJSON(), id = accountPath ? Number(accountPath[1]) : Math.max(...state.accounts.map((item) => item.id), 0) + 1
         const original = state.accounts.find((account) => account.id === id)
-        const { initialPassword: _password, ...publicData } = data
+        const { initialPassword: _password, employeeProfile, ...publicData } = data
+        if (employeeProfile && (employeeProfile.employeeCode || employeeProfile.departmentId || employeeProfile.positionId)) {
+          const employeeId = publicData.employeeId ?? Math.max(...state.employees.map((item) => item.id), 0) + 1
+          const employee: Employee = { email: publicData.email ?? original?.email ?? null, phone: null, joinedAt: null, leftAt: null, version: 0, status: 'ACTIVE',
+            ...state.employees.find((item) => item.id === employeeId), id: employeeId, fullName: data.displayName,
+            employeeCode: employeeProfile.employeeCode || `NV-GENERATED-${employeeId}`, departmentId: employeeProfile.departmentId, positionId: employeeProfile.positionId,
+            departmentName: state.departments.find((item) => item.id === employeeProfile.departmentId)?.name ?? null,
+            positionName: state.positions.find((item) => item.id === employeeProfile.positionId)?.name ?? null }
+          state.employees = [...state.employees.filter((item) => item.id !== employeeId), employee]
+          publicData.employeeId = employeeId
+        }
         const account: UserAccount = { id, status: 'ACTIVE', mustChangePassword: true, failedLoginCount: 0, lockedUntil: null, lastLoginAt: null, ...original, ...publicData }
         state.accounts = [...state.accounts.filter((item) => item.id !== id), account]
-        return reply(account)
+        return reply(accountView(account))
       }
     }
     state.unexpectedRequests.push(`${method} ${path}`)

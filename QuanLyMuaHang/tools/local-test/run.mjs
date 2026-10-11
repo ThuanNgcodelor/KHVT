@@ -76,7 +76,7 @@ try {
   const first = await login(admin, email, temporary); assert(first.mustChangePassword)
   await call(admin, '/api/dashboard', 'GET', undefined, { status: 403 })
   await change(admin, temporary, password)
-  const me = await json(admin, '/api/auth/me'); assert(me.permissions.includes('*')); assert.equal(me.modules.length, 3)
+  const me = await json(admin, '/api/auth/me'); assert(me.permissions.includes('*')); assert.deepEqual(me.modules.map((module) => module.code), ['PURCHASING', 'ADMINISTRATION'])
   const state = await admin.storageState(); const sessionCookie = state.cookies.find((cookie) => cookie.name === 'QMH_TEST_SESSION'); assert(sessionCookie?.httpOnly); assert.equal(sessionCookie.sameSite, 'Lax')
   await call(admin, '/api/catalog/materials', 'POST', { name: 'Should be rejected', category: 'MATERIAL' }, { noCsrf: true, status: 403 }); checked('HTTP login, forced password change, HttpOnly cookie, effective modules, CSRF rejection')
   const department = await json(admin, '/api/personnel/departments', 'POST', { code: 'TEST', name: 'Phòng kiểm thử', active: true })

@@ -2,6 +2,8 @@
 
 React + TypeScript + Vite, tổ chức theo tính năng. Router quản lý trang, TanStack Query quản lý dữ liệu API, React Hook Form + Zod xử lý form và kiểm tra đầu vào.
 
+Phase 1 Quản trị ngày **2026-10-11**: cổng còn **Mua hàng và Quản trị**; danh bạ/phòng ban/chức vụ là danh mục trong Quản trị. Form tài khoản có mã nhân viên, phòng ban và chức vụ tùy chọn, lưu cùng hồ sơ qua một request; vẫn tạo được tài khoản độc lập hoặc liên kết hồ sơ đã có. Danh sách tìm kiếm/lọc trạng thái/phòng ban trên server, phân trang và thể hiện thông tin nhân viên. Vai trò backend đánh dấu `assignable`; người quản lý tài khoản không được cấp vai trò cao hơn phạm vi được giao. TypeScript/Vite build, **10 unit tests và 56 browser cases** auth/tài khoản/danh bạ trên desktop/mobile đã qua, log `source/target/runtime/admin-phase1-browser.log`. Browser cases dùng API fixtures; kết quả MySQL/Redis thật được ghi riêng trong [hệ thống hiện tại](../../docs/HE_THONG_HIEN_TAI.md). Chưa có grant/deny cá nhân hoặc giữ đăng nhập lâu dài.
+
 Lượt PCVT/báo giá mới ngày 2026-10-11: TypeScript/Vite build và 10 unit tests qua; **46 trường hợp** import/mua hàng/chứng từ desktop/mobile với API fixtures qua sau sửa tràn trang. Driver HTTP/MySQL/Redis riêng hoàn tất 14 nhóm với sáu file thật; MCP mở sổ năm, PCVT đã lưu, tra NCC/giá, so sánh và kiểm tra mobile trên API thật. Xem [nghiệm thu và giới hạn](../../docs/NGHIEM_THU_IMPORT_PCVT_VA_BAO_GIA.md), [cách dùng](../../docs/HUONG_DAN_IMPORT_PCVT_VA_BAO_GIA.md). JAR mới đã đóng gói UI; server chính tiếp tục tắt. Không coi browser fixtures là thao tác browser với database thật.
 
 ## Cấu trúc
@@ -116,12 +118,12 @@ API dùng cookie session HttpOnly, không lưu token đăng nhập trong localSt
 ## Phạm vi hiện có
 
 - Đăng nhập, đổi mật khẩu lần đầu, khôi phục phiên, đăng xuất.
-- Cổng chọn ứng dụng theo quyền sau đăng nhập: Mua hàng, Nhân sự, Quản trị. Nút Đổi ứng dụng để trở về cổng; không có quyền thì hiển thị thông báo liên hệ admin.
+- Cổng chọn ứng dụng theo quyền sau đăng nhập: Mua hàng và Quản trị. Người chỉ quản lý danh bạ vào `/admin/employees` trong Quản trị; không được cấp quyền tài khoản chỉ vì có chức vụ hoặc `HR_MANAGER`. Nút Đổi ứng dụng để trở về cổng; không có quyền thì hiển thị thông báo liên hệ admin.
 - Layout dùng chung, menu riêng theo ứng dụng, keyboard focus, menu mobile. Palette xanh rêu/xanh ngọc; footer © Bản quyền thuộc về KHVT | Cung cấp bởi [ThuanNgcodelor](https://github.com/ThuanNgcodelor).
 - Dashboard Mua hàng lấy dữ liệu thật, có loading/error/retry/empty; không fallback demo. HR không có quyền Mua hàng thì không được vào dashboard và không gửi request tổng quan mua hàng.
-- Nhân sự: danh sách/tìm kiếm/lọc trạng thái/phân trang, tạo/sửa hồ sơ, ngừng/kích hoạt; tạo/sửa phòng ban và chức vụ.
-- Tài khoản: danh sách/phân trang, tạo/sửa, liên kết nhân viên hoạt động, gán role và trạng thái, reset mật khẩu tạm. Admin cấp Mua hàng qua PLANNER/VIEWER, Nhân sự qua HR_MANAGER; một người có thể có nhiều role. Thay quyền/trạng thái/reset thu hồi phiên theo backend.
-- API role trả `permissions` và `moduleCodes` suy ra theo registry để giải thích ứng dụng của từng vai trò. Form lưu `roleCodes`; không gửi grant hoặc moduleCodes. Danh sách ứng dụng của phiên được backend tính lại từ hợp permission.
+- Danh mục Quản trị: danh bạ nhân viên, tìm kiếm/lọc trạng thái/phân trang, tạo/sửa hồ sơ, ngừng/kích hoạt; tạo/sửa phòng ban và chức vụ. Các thao tác này vẫn cần `PERSONNEL_READ/PERSONNEL_MANAGE`.
+- Tài khoản: tìm email/họ tên/mã nhân viên, lọc trạng thái/phòng ban và phân trang từ server; tạo/sửa tài khoản kèm thông tin nhân viên tùy chọn qua một request, hoặc liên kết hồ sơ hoạt động; gán role/trạng thái và reset mật khẩu tạm. Lookup nhân viên/phòng ban/chức vụ dùng `/api/admin/users` để không cần cấp quyền quản lý danh bạ chỉ để tạo tài khoản. Admin cấp Mua hàng qua PLANNER/VIEWER; HR_MANAGER chỉ quản lý danh bạ trong Quản trị. Một người có thể có nhiều role. Thay quyền/trạng thái/reset thu hồi phiên theo backend.
+- API role trả `permissions`, `moduleCodes` và `assignable` theo người quản trị đang đăng nhập; UI khóa vai trò ngoài phạm vi, backend kiểm tra lại. Form lưu `roleCodes`; không gửi grant hoặc moduleCodes. Danh sách ứng dụng của phiên được backend tính lại từ hợp permission. Người quản lý có phạm vi giới hạn không được sửa/reset tài khoản có quyền cao hơn.
 - Danh mục vật tư/NCC: tìm mã/tên, lọc trạng thái/phân loại, phân trang từ backend, thêm/sửa và xác nhận ngừng/kích hoạt. Danh sách gợi ý đang hoạt động dùng riêng khi lập đơn.
 - Giá: lịch sử theo từ khóa/mã/tên, loại tiền và phân loại; xem giá gần nhất đúng mã hoặc tên chính xác và cùng loại tiền; chuyển sang lập đơn và tải XLSX theo bộ lọc. Dữ liệu legacy hiển thị cơ sở giả định VND.
 - PO: danh sách/bộ lọc/phân trang, giỏ dòng hàng thủ công hoặc từ danh mục/giá/import, số lượng số hoặc chữ, chọn NCC từng dòng, kiểm tra nhóm NCC rồi lưu từng bản nháp. Sửa có lý do/tăng revision, hủy có xác nhận, phát hành PDF qua POST riêng, tải PDF hiện tại/phiên bản cũ và XLSX.
@@ -131,7 +133,7 @@ API dùng cookie session HttpOnly, không lưu token đăng nhập trong localSt
 
 Giỏ chưa lưu chỉ nằm trong bộ nhớ trang, reload có thể mất; bản nháp đã lưu nằm trong danh sách PO. Mỗi đơn tối đa 200 dòng. Khi mất kết nối sau request lưu, kiểm tra danh sách trước khi gửi lại vì backend chưa có idempotency key. Xem [đối chiếu với Index.html/Mã.js](../../docs/DOI_CHIEU_UNG_DUNG_CU.md).
 
-Hồ sơ nhân viên và tài khoản đăng nhập là hai đối tượng riêng. Ngừng nhân viên vô hiệu hóa tài khoản liên kết; kích hoạt nhân viên không tự khôi phục tài khoản. Khi cần mở lại, admin kiểm tra trạng thái tài khoản riêng. Bộ lọc hiện là mã/tên và trạng thái nhân viên; chưa có bộ lọc phòng ban hay search tài khoản vì API danh sách tài khoản hiện chỉ phân trang.
+Hồ sơ nhân viên và tài khoản đăng nhập là hai đối tượng riêng, có thể lưu cùng lúc từ form tài khoản. Ngừng nhân viên vô hiệu hóa tài khoản liên kết; kích hoạt nhân viên không tự khôi phục tài khoản. Khi cần mở lại, admin kiểm tra trạng thái tài khoản riêng. Danh bạ lọc mã/tên và trạng thái; danh sách tài khoản có tìm kiếm cùng lọc trạng thái/phòng ban từ backend.
 
 ## Kiểm tra
 

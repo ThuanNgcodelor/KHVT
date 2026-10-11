@@ -78,10 +78,9 @@ class AuthApiIntegrationTest {
                 .andExpect(status().isOk()).andExpect(jsonPath("email").value(EMAIL))
                 .andExpect(jsonPath("roles[0]").value("ADMIN"))
                 .andExpect(jsonPath("permissions.length()").value(1)).andExpect(jsonPath("permissions[0]").value("*"))
-                .andExpect(jsonPath("modules.length()").value(3))
+                .andExpect(jsonPath("modules.length()").value(2))
                 .andExpect(jsonPath("modules[0].code").value("PURCHASING"))
-                .andExpect(jsonPath("modules[1].code").value("PERSONNEL"))
-                .andExpect(jsonPath("modules[2].code").value("ADMINISTRATION"))
+                .andExpect(jsonPath("modules[1].code").value("ADMINISTRATION"))
                 .andExpect(jsonPath("password").doesNotExist()).andExpect(jsonPath("passwordHash").doesNotExist());
         Csrf csrf = csrf(session);
         mvc.perform(post("/api/auth/logout").session(session).cookie(csrf.cookie())
@@ -102,7 +101,7 @@ class AuthApiIntegrationTest {
         changePassword(session, csrf, "new-synthetic-password").andExpect(status().isOk())
                 .andExpect(jsonPath("mustChangePassword").value(false))
                 .andExpect(jsonPath("permissions[0]").value("*"))
-                .andExpect(jsonPath("modules.length()").value(3))
+                .andExpect(jsonPath("modules.length()").value(2))
                 .andExpect(jsonPath("passwordHash").doesNotExist());
         mvc.perform(get("/api/dashboard").session(session)).andExpect(status().isOk());
     }
@@ -128,7 +127,8 @@ class AuthApiIntegrationTest {
         mvc.perform(get("/api/auth/me").session(session)).andExpect(status().isOk())
                 .andExpect(jsonPath("permissions.length()").value(2))
                 .andExpect(jsonPath("modules.length()").value(1))
-                .andExpect(jsonPath("modules[0].code").value("PERSONNEL"));
+                .andExpect(jsonPath("modules[0].code").value("ADMINISTRATION"))
+                .andExpect(jsonPath("modules[0].entryPath").value("/admin/employees"));
         mvc.perform(get("/api/personnel/employees").session(session)).andExpect(status().isOk());
         mvc.perform(get("/api/dashboard").session(session)).andExpect(status().isForbidden());
         mvc.perform(get("/api/admin/users").session(session)).andExpect(status().isForbidden());

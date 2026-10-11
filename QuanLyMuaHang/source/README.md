@@ -16,6 +16,14 @@ API `/api/imports/documents`: `POST /preview` multipart có `kind=REQUEST|QUOTAT
 
 33 test import cuối qua; driver MySQL/Redis/MCP riêng hoàn tất 14 nhóm với sáu file thật, không thay dữ liệu chính. Xem [biên bản và giới hạn](../docs/NGHIEM_THU_IMPORT_PCVT_VA_BAO_GIA.md), [cách dùng](../docs/HUONG_DAN_IMPORT_PCVT_VA_BAO_GIA.md). Đoạn đối chiếu 11.690 dòng ở trên là bằng chứng workbook cũ; không cộng vào số kiểm tra chứng từ mới. Server chính tiếp tục tắt; JAR mới đã đóng gói, V7 sẽ áp dụng khi khởi động bản mới.
 
+## Quản trị tài khoản — Phase 1
+
+Cổng `/modules` chỉ đăng ký Mua hàng và Quản trị. Danh bạ, phòng ban/chức vụ nằm trong Quản trị; `HR_MANAGER` giữ quyền danh bạ, không tự được quản lý tài khoản. Form `/admin/users` tạo tài khoản độc lập hoặc lưu hồ sơ nhân viên cơ bản cùng transaction, cũng có thể liên kết hồ sơ có sẵn. Cách dùng và các bước quyền riêng/giữ đăng nhập còn lại ở [hướng dẫn Phase 1](../docs/HUONG_DAN_QUAN_TRI_PHASE_1.md).
+
+`GET /api/admin/users` nhận `query`, `status`, `departmentId`, `page`, `size`, `sort`; từ khóa tìm email/tên/mã nhân viên, lọc trước phân trang, tối đa 100 bản ghi/trang. `GET /api/admin/users/options` trả phòng ban/chức vụ và `GET /api/admin/users/employees` nhận `query`, `employeeId` và paging để chọn hồ sơ; chỉ trả thông tin tối thiểu. Cả ba API cần `USER_READ` hoặc wildcard. Create/update vẫn hỗ trợ `employeeId`, bổ sung `employeeProfile: {employeeCode, departmentId, positionId}` tùy chọn. Hồ sơ mới trống không sinh bản ghi; hồ sơ hiện có gửi profile trống xóa phòng ban/chức vụ và giữ mã. Danh mục đã ngừng chỉ được giữ nếu đúng ID hiện tại, không được gán mới.
+
+Danh sách vai trò trả `assignable` theo actor hiện hành. Backend kiểm tra phạm vi gán vai trò và sửa/reset tài khoản, chặn người có `USER_MANAGE` cấp wildcard hoặc chiếm tài khoản có quyền cao hơn. Khóa/đổi vai trò/reset tiếp tục thu hồi phiên và ghi audit không chứa mật khẩu. Grant/deny cá nhân, `ACCESS_MANAGE`, tách quyền phát hành và remember-me chưa có. Race login đồng thời với thu hồi phiên chưa được bảo vệ bằng phiên bản quyền; thuộc bước 2 của kế hoạch 15.
+
 ## Chạy trên Windows
 
 Điểm chạy chính ở thư mục gốc `QuanLyMuaHang` là [CHAY_KHVT.cmd](../CHAY_KHVT.cmd). Cần JDK 21, Maven 3.9+, Node/npm và Docker Desktop; tạo `source/.env` riêng từ mẫu nếu chưa có, không ghi đè file đang dùng. **Mở Docker Desktop riêng**, chờ engine sẵn sàng rồi bấm đúp file hoặc chạy từ thư mục gốc:

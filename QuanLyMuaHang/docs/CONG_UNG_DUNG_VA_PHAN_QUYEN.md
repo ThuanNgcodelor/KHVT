@@ -1,8 +1,8 @@
 # Cổng ứng dụng và phân quyền KHVT
 
-Ngày cập nhật: 2026-10-10. Tài liệu phân biệt phần đã có trong code với hướng mở rộng; kết quả kiểm thử được ghi riêng tại [hệ thống hiện tại](HE_THONG_HIEN_TAI.md).
+Ngày cập nhật: 2026-10-11. Tài liệu phân biệt phần đã có trong code với hướng mở rộng; kết quả kiểm thử được ghi riêng tại [hệ thống hiện tại](HE_THONG_HIEN_TAI.md).
 
-**Yêu cầu mới ngày 2026-10-11:** người dùng cần gom danh bạ cơ bản vào Quản trị, bỏ ứng dụng Nhân sự riêng và cấp/cấm module/hành động cho từng tài khoản. Hướng triển khai mới ở [kế hoạch 15](../plan/15-quan-tri-tai-khoan-va-phan-quyen.md). Registry và cơ chế quyền hiện tại mô tả dưới đây chưa thay đổi; không coi đề xuất grant/deny hoặc giữ đăng nhập là đã có.
+**Phase 1 Quản trị:** danh bạ cơ bản được gom vào Quản trị; không có ứng dụng Nhân sự riêng. Cấp/cấm module/hành động cho từng tài khoản và giữ đăng nhập vẫn là các bước sau ở [kế hoạch 15](../plan/15-quan-tri-tai-khoan-va-phan-quyen.md). Xem [cách dùng Phase 1](HUONG_DAN_QUAN_TRI_PHASE_1.md).
 
 ## Trải nghiệm sau đăng nhập
 
@@ -21,19 +21,18 @@ Registry hiện được khai báo trong code backend, chưa phải bảng danh 
 | Mã ứng dụng | Tên | Điều kiện hiển thị | Trang vào |
 |---|---|---|---|
 | `PURCHASING` | Mua hàng | Có cả `PO_READ` và `CATALOG_READ` | `/dashboard` |
-| `PERSONNEL` | Nhân sự | Có `PERSONNEL_READ` | `/admin/employees` |
-| `ADMINISTRATION` | Quản trị | Có `USER_READ` | `/admin/users` |
+| `ADMINISTRATION` | Quản trị | Có `USER_READ` hoặc `PERSONNEL_READ` | `/admin/users` nếu có `USER_READ`; nếu chỉ có `PERSONNEL_READ` thì `/admin/employees` |
 
 Permission wildcard `*` được nhận diện ở backend và mở các ứng dụng đã đăng ký. Vai trò mặc định `ADMIN` có permission này; tên vai trò `ADMIN` riêng lẻ không phải điều kiện bypass kiểm tra module hoặc permission frontend. Hiện các vai trò mặc định có kết quả:
 
 | Vai trò | Ứng dụng được hiển thị | Phạm vi |
 |---|---|---|
-| `ADMIN` | Mua hàng, Nhân sự, Quản trị | Toàn quyền theo wildcard |
+| `ADMIN` | Mua hàng, Quản trị | Toàn quyền theo wildcard |
 | `PLANNER` | Mua hàng | Danh mục, giá, đơn mua và import yêu cầu theo permission hiện có |
 | `VIEWER` | Mua hàng | Đọc/tra cứu; không cấp quyền ghi |
-| `HR_MANAGER` | Nhân sự | Quản lý hồ sơ và danh mục nhân sự |
+| `HR_MANAGER` | Quản trị | Chỉ danh bạ, phòng ban/chức vụ; không tự có quyền quản lý tài khoản |
 
-Ví dụ, admin gán `PLANNER` cho một tài khoản để cấp Mua hàng; gán thêm `HR_MANAGER` để tài khoản có cả Mua hàng và Nhân sự. Đổi vai trò hiện là thao tác quản trị trực tiếp, không có bước người dùng xin quyền hoặc admin duyệt yêu cầu. Backend thu hồi các phiên hiện có khi cập nhật tài khoản; lần đăng nhập sau tải lại quyền và danh sách ứng dụng.
+Ví dụ, admin gán `PLANNER` cho một tài khoản để cấp Mua hàng; gán thêm `HR_MANAGER` để tài khoản có thêm phần danh bạ trong Quản trị. Đổi vai trò hiện là thao tác quản trị trực tiếp, không có bước người dùng xin quyền hoặc admin duyệt yêu cầu. Backend thu hồi các phiên hiện có khi cập nhật tài khoản; lần đăng nhập sau tải lại quyền và danh sách ứng dụng. Người chỉ quản lý danh bạ không tự được mở màn Tài khoản.
 
 Thao tác hiện tại: mở Quản trị → Tài khoản → Thêm hoặc Sửa → chọn vai trò → xác nhận tác động phiên → lưu. Tài khoản mới có mật khẩu tạm tối thiểu 12 ký tự và phải đổi mật khẩu khi đăng nhập. Admin không được tự khóa/vô hiệu hóa tài khoản của mình hoặc gỡ/khóa admin hoạt động cuối cùng; các ràng buộc này được backend kiểm tra. Sửa tài khoản của chính mình có thể thu hồi phiên hiện tại.
 

@@ -2,7 +2,8 @@ import { useDeferredValue, useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { userAdminApi } from '../userAdminApi'
 import { errorMessage } from '../../../services/errorMessage'
-export function EmployeePicker({ value, onChange, disabled }: { value: number | null; onChange: (value: number | null) => void; disabled: boolean }) {
+import type { EmployeeOption } from '../types'
+export function EmployeePicker({ value, onChange, onPick, disabled }: { value: number | null; onChange: (value: number | null) => void; onPick?: (employee: EmployeeOption) => void; disabled: boolean }) {
   const [search, setSearch] = useState('')
   const q = useDeferredValue(search.trim())
   const selected = useQuery({ queryKey: ['users', 'linked-employee', value], queryFn: async ({ signal }) => (await userAdminApi.employees({ employeeId: value!, page: 0, size: 1 }, signal)).content.find((employee) => employee.id === value), enabled: value !== null })
@@ -19,7 +20,7 @@ export function EmployeePicker({ value, onChange, disabled }: { value: number | 
       {q && choices.isPending && <p className="field-help" role="status">Đang tìm nhân viên…</p>}
       {q && choices.error && <p className="field-error" role="alert">{errorMessage(choices.error)} <button className="text-button" type="button" onClick={() => { void choices.refetch() }}>Thử lại</button></p>}
       {q && choices.data && !choices.error && <div className="employee-choices" aria-label="Kết quả tìm nhân viên">
-        {choices.data.content.length ? choices.data.content.map((employee) => <button className="employee-choice" type="button" key={employee.id} disabled={disabled} onClick={() => onChange(employee.id)}>{employee.employeeCode} · {employee.fullName}</button>) : <p className="field-help">Không có nhân viên phù hợp.</p>}
+        {choices.data.content.length ? choices.data.content.map((employee) => <button className="employee-choice" type="button" key={employee.id} disabled={disabled} onClick={() => { onChange(employee.id); onPick?.(employee) }}>{employee.employeeCode} · {employee.fullName}</button>) : <p className="field-help">Không có nhân viên phù hợp.</p>}
         {choices.data.totalElements > choices.data.content.length && <p className="field-help">Có thêm kết quả. Nhập cụ thể hơn để chọn đúng nhân viên.</p>}
       </div>}
     </>}

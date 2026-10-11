@@ -1,14 +1,14 @@
 # Quản trị tài khoản, quyền ứng dụng và giữ đăng nhập
 
-Ngày lập: **2026-10-11**. Đây là **kế hoạch, chưa triển khai**. Phạm vi do người dùng xác nhận: tạo tài khoản cho nhân viên và cấp/cấm chức năng; không cần một ứng dụng Nhân sự riêng. Phần mua hàng nằm ở [kế hoạch PCVT và báo giá](16-pcvt-tra-gia-cu-va-bao-gia.md).
+Ngày lập/cập nhật: **2026-10-11**. **Bước 1 gom Quản trị đã có code** trong lượt Phase 1; bước 2 cấp/cấm quyền riêng và bước 3 giữ đăng nhập chưa triển khai. Phạm vi do người dùng xác nhận: tạo tài khoản cho nhân viên và cấp/cấm chức năng; không cần một ứng dụng Nhân sự riêng. Cách dùng ở [hướng dẫn Quản trị Phase 1](../docs/HUONG_DAN_QUAN_TRI_PHASE_1.md), kết quả kiểm thử ở [hệ thống hiện tại](../docs/HE_THONG_HIEN_TAI.md). Phần mua hàng nằm ở [kế hoạch PCVT và báo giá](16-pcvt-tra-gia-cu-va-bao-gia.md).
 
 ## 1. Hiện tại đã có gì?
 
 | Khu vực | Đang có trong code | Chưa có |
 |---|---|---|
-| `/admin/users` | Tạo/sửa tài khoản; gán vai trò; khóa/ngừng; reset mật khẩu tạm; liên kết nhân viên là tùy chọn | Cấp/cấm module trực tiếp cho từng người; sửa ma trận quyền; tìm kiếm/lọc toàn bộ tài khoản phía server |
+| `/admin/users` | Tạo/sửa tài khoản kèm hồ sơ cơ bản tùy chọn trong một form; liên kết hồ sơ có sẵn; gán vai trò trong phạm vi actor; khóa/ngừng/reset mật khẩu; tìm email/tên/mã nhân viên, lọc trạng thái/phòng ban và phân trang ở server | Cấp/cấm module trực tiếp cho từng người; sửa ma trận quyền |
 | `/admin/employees` | Tạo/sửa hồ sơ; phòng ban/chức vụ; kích hoạt/ngừng | Không tự tạo nhân viên từ phòng ban hoặc workbook mua hàng |
-| `/modules` | Hiển thị ứng dụng từ permission backend trả về | Chưa có grant/deny riêng hoặc ứng dụng Bán hàng |
+| `/modules` | Mua hàng và Quản trị từ permission backend; danh bạ nằm trong Quản trị, người chỉ có quyền danh bạ không được mở tài khoản | Chưa có grant/deny riêng hoặc ứng dụng Bán hàng |
 | Đăng nhập | Cookie phiên HttpOnly, Redis và CSRF; đổi mật khẩu tạm lần đầu | Chưa có lựa chọn giữ đăng nhập lâu dài |
 
 Danh sách phòng ban có dữ liệu không làm phát sinh hồ sơ nhân viên. Người dùng báo hiện chưa có nhân viên; lượt lập kế hoạch này không truy vấn số hồ sơ trong database. Nhập nhân viên từ danh sách chưa được duyệt cũng không nằm trong phạm vi.
@@ -52,7 +52,7 @@ Ví dụ đề xuất:
 
 Mẫu dữ liệu bổ sung: `user_module_access`, `user_permission_overrides`; tận dụng bảng role/permission hiện có. Có audit người cấp, người nhận, thay đổi, thời điểm. Bộ tính quyền phải được dùng thống nhất cho session, module catalog và API, kể cả API dùng chung catalog/import/export/dashboard. Permission chưa ánh xạ module phải được rà soát, không mặc định cho qua.
 
-Tách **quản lý thông tin tài khoản** (`USER_MANAGE`) với **cấp quyền** (`ACCESS_MANAGE`, đề xuất). Hiện service gán role chưa có giới hạn riêng ngăn người có `USER_MANAGE` gán `ADMIN`; cần bảo vệ cả tạo/sửa tài khoản, gán role, grant và override phía backend. Người được ủy quyền chỉ cấp trong phạm vi quản trị đã được giao, không tự cấp wildcard hoặc quyền cao hơn phạm vi đó. Form tạo tài khoản phải tuân thủ cùng quy tắc, không mở đường nâng quyền bằng role mặc định.
+Tách **quản lý thông tin tài khoản** (`USER_MANAGE`) với **cấp quyền** (`ACCESS_MANAGE`, đề xuất ở bước 2). Phase 1 đã kiểm tra actor hiện hành trong database: người chỉ có `USER_MANAGE` không được gán wildcard hoặc vai trò có permission vượt phạm vi actor, và không được sửa/reset tài khoản có quyền cao hơn. API vai trò trả `assignable` để UI thể hiện cùng giới hạn. Khi thêm grant/override và quản lý mẫu quyền ở bước 2, tiếp tục áp dụng quy tắc này; không mở đường nâng quyền bằng form tạo tài khoản.
 
 Wildcard `*` của admin vẫn phải qua quy tắc cấm: mở rộng thành permission cụ thể rồi áp dụng deny; principal không giữ wildcard có thể bypass `@PreAuthorize` sau khi đã tính ngoại lệ. Rà soát cả điều kiện `hasAuthority('*')` đang có trong controller, không chỉ sửa cổng ứng dụng. Không cho cấm quyền Quản trị/cấp quyền của admin hoạt động cuối cùng hoặc tự khóa đường khôi phục của chính mình. Tài khoản có quyền quản trị vẫn có thể bị cấm Mua hàng. Vai trò chức vụ không được cấp wildcard. Quyền quản trị mẫu quyền phải có ràng buộc chống tự nâng quyền và chống xóa bảo vệ last-admin.
 
@@ -82,7 +82,7 @@ Luồng login JSON đang do ứng dụng tự xử lý, nên không chỉ thêm 
 
 ## 5. Thứ tự làm và điều kiện nghiệm thu
 
-1. **Gom Quản trị:** form tạo tài khoản đơn giản, phòng ban/chức vụ tùy chọn; bỏ ô Nhân sự; tìm kiếm/lọc tài khoản phía server; giữ dữ liệu cũ.
+1. **Gom Quản trị — Phase 1:** đã có form tạo tài khoản kèm hồ sơ tùy chọn, danh mục và chọn hồ sơ trong API Quản trị; bỏ ô Nhân sự; tìm kiếm/lọc tài khoản phía server; giữ dữ liệu cũ. Kiểm thử và giới hạn ghi riêng ở hiện trạng.
 2. **Cấp/cấm module và thao tác:** migration, bộ tính quyền, API và UI xem quyền cuối cùng; tách quyền PO; audit/thu hồi phiên; kiểm thử trước khi đổi tài khoản thật.
 3. **Giữ đăng nhập:** vòng đời token theo thiết bị, checkbox, re-auth thao tác nhạy cảm; kiểm tra cookie qua HTTPS thật khi Cloudflare được cấu hình.
 4. **Kiểm tra API/MySQL/Redis riêng và browser:** tài khoản có/không có module, nhiều vai trò, deny thắng wildcard/role, URL trực tiếp và API 403, thu hồi hai phiên/thiết bị, admin cuối cùng, CSRF, mật khẩu tạm, restart server, hết hạn/đăng xuất/đổi quyền. Test browser giả lập được ghi riêng, không thay test backend thật.

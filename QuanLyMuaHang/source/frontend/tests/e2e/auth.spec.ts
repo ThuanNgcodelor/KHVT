@@ -9,7 +9,7 @@ test('redirects protected pages, logs in, restores session on reload, and logs o
   await expect(page).toHaveURL(/\/modules$/)
   await expect(page.getByRole('heading', { name: 'Ứng dụng của bạn' })).toBeVisible()
   await expect(page.getByRole('link', { name: /^Mua hàng/ })).toBeVisible()
-  await expect(page.getByRole('link', { name: /^Nhân sự/ })).toBeVisible()
+  await expect(page.getByRole('link', { name: /^Nhân sự/ })).toHaveCount(0)
   await expect(page.getByRole('link', { name: /^Quản trị/ })).toBeVisible()
   await expect(page.getByRole('link', { name: /^Bán hàng/ })).toHaveCount(0)
   await page.getByRole('link', { name: /^Mua hàng/ }).click()
@@ -83,18 +83,22 @@ test('viewer cannot open account administration', async ({ page }) => {
   await expect(page.getByRole('link', { name: 'Tài khoản', exact: true })).toHaveCount(0)
 })
 
-test('HR sees personnel navigation without purchasing data requests', async ({ page }) => {
+test('directory manager opens Administration without account or purchasing access', async ({ page }) => {
   const state = await mockApi(page, { role: 'HR_MANAGER', signedIn: true })
   await page.goto('/modules')
   await expect(page.getByRole('link', { name: /^Mua hàng/ })).toHaveCount(0)
-  await expect(page.getByRole('link', { name: /^Quản trị/ })).toHaveCount(0)
-  await page.getByRole('link', { name: /^Nhân sự/ }).click()
-  await expect(page.getByRole('heading', { name: 'Nhân sự', exact: true })).toBeVisible()
+  await expect(page.getByRole('link', { name: /^Nhân sự/ })).toHaveCount(0)
+  await page.getByRole('link', { name: /^Quản trị/ }).click()
+  await expect(page).toHaveURL(/\/admin\/employees$/)
+  await expect(page.getByRole('heading', { name: 'Danh bạ nhân viên', exact: true })).toBeVisible()
+  await expect(page.getByRole('link', { name: 'Tài khoản', exact: true })).toHaveCount(0)
   await expect(page.getByRole('button', { name: 'Thêm nhân viên' })).toBeVisible()
   await page.goto('/dashboard')
   await expect(page.getByRole('heading', { name: 'Bạn không có quyền truy cập' })).toBeVisible()
   await expect(page.getByRole('heading', { name: 'Đơn mua hàng gần đây' })).toHaveCount(0)
   expect(state.dashboardCalls).toBe(0)
+  await page.goto('/admin/users')
+  await expect(page.getByRole('heading', { name: 'Bạn không có quyền truy cập' })).toBeVisible()
 })
 
 test('dashboard error can be retried without showing demo data', async ({ page }) => {

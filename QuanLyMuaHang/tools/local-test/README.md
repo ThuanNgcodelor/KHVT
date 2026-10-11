@@ -1,5 +1,21 @@
 # Kiểm thử API/database và workbook local
 
+## Quản trị Phase 1: tài khoản và hồ sơ cơ bản
+
+Build frontend và JAR `windows-web` mới trước khi chạy. MySQL/Redis `qmh-local` phải healthy; cổng 8082 phải trống. Driver từ chối cổng đang có listener và không dừng ứng dụng của người sử dụng.
+
+```powershell
+$env:QMH_PHASE1_BROWSER = 'true'
+node --max-old-space-size=128 --max-semi-space-size=2 tools/local-test/admin-phase1.mjs
+Remove-Item Env:QMH_PHASE1_BROWSER
+```
+
+Driver đọc `.env` riêng trong bộ nhớ, tạo schema `qmh_admin_phase1_*`, namespace Redis riêng, mật khẩu ngẫu nhiên và backend tạm cổng 8082. Kiểm tra tạo tài khoản kèm hồ sơ trong một request, tự sinh mã hoặc bỏ hồ sơ, rollback khi lỗi, cập nhật thông tin, tìm kiếm/lọc/phân trang phía server, quyền danh bạ của `HR_MANAGER`, chống cấp quyền vượt phạm vi, tự khóa/admin cuối cùng và thu hồi hai phiên Redis khi thay quyền/trạng thái/mật khẩu. Restart chỉ tiến trình backend do driver tạo để kiểm tra lưu dữ liệu và phiên Redis.
+
+Đặt `QMH_PHASE1_BROWSER=true` để chạy MCP với UI/API/MySQL/Redis thật: cổng ứng dụng Quản trị, tạo hồ sơ trong form tài khoản, tìm kiếm, reload, tài khoản chỉ quản lý danh bạ và layout mobile. Bỏ biến để chỉ chạy API; không coi lượt bỏ biến là kiểm thử browser. Driver không kiểm thử grant/deny cá nhân hoặc giữ đăng nhập lâu dài của các phase sau.
+
+Báo cáo tại `source/target/runtime/admin-phase1-real-integration-report.json` và tên schema tương ứng: chỉ xem là qua khi `completed: true`, `mainUnchanged: true` và browser đã chạy nếu đặt biến. Đối chiếu database chính gồm số bản ghi, Flyway và metadata tài khoản/liên kết vai trò; không đọc hash để đối chiếu. Schema thử giữ lại; backend/browser tự dừng, không xóa volume hay flush Redis. `QMH_TEST_JAVA` và `QMH_TEST_JAR` cho phép chỉ định JDK 21/JAR khác. Mật khẩu, hash, cookie và CSRF không được ghi vào báo cáo.
+
 ## PCVT và báo giá mới: sáu file thật
 
 Sau khi frontend/JAR `windows-web` đã build và Docker healthy, chạy từ root. Driver đọc `.env` riêng trong bộ nhớ; không log mật khẩu/cookie. Không dùng tài khoản của người sử dụng để test.

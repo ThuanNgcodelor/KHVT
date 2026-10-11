@@ -21,6 +21,7 @@ import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.PutMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
 import java.util.List;
@@ -36,32 +37,46 @@ public class UserAdministrationController {
 
     @GetMapping("/roles")
     @PreAuthorize("hasAuthority('*') or hasAuthority('USER_READ')")
-    public List<RoleView> roles() {
+    public List<RoleView> roles(Authentication authentication) {
         return roles.findAllByActiveTrueOrderByNameAsc().stream().map(role -> {
             Set<String> permissions = role.getPermissions().stream().map(permission -> permission.getCode())
                     .collect(java.util.stream.Collectors.toUnmodifiableSet());
             return new RoleView(role.getCode(), role.getName(), role.getDescription(), permissions.stream().sorted().toList(),
-                    ApplicationModuleCatalog.forPermissions(permissions).stream().map(ApplicationModuleCatalog.ModuleView::code).toList());
+                    ApplicationModuleCatalog.forPermissions(permissions).stream().map(ApplicationModuleCatalog.ModuleView::code).toList(),
+                    service.isRoleAssignable(role, ((AccountPrincipal) authentication.getPrincipal()).id()));
         }).toList();
     }
 
     @GetMapping("/users")
     @PreAuthorize("hasAuthority('*') or hasAuthority('USER_READ')")
-    public Page<UserAdministrationService.UserView> users(@PageableDefault(size = 25, sort = "createdAt") Pageable pageable) {
-        return service.list(pageable);
+    public Page<UserAdministrationService.UserView> users(@RequestParam(required = false) String query,
+            @RequestParam(required = false) AccountStatus status, @RequestParam(required = false) Long departmentId,
+            @PageableDefault(size = 25, sort = "createdAt", direction = org.springframework.data.domain.Sort.Direction.DESC) Pageable pageable) {
+        return service.list(query, status, departmentId, pageable);
+    }
+
+    @GetMapping("/users/options")
+    @PreAuthorize("hasAuthority('*') or hasAuthority('USER_READ')")
+    public UserAdministrationService.UserOptions options() { return service.options(); }
+
+    @GetMapping("/users/employees")
+    @PreAuthorize("hasAuthority('*') or hasAuthority('USER_READ')")
+    public Page<UserAdministrationService.EmployeeOption> employeeOptions(@RequestParam(required = false) String query,
+            @RequestParam(required = false) Long employeeId, @PageableDefault(size = 25) Pageable pageable) {
+        return service.employeeOptions(query, employeeId, pageable);
     }
 
     @PostMapping("/users")
     @PreAuthorize("hasAuthority('*') or hasAuthority('USER_MANAGE')")
     public UserAdministrationService.UserView create(@Valid @RequestBody CreateUserRequest body, Authentication authentication) {
-        return service.create(new UserAdministrationService.CreateUser(body.email(), body.displayName(), body.initialPassword(), body.employeeId(), body.roleCodes()),
+        return service.create(new UserAdministrationService.CreateUser(body.email(), body.displayName(), body.initialPassword(), body.employeeId(), body.roleCodes(), profile(body.employeeProfile())),
                 ((AccountPrincipal) authentication.getPrincipal()).id());
     }
 
     @PutMapping("/users/{id}")
     @PreAuthorize("hasAuthority('*') or hasAuthority('USER_MANAGE')")
     public UserAdministrationService.UserView update(@PathVariable long id, @Valid @RequestBody UpdateUserRequest body, Authentication authentication) {
-        return service.update(id, new UserAdministrationService.UpdateUser(body.displayName(), body.employeeId(), body.status(), body.roleCodes()),
+        return service.update(id, new UserAdministrationService.UpdateUser(body.displayName(), body.employeeId(), body.status(), body.roleCodes(), profile(body.employeeProfile())),
                 ((AccountPrincipal) authentication.getPrincipal()).id());
     }
 
@@ -71,12 +86,16 @@ public class UserAdministrationController {
         service.resetPassword(id, body.temporaryPassword(), ((AccountPrincipal) authentication.getPrincipal()).id());
     }
 
-    public record RoleView(String code, String name, String description, List<String> permissions, List<String> moduleCodes) {}
+    private static UserAdministrationService.EmployeeProfile profile(EmployeeProfileRequest request) {
+        return request == null ? null : new UserAdministrationService.EmployeeProfile(request.employeeCode(), request.departmentId(), request.positionId());
+    }
+    public record RoleView(String code, String name, String description, List<String> permissions, List<String> moduleCodes, boolean assignable) {}
+    public record EmployeeProfileRequest(@Size(max = 80) String employeeCode, Long departmentId, Long positionId) {}
     public record CreateUserRequest(@NotBlank @Email String email, @NotBlank @Size(max = 255) String displayName,
                                     @NotBlank @Size(min = 12, max = 200) String initialPassword, Long employeeId,
-                                    @NotEmpty Set<String> roleCodes) {}
+                                    @NotEmpty Set<String> roleCodes, @Valid EmployeeProfileRequest employeeProfile) {}
     public record UpdateUserRequest(@NotBlank @Size(max = 255) String displayName, Long employeeId,
-                                    AccountStatus status, @NotEmpty Set<String> roleCodes) {
+                                    AccountStatus status, @NotEmpty Set<String> roleCodes, @Valid EmployeeProfileRequest employeeProfile) {
         public UpdateUserRequest { if (status == null) status = AccountStatus.ACTIVE; }
     }
     public record ResetPasswordRequest(@NotBlank @Size(min = 12, max = 200) String temporaryPassword) {}

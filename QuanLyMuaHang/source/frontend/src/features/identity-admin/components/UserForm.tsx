@@ -80,9 +80,11 @@ export function UserForm({ account, onClose, onSaved }: { account?: UserAccount;
         <p className="field-help">Phòng ban và chức vụ dùng để mô tả người làm việc. Quyền dùng ứng dụng được cấp bằng vai trò bên dưới.</p>
         <label className="checkbox-field"><input type="checkbox" checked={profileMode === 'EXISTING'} onChange={(event) => {
           setProfileMode(event.target.checked ? 'EXISTING' : 'INLINE'); setConfirmed(false)
-          if (!event.target.checked) { setEmployeeId(null); form.setValue('employeeCode', ''); form.setValue('departmentId', ''); form.setValue('positionId', '') }
         }} />Liên kết hồ sơ đã có</label>
-        {profileMode === 'EXISTING' ? <EmployeePicker value={employeeId} onChange={(id) => { setEmployeeId(id); setConfirmed(false) }} disabled={busy} /> : <>
+        {profileMode === 'EXISTING' ? <EmployeePicker value={employeeId} onChange={(id) => {
+          setEmployeeId(id); setConfirmed(false)
+          if (id === null) { form.setValue('employeeCode', ''); form.setValue('departmentId', ''); form.setValue('positionId', '') }
+        }} onPick={(employee) => { form.setValue('employeeCode', employee.employeeCode); form.setValue('departmentId', employee.departmentId?.toString() ?? ''); form.setValue('positionId', employee.positionId?.toString() ?? '') }} disabled={busy} /> : <>
           <div className="form-grid">
             <Field id="account-employee-code" label="Mã nhân viên" error={errors.employeeCode?.message} help="Để trống để tự sinh mã khi có phòng ban hoặc chức vụ.">
               <input id="account-employee-code" {...form.register('employeeCode')} {...fieldA11y('account-employee-code', errors.employeeCode?.message)} />

@@ -3,6 +3,7 @@ import { randomBytes } from 'node:crypto';
 import { createWriteStream } from 'node:fs';
 import { mkdir, readFile, writeFile } from 'node:fs/promises';
 import { spawn } from 'node:child_process';
+import { createConnection } from 'node:net';
 import { join } from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 import { connectBrowserMcp } from '../browser-mcp/client.mjs';
@@ -34,6 +35,14 @@ const { request } = await import(pathToFileURL(join(source, 'frontend/node_modul
 function secret() { const value = randomBytes(24).toString('base64url'); generatedSecrets.push(value); return value; }
 const administratorEmail = 'phase1-admin@khvt.test', temporary = secret(), password = secret();
 function checked(name) { report.checks.push(name); console.log('PASS ' + name); }
+async function portOccupied() {
+  return new Promise((done, failed) => {
+    const socket = createConnection({ host: '127.0.0.1', port });
+    socket.once('connect', () => { socket.destroy(); done(true); });
+    socket.once('error', (error) => error.code === 'ECONNREFUSED' ? done(false) : failed(new Error('Unable to verify isolated test port availability')));
+    socket.setTimeout(2000, () => { socket.destroy(); failed(new Error('Isolated test port availability probe timed out')); });
+  });
+}
 async function sql(statement) {
   assert(/^[a-z0-9_]+$/.test(db));
   return new Promise((resolveResult, reject) => {
@@ -112,9 +121,7 @@ async function assertRollback(operation) {
 }
 try {
   // Refuse an occupied port; never stop another Java/server process.
-  let occupied = false;
-  try { await fetch(`http://127.0.0.1:${port}/actuator/health`, { signal: AbortSignal.timeout(1000) }); occupied = true; } catch {}
-  assert(!occupied, 'Isolated test port 8082 is already occupied');
+  assert(!(await portOccupied()), 'Isolated test port 8082 is already occupied');
   report.mainBefore = await mainSnapshot();
   const dbUser = settings.DB_USERNAME || 'app'; assert(/^[A-Za-z0-9_]+$/.test(dbUser));
   await sql(`CREATE DATABASE \`${db}\` CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci; GRANT ALL ON \`${db}\`.* TO '${dbUser}'@'%';`);
@@ -144,8 +151,8 @@ try {
   checked('Password-change enforcement, HttpOnly cookie, anonymous/CSRF protection and two application tiles');
 
   const selfCommand = { displayName: 'Quản trị nghiệm thu Phase 1', employeeId: null, status: 'ACTIVE', roleCodes: ['ADMIN'] };
-  await call(admin, `/api/admin/users/${me.userId}`, 'PUT', { ...selfCommand, status: 'DISABLED' }, { status: 400, code: 'CANNOT_DISABLE_SELF' });
-  await call(admin, `/api/admin/users/${me.userId}`, 'PUT', { ...selfCommand, roleCodes: ['VIEWER'] }, { status: 400, code: 'LAST_ADMIN' });
+  await call(admin, `/api/admin/users/${me.id}`, 'PUT', { ...selfCommand, status: 'DISABLED' }, { status: 400, code: 'CANNOT_DISABLE_SELF' });
+  await call(admin, `/api/admin/users/${me.id}`, 'PUT', { ...selfCommand, roleCodes: ['VIEWER'] }, { status: 400, code: 'LAST_ADMIN' });
   checked('Self-disable and last-active-admin role removal remain blocked');
 
   const department = await json(admin, '/api/personnel/departments', 'POST', { code: 'P1-KHVT', name: 'Phòng KHVT nghiệm thu', active: true });
@@ -162,9 +169,14 @@ try {
   assert.equal(persistedEmployee.fullName, viewer.displayName); assert.equal(persistedEmployee.departmentId, department.id);
   const generatedCodeAccount = await json(admin, '/api/admin/users', 'POST', { email: 'phase1-generated@khvt.test', displayName: 'Tự sinh mã nghiệm thu', initialPassword: secret(), roleCodes: ['VIEWER'], employeeProfile: { departmentId: otherDepartment.id } });
   assert.match(generatedCodeAccount.employeeCode, /^NV-/); assert.equal(generatedCodeAccount.positionId, null);
-  const optionalAccount = await json(admin, '/api/admin/users', 'POST', { email: 'phase1-optional@khvt.test', displayName: 'Tài khoản không hồ sơ', initialPassword: secret(), roleCodes: ['VIEWER'] });
+  const optionalAccount = await json(admin, '/api/admin/users', 'POST', { email: 'phase1-optional@khvt.test', displayName: 'Tài khoản không hồ sơ', initialPassword: secret(), roleCodes: ['VIEWER'], employeeProfile: { employeeCode: null, departmentId: null, positionId: null } });
   assert.equal(optionalAccount.employeeId, null); assert.equal(optionalAccount.departmentId, null);
-  checked('One-request account/profile creation, optional department/position, generated employee code and account without a profile');
+  const existingProfile = await json(admin, '/api/personnel/employees', 'POST', { employeeCode: 'P1-EXISTING', fullName: 'Hồ sơ có trước Phase 1', departmentId: department.id });
+  const countBeforeLink = (await isolatedCounts()).employees;
+  const linkedAccount = await json(admin, '/api/admin/users', 'POST', { email: 'phase1-existing-profile@khvt.test', displayName: 'Tài khoản liên kết hồ sơ có trước', initialPassword: secret(), roleCodes: ['VIEWER'], employeeId: existingProfile.id });
+  assert.equal(linkedAccount.employeeId, existingProfile.id); assert.equal(linkedAccount.employeeName, existingProfile.fullName);
+  assert.equal((await isolatedCounts()).employees, countBeforeLink);
+  checked('One-request account/profile creation, generated code, blank optional profile and existing-profile link without duplication');
 
   await assertRollback(() => call(admin, '/api/admin/users', 'POST', { email: viewer.email.toUpperCase(), displayName: 'Trùng email', initialPassword: secret(), roleCodes: ['VIEWER'], employeeProfile: { employeeCode: 'P1-NO-ORPHAN' } }, { status: 409, code: 'EMAIL_EXISTS' }));
   await assertRollback(() => call(admin, '/api/admin/users', 'POST', { email: 'phase1-code-conflict@khvt.test', displayName: 'Trùng mã', initialPassword: secret(), roleCodes: ['VIEWER'], employeeProfile: { employeeCode: 'p1-viewer' } }, { status: 409, code: 'EMPLOYEE_CODE_EXISTS' }));
@@ -172,13 +184,23 @@ try {
   await assertRollback(() => call(admin, '/api/admin/users', 'POST', { email: 'phase1-linked-twice@khvt.test', displayName: 'Liên kết trùng', initialPassword: secret(), roleCodes: ['VIEWER'], employeeId: viewer.employeeId }, { status: 409, code: 'EMPLOYEE_ALREADY_LINKED' }));
   checked('Duplicate email/code, invalid role and employee re-link failures roll back users, profiles and audit');
 
+  const profileCountBeforeClear = (await isolatedCounts()).employees, originalViewerCode = viewer.employeeCode;
+  viewer = await json(admin, `/api/admin/users/${viewer.id}`, 'PUT', updateCommand(viewer, { displayName: 'Đã xóa phòng ban và chức vụ', employeeProfile: { employeeCode: null, departmentId: null, positionId: null } }));
+  assert.equal(viewer.employeeCode, originalViewerCode); assert.equal(viewer.employeeName, 'Đã xóa phòng ban và chức vụ');
+  assert.equal(viewer.departmentId, null); assert.equal(viewer.positionId, null);
+  assert.equal((await isolatedCounts()).employees, profileCountBeforeClear);
+  viewer = await json(admin, `/api/admin/users/${viewer.id}`, 'PUT', updateCommand(viewer, { displayName: 'Nguyễn kiểm thử Phase 1', employeeProfile: { employeeCode: originalViewerCode, departmentId: department.id, positionId: position.id } }));
   await json(admin, `/api/personnel/departments/${otherDepartment.id}`, 'PUT', { code: otherDepartment.code, name: otherDepartment.name, active: false });
+  const keptInactiveDepartment = await json(admin, `/api/admin/users/${generatedCodeAccount.id}`, 'PUT', updateCommand(generatedCodeAccount, { displayName: 'Giữ phòng ban cũ đã ngừng', employeeProfile: { employeeCode: generatedCodeAccount.employeeCode, departmentId: otherDepartment.id, positionId: null } }));
+  assert.equal(keptInactiveDepartment.departmentId, otherDepartment.id); assert.equal(keptInactiveDepartment.employeeName, 'Giữ phòng ban cũ đã ngừng');
   await assertRollback(() => call(admin, '/api/admin/users', 'POST', { email: 'phase1-inactive-department@khvt.test', displayName: 'Phòng ngừng', initialPassword: secret(), roleCodes: ['VIEWER'], employeeProfile: { departmentId: otherDepartment.id } }, { status: 400, code: 'DEPARTMENT_NOT_ACTIVE' }));
   await json(admin, `/api/personnel/departments/${otherDepartment.id}`, 'PUT', { code: otherDepartment.code, name: otherDepartment.name, active: true });
   await json(admin, `/api/personnel/positions/${position.id}`, 'PUT', { code: position.code, name: position.name, active: false });
+  viewer = await json(admin, `/api/admin/users/${viewer.id}`, 'PUT', updateCommand(viewer, { displayName: 'Giữ chức vụ cũ đã ngừng', employeeProfile: { employeeCode: viewer.employeeCode, departmentId: department.id, positionId: position.id } }));
+  assert.equal(viewer.positionId, position.id); assert.equal(viewer.employeeName, 'Giữ chức vụ cũ đã ngừng');
   await assertRollback(() => call(admin, '/api/admin/users', 'POST', { email: 'phase1-inactive-position@khvt.test', displayName: 'Chức vụ ngừng', initialPassword: secret(), roleCodes: ['VIEWER'], employeeProfile: { positionId: position.id } }, { status: 400, code: 'POSITION_NOT_ACTIVE' }));
   await json(admin, `/api/personnel/positions/${position.id}`, 'PUT', { code: position.code, name: position.name, active: true });
-  checked('Inactive department and position are rejected without orphan records');
+  checked('Existing profile clears optional fields and updates its name; inactive directory references can be retained but new assignments are rejected without orphans');
 
   const employeeCount = (await isolatedCounts()).employees;
   viewer = await json(admin, `/api/admin/users/${viewer.id}`, 'PUT', updateCommand(viewer, { displayName: 'Nguyễn đổi phòng Phase 1', employeeProfile: { employeeCode: viewer.employeeCode, departmentId: otherDepartment.id, positionId: position.id } }));
@@ -208,6 +230,12 @@ try {
   await assertSessionsRevoked(firstViewer.ctx, secondViewer);
   await login(firstViewer.ctx, viewer.email, firstViewer.password); await login(secondViewer, viewer.email, firstViewer.password);
   assert((await json(firstViewer.ctx, '/api/auth/me')).permissions.includes('IMPORT_OPERATIONAL'));
+  viewer = await json(admin, `/api/admin/users/${viewer.id}`, 'PUT', updateCommand(viewer, { status: 'LOCKED' }));
+  await assertSessionsRevoked(firstViewer.ctx, secondViewer);
+  await call(firstViewer.ctx, '/api/auth/login', 'POST', { email: viewer.email, password: firstViewer.password }, { status: 401 });
+  assert.equal((await json(admin, '/api/admin/users?status=LOCKED')).content.find((item) => item.id === viewer.id)?.status, 'LOCKED');
+  viewer = await json(admin, `/api/admin/users/${viewer.id}`, 'PUT', updateCommand(viewer, { status: 'ACTIVE' }));
+  await login(firstViewer.ctx, viewer.email, firstViewer.password); await login(secondViewer, viewer.email, firstViewer.password);
   viewer = await json(admin, `/api/admin/users/${viewer.id}`, 'PUT', updateCommand(viewer, { status: 'DISABLED' }));
   await assertSessionsRevoked(firstViewer.ctx, secondViewer);
   await call(firstViewer.ctx, '/api/auth/login', 'POST', { email: viewer.email, password: firstViewer.password }, { status: 401 });
@@ -223,7 +251,7 @@ try {
   await call(firstViewer.ctx, '/api/catalog/materials/page', 'GET', undefined, { status: 403 });
   const finalViewerPassword = secret();
   await json(firstViewer.ctx, '/api/auth/change-password', 'POST', { currentPassword: resetTemporary, newPassword: finalViewerPassword });
-  checked('Real Redis revokes both sessions for role/status/password changes; disabled login and temporary-password bypass are blocked');
+  checked('Real Redis revokes both sessions for role/status/password changes; locked/disabled login and temporary-password bypass are blocked');
 
   const hrTemporary = secret();
   const hr = await json(admin, '/api/admin/users', 'POST', { email: 'phase1-directory@khvt.test', displayName: 'Quản lý danh bạ Phase 1', initialPassword: hrTemporary, roleCodes: ['HR_MANAGER'] });
@@ -249,15 +277,15 @@ try {
   assert.equal(assignable.find((item) => item.code === 'PLANNER').assignable, false);
   await assertRollback(() => call(signedManager.ctx, '/api/admin/users', 'POST', { email: 'phase1-escalation@khvt.test', displayName: 'Rejected', initialPassword: secret(), roleCodes: ['ADMIN'], employeeProfile: { employeeCode: 'P1-ESCALATION' } }, { status: 403, code: 'ROLE_ASSIGNMENT_FORBIDDEN' }));
   await call(signedManager.ctx, `/api/admin/users/${manager.id}`, 'PUT', updateCommand(manager, { roleCodes: ['ADMIN'] }), { status: 403, code: 'ROLE_ASSIGNMENT_FORBIDDEN' });
-  await call(signedManager.ctx, `/api/admin/users/${me.userId}`, 'PUT', selfCommand, { status: 403, code: 'ACCOUNT_MANAGEMENT_FORBIDDEN' });
-  await call(signedManager.ctx, `/api/admin/users/${me.userId}/reset-password`, 'POST', { temporaryPassword: secret() }, { status: 403, code: 'ACCOUNT_MANAGEMENT_FORBIDDEN' });
+  await call(signedManager.ctx, `/api/admin/users/${me.id}`, 'PUT', selfCommand, { status: 403, code: 'ACCOUNT_MANAGEMENT_FORBIDDEN' });
+  await call(signedManager.ctx, `/api/admin/users/${me.id}/reset-password`, 'POST', { temporaryPassword: secret() }, { status: 403, code: 'ACCOUNT_MANAGEMENT_FORBIDDEN' });
   const delegatedViewer = await json(signedManager.ctx, '/api/admin/users', 'POST', { email: 'phase1-delegated-viewer@khvt.test', displayName: 'Người xem do quản lý tạo', initialPassword: secret(), roleCodes: ['VIEWER'], employeeProfile: { departmentId: department.id } });
   assert(delegatedViewer.employeeId > 0); assert.equal(delegatedViewer.departmentId, department.id);
   checked('Delegated manager cannot grant ADMIN or manage/reset an administrator; assignable role metadata matches API enforcement');
 
   const beforeRestart = await json(admin, '/api/auth/me');
   await stopBackend(); startBackend('restart'); await ready();
-  assert.equal((await json(admin, '/api/auth/me')).userId, beforeRestart.userId);
+  assert.equal((await json(admin, '/api/auth/me')).id, beforeRestart.id);
   const persisted = await json(admin, '/api/admin/users?query=' + encodeURIComponent(viewer.email));
   assert.equal(persisted.content[0].employeeId, viewer.employeeId); assert.equal(persisted.content[0].departmentId, otherDepartment.id);
   checked('Restart preserves reviewed account/profile data and existing Redis-authenticated session');
@@ -266,17 +294,45 @@ try {
     browser = await connectBrowserMcp();
     await browser.call('browser_navigate', { url: `http://127.0.0.1:${port}/login` });
     // Arguments and replies are intentionally retained in-process only.
+    report.browserStep = 'Admin portal and landing';
     await browser.call('browser_run_code_unsafe', { code: `async(page)=>{await page.context().addCookies(${JSON.stringify((await admin.storageState()).cookies)});await page.goto('http://127.0.0.1:${port}/modules');await page.getByRole('link',{name:/Quản trị/}).waitFor();if(await page.getByRole('link',{name:/Nhân sự/}).count())throw new Error('Personnel must not remain a separate application tile');await page.getByRole('link',{name:/Quản trị/}).click();await page.getByRole('heading',{name:'Tài khoản',exact:true}).waitFor();return 'Admin portal and landing page checked';}` });
     const browserEmail = 'phase1-browser-created@khvt.test', browserSecret = secret();
+    report.browserStep = 'Inline profile creation';
     await browser.call('browser_run_code_unsafe', { code: `async(page)=>{await page.getByRole('button',{name:'Thêm tài khoản',exact:true}).click();const form=page.getByRole('dialog');await form.getByLabel('Email đăng nhập *',{exact:true}).fill(${JSON.stringify(browserEmail)});await form.getByLabel('Tên hiển thị *',{exact:true}).fill('Tài khoản tạo từ browser thật');await form.getByLabel('Mật khẩu tạm *',{exact:true}).fill(${JSON.stringify(browserSecret)});await form.getByLabel('Nhập lại mật khẩu tạm *',{exact:true}).fill(${JSON.stringify(browserSecret)});await form.getByLabel('Phòng ban',{exact:true}).selectOption('${department.id}');await form.getByLabel('Chức vụ',{exact:true}).selectOption('${position.id}');await form.locator('input[type="checkbox"][value="VIEWER"]').check();await form.getByRole('button',{name:'Tạo tài khoản',exact:true}).click();await page.getByRole('dialog').waitFor({state:'hidden'});await page.getByRole('cell',{name:${JSON.stringify(browserEmail)},exact:false}).waitFor();return 'Inline account/profile created with real API';}` });
     const fromBrowser = await json(admin, '/api/admin/users?query=' + encodeURIComponent(browserEmail));
     assert.equal(fromBrowser.totalElements, 1); assert.equal(fromBrowser.content[0].departmentId, department.id); assert.equal(fromBrowser.content[0].positionId, position.id); assert.match(fromBrowser.content[0].employeeCode, /^NV-/);
+    report.browserStep = 'Filter, reload and mobile';
     await browser.call('browser_run_code_unsafe', { code: `async(page)=>{await page.getByLabel('Email, họ tên hoặc mã nhân viên',{exact:true}).fill(${JSON.stringify(browserEmail)});await page.getByRole('button',{name:'Tìm kiếm',exact:true}).click();await page.getByRole('cell',{name:${JSON.stringify(browserEmail)},exact:false}).waitFor();if(await page.locator('tbody tr').count()!==1)throw new Error('Server filter should return one row');await page.reload();await page.getByRole('heading',{name:'Tài khoản',exact:true}).waitFor();await page.setViewportSize({width:390,height:844});if(await page.evaluate(()=>document.documentElement.scrollWidth>innerWidth+1))throw new Error('Mobile page overflow');await page.screenshot({path:${JSON.stringify(join(runtime, `${db}-users-mobile.png`))},fullPage:true});return 'Real server filter, reload and mobile layout checked';}` });
-    await browser.call('browser_run_code_unsafe', { code: `async(page)=>{await page.context().clearCookies();await page.context().addCookies(${JSON.stringify((await signedHr.ctx.storageState()).cookies)});await page.goto('http://127.0.0.1:${port}/modules');await page.getByRole('link',{name:/Quản trị/}).click();await page.waitForURL('**/admin/employees');if(await page.getByRole('link',{name:'Tài khoản',exact:true}).count())throw new Error('Directory-only role must not see accounts navigation');await page.goto('http://127.0.0.1:${port}/admin/users');await page.getByRole('heading',{name:'Không có quyền truy cập',exact:true}).waitFor();return 'Real directory-only portal and denied account route checked';}` });
+    report.browserStep = 'Directory portal and denied accounts';
+    await browser.call('browser_run_code_unsafe', { code: `async(page)=>{await page.context().clearCookies();await page.context().addCookies(${JSON.stringify((await signedHr.ctx.storageState()).cookies)});await page.goto('http://127.0.0.1:${port}/modules');await page.getByRole('link',{name:/Quản trị/}).click();await page.waitForURL('**/admin/employees');if(await page.getByRole('link',{name:'Tài khoản',exact:true}).count())throw new Error('Directory-only role must not see accounts navigation');await page.goto('http://127.0.0.1:${port}/admin/users');await page.getByRole('heading',{name:'Bạn không có quyền truy cập',exact:true}).waitFor();return 'Real directory-only portal and denied account route checked';}` });
     await browser.close(); browser = undefined;
     report.browser = 'Passed real MCP UI against isolated MySQL/Redis';
+    delete report.browserStep;
     checked('Real MCP browser: admin/directory portal, inline account creation, server filtering, reload, direct-route denial and mobile overflow');
   } else report.browser = 'Not enabled; set QMH_PHASE1_BROWSER=true for actual MCP browser coverage';
+
+  const concurrencyTemporary = secret();
+  const otherAdministrator = await json(admin, '/api/admin/users', 'POST', { email: 'phase1-concurrent-admin@khvt.test', displayName: 'Quản trị kiểm tra đồng thời', initialPassword: concurrencyTemporary, roleCodes: ['ADMIN'] });
+  const signedOtherAdministrator = await signInNew(otherAdministrator, concurrencyTemporary);
+  const activeAdminCount = () => sql(`SELECT COUNT(DISTINCT a.id) FROM \`${db}\`.user_accounts a JOIN \`${db}\`.user_roles ur ON ur.user_id=a.id JOIN \`${db}\`.roles r ON r.id=ur.role_id WHERE a.status='ACTIVE' AND r.code='ADMIN';`);
+  assert.equal(await activeAdminCount(), '2');
+  const currentAdministrator = (await json(admin, '/api/admin/users?query=' + encodeURIComponent(administratorEmail))).content.find((item) => item.id === me.id);
+  assert(currentAdministrator?.roleCodes.includes('ADMIN'));
+  async function demoteSelf(ctx, account) {
+    const csrf = await json(ctx, '/api/auth/csrf');
+    const response = await ctx.put(`/api/admin/users/${account.id}`, { headers: { [csrf.headerName]: csrf.token }, data: updateCommand(account, { roleCodes: ['VIEWER'] }) });
+    return { status: response.status(), body: await response.json() };
+  }
+  const concurrentDemotions = await Promise.all([demoteSelf(admin, currentAdministrator), demoteSelf(signedOtherAdministrator.ctx, otherAdministrator)]);
+  assert.deepEqual(concurrentDemotions.map((item) => item.status).sort(), [200, 400]);
+  assert.equal(concurrentDemotions.find((item) => item.status === 400).body.code, 'LAST_ADMIN');
+  assert.equal(await activeAdminCount(), '1');
+  const demotionContexts = [admin, signedOtherAdministrator.ctx];
+  await call(demotionContexts[concurrentDemotions.findIndex((item) => item.status === 200)], '/api/auth/me', 'GET', undefined, { status: 401 });
+  const remainingAdministrator = await json(demotionContexts[concurrentDemotions.findIndex((item) => item.status === 400)], '/api/auth/me');
+  assert(remainingAdministrator.permissions.includes('*')); assert(remainingAdministrator.roles.includes('ADMIN'));
+  report.concurrentDemotion = { statuses: concurrentDemotions.map((item) => item.status), rejection: 'LAST_ADMIN', activeAdministratorsAfter: 1 };
+  checked('Concurrent MySQL self-demotion preserves one active administrator; the demoted current session is revoked and the rejected administrator remains authenticated');
 
   const audits = await sql(`SELECT after_json FROM \`${db}\`.audit_logs WHERE after_json IS NOT NULL;`);
   for (const value of generatedSecrets) assert(!audits.includes(value), 'A generated credential leaked into audit');
