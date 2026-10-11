@@ -2,6 +2,8 @@
 
 React + TypeScript + Vite, tổ chức theo tính năng. Router quản lý trang, TanStack Query quản lý dữ liệu API, React Hook Form + Zod xử lý form và kiểm tra đầu vào.
 
+Lượt cập nhật import cuối: build và 10 unit tests qua; 28 trường hợp import/mua hàng desktop/mobile với API giả lập qua sau chạy lại hai worker thiếu bộ nhớ. Có chuyển đúng tab workbook, CSV toàn bộ cảnh báo, kiểm tra lại lô và chống gửi lặp. Driver HTTP/MySQL/Redis riêng hoàn tất, đối chiếu 11.690 dòng/91.526 trường, commit và chống nhập trùng qua. JAR mới phục vụ `/imports` cùng API trên 8080; xem [bằng chứng và giới hạn](../../docs/HE_THONG_HIEN_TAI.md). Không coi browser fixtures là thao tác browser với database thật.
+
 ## Cấu trúc
 
 ```text
@@ -70,6 +72,7 @@ tests/e2e/auth.spec.ts              auth/cổng ứng dụng bằng API fixtures
 tests/e2e/personnel.spec.ts         nhân sự bằng API fixtures
 tests/e2e/accounts.spec.ts          tài khoản bằng API fixtures
 tests/e2e/purchasing.spec.ts        danh mục/giá/PO/import bằng API fixtures
+tests/e2e/imports.spec.ts           tab workbook, cảnh báo CSV, đối chiếu/trạng thái và gửi lặp bằng API fixtures
 ```
 
 Page là điểm vào của một URL; component dựng giao diện; hook chứa logic trạng thái/đồng bộ; service gọi HTTP. Không cần tạo các tầng trống cho tính năng chưa làm.
@@ -120,7 +123,8 @@ API dùng cookie session HttpOnly, không lưu token đăng nhập trong localSt
 - Danh mục vật tư/NCC: tìm mã/tên, lọc trạng thái/phân loại, phân trang từ backend, thêm/sửa và xác nhận ngừng/kích hoạt. Danh sách gợi ý đang hoạt động dùng riêng khi lập đơn.
 - Giá: lịch sử theo từ khóa/mã/tên, loại tiền và phân loại; xem giá gần nhất đúng mã hoặc tên chính xác và cùng loại tiền; chuyển sang lập đơn và tải XLSX theo bộ lọc. Dữ liệu legacy hiển thị cơ sở giả định VND.
 - PO: danh sách/bộ lọc/phân trang, giỏ dòng hàng thủ công hoặc từ danh mục/giá/import, số lượng số hoặc chữ, chọn NCC từng dòng, kiểm tra nhóm NCC rồi lưu từng bản nháp. Sửa có lý do/tăng revision, hủy có xác nhận, phát hành PDF qua POST riêng, tải PDF hiện tại/phiên bản cũ và XLSX.
-- Import: file yêu cầu Excel/CSV/PDF text hoặc dán dữ liệu → preview → chọn dòng → lập đơn; workbook cũ → preview số dòng/cảnh báo/checksum → xác nhận đã đối chiếu và database thử/backup → commit. Preview không tự tạo PO hoặc lịch sử giá. PDF scan chưa có OCR.
+- Import: file yêu cầu Excel/CSV/PDF text hoặc dán dữ liệu → preview → chọn dòng → lập đơn; workbook cũ → preview số dòng/cảnh báo/checksum → xác nhận đã đối chiếu và database thử/backup → commit. Khi có quyền, tab workbook là mặc định. Nếu backend nhận diện workbook ba sheet tải nhầm vào operational, UI giữ tệp và chuyển sang legacy khi được cấp quyền; người thiếu quyền được hướng dẫn liên hệ admin. Preview không tự tạo PO hoặc lịch sử giá. PDF scan chưa có OCR.
+- Workbook có nút tải toàn bộ cảnh báo/lỗi CSV và **Kiểm tra lại lô** qua GET; màn hình chỉ hiển thị tối đa 30 dòng vấn đề. Commit cập nhật trạng thái từ backend, chặn gửi lặp khi pending và hiển thị số đối chiếu backend trả về nếu có. Số liệu khớp không xác nhận các trường thiếu/giả định hoặc chứng từ đã đúng nghiệp vụ. Nếu mất phản hồi commit, kiểm tra lại lô trước khi gửi lại; không hiển thị thành công từ suy đoán.
 - Chưa có CRUD role/permission, grant module độc lập, luồng xin/duyệt quyền hay Bán hàng. Xem [mô hình phân quyền và mở rộng](../../docs/CONG_UNG_DUNG_VA_PHAN_QUYEN.md).
 
 Giỏ chưa lưu chỉ nằm trong bộ nhớ trang, reload có thể mất; bản nháp đã lưu nằm trong danh sách PO. Mỗi đơn tối đa 200 dòng. Khi mất kết nối sau request lưu, kiểm tra danh sách trước khi gửi lại vì backend chưa có idempotency key. Xem [đối chiếu với Index.html/Mã.js](../../docs/DOI_CHIEU_UNG_DUNG_CU.md).
@@ -128,6 +132,8 @@ Giỏ chưa lưu chỉ nằm trong bộ nhớ trang, reload có thể mất; b�
 Hồ sơ nhân viên và tài khoản đăng nhập là hai đối tượng riêng. Ngừng nhân viên vô hiệu hóa tài khoản liên kết; kích hoạt nhân viên không tự khôi phục tài khoản. Khi cần mở lại, admin kiểm tra trạng thái tài khoản riêng. Bộ lọc hiện là mã/tên và trạng thái nhân viên; chưa có bộ lọc phòng ban hay search tài khoản vì API danh sách tài khoản hiện chỉ phân trang.
 
 ## Kiểm tra
+
+Thay đổi import mới có các case API fixture cho tab mặc định/nhận diện nhầm mode, thiếu quyền legacy, CSV có vấn đề ngoài 30 dòng preview, cập nhật trạng thái/verification, gửi xác nhận lặp và kiểm tra lô sau mất phản hồi. Kết quả chạy mới đang được cập nhật ở [hệ thống hiện tại](../../docs/HE_THONG_HIEN_TAI.md); các số test bên dưới là lịch sử, không tự xác nhận bản mới hoặc MySQL. `verification.supplierRows` đếm dòng NCC nguồn, không phải số master sau nhập. Lượt sửa UI không chạy lại hoặc backfill lô workbook chính đã COMMITTED.
 
 Lượt **MCP với backend/MySQL thật ngày 2026-10-10, 22:11–22:22 +07:00** đã đăng nhập HTTP 200 và import `QUANLYMUAHANGKHVT.xlsx` ở tab **Workbook dữ liệu cũ** sau khi sao lưu/đối chiếu. MySQL xác nhận 10.561 lịch sử, 262 PO, 850 dòng PO; giao diện danh sách/chi tiết PO, tra cứu giá và danh mục đọc được dữ liệu này. Preview lại cùng tệp nhận lô 1 `COMMITTED`, không có nút commit và không tạo dữ liệu trùng; giữ 4.803 dòng cảnh báo, 0 lỗi. Màn hình **Kiểm tra 850 dòng** ở tab **Yêu cầu mua / báo giá** chỉ chuyển tối đa 200 dòng mỗi lượt sang lập đơn, không phải import toàn bộ workbook. Xem [bằng chứng và giới hạn](../../docs/HE_THONG_HIEN_TAI.md#import-workbook-thật-qua-mcp-vào-mysql). Lượt này không chạy lại các bộ test bên dưới hay nghiệm thu toàn bộ luồng mua hàng.
 

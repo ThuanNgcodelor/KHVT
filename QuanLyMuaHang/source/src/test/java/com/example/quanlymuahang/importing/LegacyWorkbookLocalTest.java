@@ -26,7 +26,7 @@ import java.util.concurrent.Executors;
 import static org.junit.jupiter.api.Assertions.*;
 
 /** Opt-in, isolated H2 file test. Does not read .env or connect to MySQL/Redis. */
-@SpringBootTest(properties = {"app.bootstrap-admin.email=", "app.bootstrap-admin.password=", "spring.jpa.hibernate.ddl-auto=create", "logging.level.org.springframework.jdbc=WARN", "logging.level.org.hibernate.SQL=WARN"})
+@SpringBootTest(properties = {"app.bootstrap-admin.email=", "app.bootstrap-admin.password=", "spring.jpa.hibernate.ddl-auto=create", "logging.level.org.springframework.jdbc=WARN", "logging.level.org.springframework.jdbc.core=WARN", "logging.level.org.hibernate.SQL=WARN"})
 @ActiveProfiles("test")
 @EnabledIfEnvironmentVariable(named = "QMH_TEST_WORKBOOK", matches = ".+")
 class LegacyWorkbookLocalTest {
@@ -93,7 +93,9 @@ class LegacyWorkbookLocalTest {
                 var attempts = executor.invokeAll(List.of(attempt, attempt));
                 var results = List.of(attempts.get(0).get(), attempts.get(1).get());
                 var successful = results.stream().filter(result -> result instanceof LegacyWorkbookImportService.CommitResult).toList();
-                assertEquals(1, successful.size());
+                assertEquals(1, successful.size(), () -> results.stream().filter(ApiException.class::isInstance)
+                        .map(ApiException.class::cast).map(error -> error.code() + ": " + error.getMessage())
+                        .collect(java.util.stream.Collectors.joining(" | ")));
                 committed = (LegacyWorkbookImportService.CommitResult) successful.getFirst();
                 var rejected = results.stream().filter(result -> result instanceof ApiException).map(result -> (ApiException) result).toList();
                 assertEquals(1, rejected.size()); assertEquals("IMPORT_ALREADY_PROCESSED", rejected.getFirst().code());

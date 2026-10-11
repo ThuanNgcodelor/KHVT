@@ -1,8 +1,16 @@
 # Đối chiếu CSDL và workbook KHVT
 
-Kiểm tra ngày **2026-10-10**. Bản đọc MySQL nhất quán được lấy lúc **22:29:33 +07:00**, từ schema local `quanlymuahang`. Lượt này chỉ đọc dữ liệu nghiệp vụ, không sửa database hoặc workbook, không đọc bảng tài khoản và không mở nội dung sheet CONFIG.
+Kiểm tra ngày **2026-10-10**. Bản đọc MySQL nhất quán được lấy lúc **22:29:33 +07:00**, từ schema local `quanlymuahang`, sau lượt import bằng validator cũ. Lượt này chỉ đọc dữ liệu nghiệp vụ, không sửa database hoặc workbook, không đọc bảng tài khoản và không mở nội dung sheet CONFIG. Các số liệu bên dưới mô tả snapshot đó, không phải kết quả chạy lại với validator/reconciler mới.
 
-**Kết luận: dữ liệu đã chuyển đúng theo quy tắc import hiện tại; chưa thể xác nhận nguồn đã chuẩn nghiệp vụ.** Không phát hiện mất dòng, lệch trường đã nhập hoặc liên kết trỏ tới bản ghi không tồn tại. Các trường thiếu, giá/số lượng bất thường và biến thể mã/tên/đơn vị vẫn cần đối chiếu chứng từ.
+**Kết luận của snapshot: dữ liệu đã chuyển đúng theo quy tắc import tại thời điểm lấy bản đọc; chưa thể xác nhận nguồn đã chuẩn nghiệp vụ.** Không phát hiện mất dòng, lệch trường đã nhập hoặc liên kết trỏ tới bản ghi không tồn tại. Các trường thiếu, giá/số lượng bất thường và biến thể mã/tên/đơn vị vẫn cần đối chiếu chứng từ.
+
+## Thay đổi code sau snapshot
+
+Validator mới chặn các trường/mapping không lưu được, ô lỗi, giá trị quá dài, ngày/VAT/currency không hợp lệ, số mơ hồ hoặc vượt độ chính xác SQL; thêm cảnh báo cho số không dương, thiếu đơn vị/ngày và biến thể mã/tên/đơn vị. Commit mới lưu ID NCC đích và đối chiếu staging → dữ liệu nghiệp vụ trước khi hoàn tất transaction; sai lệch rollback. UI có báo cáo đối chiếu, tải toàn bộ issue CSV và kiểm tra lại trạng thái lô. Các thay đổi này chưa tự backfill ID NCC hoặc tính lại cảnh báo cho lô 1 đã COMMITTED; không import lại database chính để ép lô cũ khớp cấu trúc mới.
+
+Migration V6 mở rộng quantity/unit_price thành `DECIMAL(38,18)`, không tự tái tạo chữ số bị mất trong quá khứ. Kiểm tra chính xác từ workbook gốc tới các giá trị số hiện có của database chính xác nhận **12.834 giá trị, 0 chênh lệch**. Vì vậy không kết luận lô này đã mất phần thập phân, và không tự sửa số liệu đã nhập. Kết quả này không xác minh currency, VAT hoặc bản chất nghiệp vụ của giá âm/bằng 0.
+
+Backend bản cuối đã qua 91 test thực thi, một test Redis opt-in bỏ qua. Driver MySQL/Redis riêng đã hoàn tất: OpenXML → staging khớp 11.690 dòng/91.526 trường, commit đối chiếu đủ 10.561 lịch sử/262 PO/850 dòng PO, gửi đồng thời chỉ nhập một lần và gửi lại bị từ chối. Validator mới báo 11.433 dòng cảnh báo, 0 lỗi đọc/ghi. V6 thành công trên database chính, số bản ghi trước/sau không đổi; toàn database hiện có 10.580 lịch sử, gồm 10.561 thuộc workbook và 19 ngoài lô. Xem [bằng chứng cuối](HE_THONG_HIEN_TAI.md). Các kiểm tra xác nhận dữ liệu chuyển theo mapping, không xác minh các trường thiếu hoặc chứng từ.
 
 ## Phạm vi đối chiếu đã qua
 
@@ -71,8 +79,8 @@ Theo quy tắc khớp mã hiện tại, có 339 lịch sử và 62 dòng PO gi�
 
 Các giới hạn được xác nhận từ code và dữ liệu:
 
-- Legacy validator hiện kiểm tra khả năng đọc giá/trường bắt buộc; **chưa tạo cảnh báo riêng cho giá/số lượng bằng 0 hoặc âm, thiếu đơn vị, biến thể mã/tên/đơn vị và giao dịch có trường giống nhau**. Vì thế 4.803 cảnh báo hiện có chưa bao phủ mọi vấn đề nghiệp vụ.
-- Cả 279 dòng staging NCC đã COMMITTED nhưng chưa ghi ID/type của NCC đích. Có thể đối chiếu master bằng tái dựng quy tắc; chưa có truy vết trực tiếp dòng NCC → bản ghi master.
+- Validator dùng cho snapshot chưa tạo cảnh báo riêng cho giá/số lượng bằng 0 hoặc âm, thiếu đơn vị, biến thể mã/tên/đơn vị và giao dịch có trường giống nhau. Vì thế **4.803 là số cảnh báo của lượt cũ**, chưa bao phủ mọi vấn đề nghiệp vụ; validator mới đã bổ sung một số điều kiện, chưa tự cập nhật lô đã COMMITTED.
+- Cả 279 dòng staging NCC của lô cũ đã COMMITTED nhưng chưa ghi ID/type NCC đích. Code commit mới lưu liên kết này; lô cũ chưa backfill. Có thể đối chiếu master của snapshot bằng tái dựng quy tắc, không coi đó là truy vết trực tiếp.
 - Lịch sử được gán category MATERIAL; nguồn không có phân loại. Không coi đó là phân loại nghiệp vụ đã được duyệt.
 - PO cũ được gán trạng thái EXPORTED theo chính sách import; workbook không có cột trạng thái để xác minh quy trình duyệt/phát hành. Lượt này không nghiệm thu PDF hoặc quy trình phê duyệt.
 
@@ -86,7 +94,7 @@ Workbook này chứa nhiều PO cũ, nên cần tab **Workbook dữ liệu cũ**
 
 Đây là nguyên nhân xác nhận được cho màn hình “Kiểm tra 850 dòng”. Không suy ra nguyên nhân của các lỗi khác nếu không có log/request tương ứng. File đọc được, không có bằng chứng workbook bị hỏng trong lượt này.
 
-Code đối chiếu: `ImportsPage.tsx:26,46-47`; `LegacyWorkbookImportService.java:214,280-302,415-446,540-560`; `PurchaseOrderService.java:251-267`.
+Code liên quan: [ImportsPage](../source/frontend/src/features/imports/pages/ImportsPage.tsx), [LegacyWorkbookImportService](../source/src/main/java/com/example/quanlymuahang/importing/application/LegacyWorkbookImportService.java), [LegacyImportReconciler](../source/src/main/java/com/example/quanlymuahang/importing/application/LegacyImportReconciler.java), [bộ đọc OpenXML độc lập](../tools/local-test/workbook-source.mjs). Code hiện đã đổi sau snapshot; các file này không thay bằng chứng của thời điểm lấy bản đọc.
 
 ## Tệp bằng chứng và danh sách cần rà soát
 

@@ -4,6 +4,10 @@ Backend là Spring Boot REST API trên Java 21, chia module theo nghiệp vụ t
 
 Frontend React/Vite ở `frontend/` có auth/session/CSRF, cổng chọn ứng dụng, dashboard, nhân sự/tài khoản, danh mục vật tư/NCC, tra cứu giá, lập/sửa/hủy PO, PDF/XLSX và import preview/commit. Xem [cấu trúc và cách chạy frontend](frontend/README.md), [đối chiếu Index.html/Mã.js](../docs/DOI_CHIEU_UNG_DUNG_CU.md) và [bằng chứng kiểm thử hiện hành](../docs/HE_THONG_HIEN_TAI.md). Hướng dẫn cho AI nằm ở [AGENTS.md](../AGENTS.md), kèm [nguyên tắc trung thực](../docs/NGUYEN_TAC_TRUNG_THUC.md) và [skill giao diện KHVT](../skills/khvt-ui/SKILL.md).
 
+Commit workbook giữ khóa lô để tránh nhập trùng. Nếu yêu cầu khác đang xử lý và hết thời gian chờ khóa, API trả HTTP 409 `IMPORT_IN_PROGRESS`; dùng **Kiểm tra lại lô** trước khi thử lại. Lô đã hoàn tất trả `IMPORT_ALREADY_PROCESSED`. Cảnh báo và liên kết dòng nguồn được ghi theo các lô JDBC tối đa 500 dòng; đối chiếu vẫn chạy trong cùng transaction trước khi đánh dấu thành công.
+
+Lượt import cuối đã qua 91 test backend thực thi và driver MySQL/Redis riêng: đủ 11.690 dòng nguồn, 91.526 trường, 0 sai lệch; commit 10.561 lịch sử, 262 PO và 850 dòng PO. Validator mới giữ các giá trị nguồn thiếu/bất thường và báo 11.433 dòng cảnh báo. JAR đã đóng gói lại; V6 áp dụng trên database chính với số bản ghi giữ nguyên. Xem [báo cáo đối chiếu](../docs/DOI_CHIEU_CSDL_VA_WORKBOOK.md) và [hướng dẫn kiểm thử riêng](../tools/local-test/README.md). Đây là kiểm chứng đọc/ghi theo mapping, không chứng nhận chứng từ hoặc giả định loại tiền đã đúng nghiệp vụ.
+
 ## Chạy trên Windows
 
 Điểm chạy chính ở thư mục gốc `QuanLyMuaHang` là [CHAY_KHVT.cmd](../CHAY_KHVT.cmd). Cần JDK 21, Maven 3.9+, Node/npm và Docker Desktop; tạo `source/.env` riêng từ mẫu nếu chưa có, không ghi đè file đang dùng. **Mở Docker Desktop riêng**, chờ engine sẵn sàng rồi bấm đúp file hoặc chạy từ thư mục gốc:
@@ -155,7 +159,7 @@ Redis session hiện cấu hình `repository-type: indexed` và namespace `qmh:s
 - Nhân sự: `/api/personnel/employees`, `/api/personnel/departments`, `/api/personnel/positions`; de/activate nhân viên sẽ vô hiệu hóa phiên đăng nhập liên kết.
 - Danh mục: `/api/catalog/materials`, `/api/catalog/suppliers` (gợi ý active); thêm `/page` cho bộ lọc/phân trang và `/{id}` cho chi tiết. Tra cứu giá: `/api/prices`, `/api/prices/latest`; lịch sử/XLSX hỗ trợ `category`.
 - Đơn mua: `/api/purchase-orders` (tạo, sửa/revision, hủy, danh sách). Phát hành qua `POST /api/purchase-orders/{id}/issue`, cần PO_CREATE hoặc PO_EDIT và CSRF; `GET /{id}/pdf`/`GET /{id}/revisions/{revision}/pdf` chỉ đọc tài liệu đã có, không phát hành/ghi giá. Chưa có PDF trả 409. Excel export: `/api/exports/prices.xlsx`, `/api/exports/purchase-orders/{id}.xlsx`.
-- Import workbook legacy: `POST /api/imports/legacy/preview` rồi `POST /api/imports/legacy/{batchId}/commit`.
+- Import workbook legacy: `POST /api/imports/legacy/preview` rồi `POST /api/imports/legacy/{batchId}/commit`; đọc trạng thái/summary bằng `GET /api/imports/legacy/{batchId}` và tải toàn bộ cảnh báo/lỗi qua `GET /api/imports/legacy/{batchId}/issues.csv`. Các endpoint yêu cầu quyền IMPORT_LEGACY hoặc wildcard; commit vẫn cần CSRF.
 - Import yêu cầu mua/báo giá thành draft để người dùng rà lại: `/api/imports/operational/preview` và `/api/imports/operational/paste`. Luồng draft không ghi lịch sử giá hay tạo PO; PDF scan không có OCR.
 - Health check: `/actuator/health`.
 
@@ -171,7 +175,13 @@ Legacy import chấp nhận `.xls`/`.xlsx` và yêu cầu các sheet `NCC`, `LIC
 
 Hãy sao lưu workbook và database trước lần commit đầu tiên trên dữ liệu thật; kiểm tra preview/warnings và đối chiếu số dòng/PO trước khi commit.
 
-Trong giao diện `/imports`, chọn **Workbook dữ liệu cũ** để nhập workbook có NCC/LICH_SU/DON_HANG. Màn hình **Kiểm tra 850 dòng** thuộc tab **Yêu cầu mua / báo giá**, dùng để chọn tối đa 200 dòng mỗi lượt chuyển sang lập đơn; không nạp toàn bộ lịch sử workbook.
+Code mới kiểm tra header/mapping, ô lỗi, độ dài, ngày, currency/VAT và khả năng lưu số chính xác; số text có dấu phân cách mơ hồ bị chặn để người dùng xác minh, không tự đoán. Số Excel được đọc bằng BigDecimal từ token gốc, mã định dạng có số 0 đầu được giữ. Công thức ngoài phạm vi cho phép bị từ chối; không đánh giá công thức tham chiếu CONFIG hoặc nguồn bên ngoài. Cảnh báo mới ghi rõ số bằng 0/âm, thiếu đơn vị/ngày, loại tiền giả định và biến thể mã/tên/đơn vị; các điều kiện này không tự sửa nguồn hoặc xác nhận nghiệp vụ đúng.
+
+Commit mới kiểm tra lại staging, lưu liên kết từng dòng NCC tới master và đối chiếu dữ liệu đã flush trong cùng transaction trước khi hoàn tất. Sai lệch trả `IMPORT_RECONCILIATION_FAILED` và rollback. Response thêm `verification` với `sourceRows`, `verifiedRows`, `historyRows`, `purchaseOrders`, `purchaseOrderItems`, `supplierRows`; supplierRows là số dòng nguồn NCC, không phải tổng master NCC. CSV xuất toàn bộ từng điều kiện, trong khi preview chỉ trả tối đa 30 dòng vấn đề. Nếu mất kết nối sau commit, dùng **Kiểm tra lại lô** hoặc GET trạng thái trước khi gửi lại.
+
+Migration mới V6 mở rộng quantity/unit_price của lịch sử và dòng PO thành `DECIMAL(38,18)`; không phục hồi chữ số bị mất ở dữ liệu cũ. Đối chiếu chính xác nguồn workbook với database chính đã kiểm tra 12.834 giá trị số, không có chênh lệch. Không backfill liên kết NCC hay import lại lô 1 trong lượt sửa code này. Các cảnh báo/tổng của lô cũ vẫn là kết quả validator lúc nhập; không suy ra chúng đã được tính lại bởi validator mới. Kết quả test bản mới còn đang được cập nhật tại [hệ thống hiện tại](../docs/HE_THONG_HIEN_TAI.md), không dùng test lịch sử để xác nhận toàn bộ thay đổi.
+
+Trong giao diện `/imports`, tab **Workbook dữ liệu cũ** là mặc định khi có quyền. Backend nhận diện workbook có NCC/LICH_SU/DON_HANG tải nhầm vào operational bằng `LEGACY_WORKBOOK_DETECTED`; UI giữ tệp và chuyển sang legacy nếu được cấp quyền, hoặc hướng dẫn liên hệ admin. Màn hình **Kiểm tra 850 dòng** ở phiên bản trước thuộc tab **Yêu cầu mua / báo giá**, dùng để chọn tối đa 200 dòng mỗi lượt chuyển sang lập đơn; không nạp toàn bộ lịch sử workbook.
 
 Lượt MCP với backend/MySQL thật ngày **2026-10-10, 22:11–22:22 +07:00** đã đăng nhập HTTP 200, sao lưu và commit workbook vào schema local `quanlymuahang`: lô 1 `COMMITTED`, 10.561 lịch sử, 262 PO và 850 dòng hàng; 391 NCC, 2.997 vật tư sau xử lý. Có 4.803 dòng cảnh báo, 0 lỗi; dữ liệu nguồn thiếu không bị sửa để ép commit. Preview lại giữ số nhóm/cảnh báo, nhận `duplicate=true` và không tăng số bản ghi. File gốc không đổi. Bằng chứng/giới hạn và vị trí bản sao lưu ở [hệ thống hiện tại](../docs/HE_THONG_HIEN_TAI.md#import-workbook-thật-qua-mcp-vào-mysql); đây là lượt import/đọc dữ liệu thật, không phải chạy lại toàn bộ driver hoặc nghiệm thu production.
 

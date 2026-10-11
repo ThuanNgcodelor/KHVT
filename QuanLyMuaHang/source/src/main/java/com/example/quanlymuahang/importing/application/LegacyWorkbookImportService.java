@@ -35,6 +35,7 @@ import org.apache.poi.ss.usermodel.Workbook;
 import org.apache.poi.ss.usermodel.WorkbookFactory;
 import org.apache.poi.xssf.usermodel.XSSFCell;
 import org.springframework.dao.DataIntegrityViolationException;
+import org.springframework.dao.PessimisticLockingFailureException;
 import org.springframework.jdbc.core.BatchPreparedStatementSetter;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.stereotype.Service;
@@ -109,6 +110,7 @@ public class LegacyWorkbookImportService {
         if (!missing.isEmpty()) throw ApiException.badRequest("WORKSHEET_MISSING", "Thiếu sheet bắt buộc: " + String.join(", ", missing));
 
         int total = parsed.rows().size();
+        if (total == 0) throw ApiException.badRequest("WORKBOOK_EMPTY", "Workbook không có dòng nghiệp vụ để nhập");
         int errors = (int) parsed.rows().stream().filter(row -> row.status().equals("ERROR")).count();
         int warnings = (int) parsed.rows().stream().filter(row -> row.status().equals("WARNING")).count();
         ImportBatch batch = new ImportBatch(name, sha, lowerName.endsWith(".xlsx") ? "XLSX" : "XLS", MODE);
@@ -124,13 +126,19 @@ public class LegacyWorkbookImportService {
 
     @Transactional
     public CommitResult commit(long batchId, long actorId) {
-        ImportBatch batch = batches.findLockedById(batchId).orElseThrow(() -> ApiException.notFound("Không tìm thấy lô import"));
+        ImportBatch batch;
+        try {
+            batch = batches.findLockedById(batchId).orElseThrow(() -> ApiException.notFound("Không tìm thấy lô import"));
+        } catch (PessimisticLockingFailureException exception) {
+            throw ApiException.conflict("IMPORT_IN_PROGRESS", "Lô import đang được xử lý ở yêu cầu khác. Hãy kiểm tra lại trạng thái lô trước khi thử lại.");
+        }
         if (!MODE.equals(batch.getMode())) throw ApiException.badRequest("INVALID_IMPORT_MODE", "Lô import không phải workbook legacy");
         if (batch.getStatus() != ImportBatchStatus.PREVIEW) throw ApiException.conflict("IMPORT_ALREADY_PROCESSED", "Lô import đã được xử lý trước đó");
         List<StoredRow> rows = jdbc.query("SELECT sheet_name,`row_number`,mapped_json,status,issues_json FROM import_rows WHERE batch_id=? ORDER BY sheet_name,`row_number`",
                 (rs, index) -> new StoredRow(rs.getString(1), rs.getInt(2), readJson(rs.getString(3)), rs.getString(4), rs.getString(5)), batchId);
         if (rows.size() != batch.getTotalRows())
             throw ApiException.conflict("IMPORT_SOURCE_INVALID", "Staging không còn khớp số dòng hoặc có giá trị không thể lưu chính xác; chưa commit");
+        if (rows.isEmpty()) throw ApiException.conflict("IMPORT_SOURCE_INVALID", "Lô không có dòng nghiệp vụ; không đánh dấu đã nhập");
         if (rows.stream().anyMatch(row -> validateRow(row.sheet(), row.data()).stream().anyMatch(issue -> issue.startsWith("ERROR:"))))
             throw ApiException.conflict("IMPORT_HAS_ERRORS", "Staging có giá trị không thể lưu chính xác; chưa commit");
         Map<String, List<LegacyRow>> stagedGroups = rows.stream().map(row -> new LegacyRow(row.sheet(), row.rowNumber(), Map.of(), row.data(), row.status(), List.of()))
@@ -143,8 +151,16 @@ public class LegacyWorkbookImportService {
         if (rows.stream().anyMatch(row -> row.status().equals("ERROR")))
             throw ApiException.conflict("IMPORT_HAS_ERRORS", "Lô có dòng lỗi. Hãy sửa file và tải lại; chưa có dữ liệu nào được commit.");
         rows = rows.stream().map(this::revalidated).toList();
-        for (StoredRow row : rows) jdbc.update("UPDATE import_rows SET issues_json=? WHERE batch_id=? AND sheet_name=? AND `row_number`=?",
-                row.issuesJson(), batchId, row.sheet(), row.rowNumber());
+        int[][] issueUpdateCounts = jdbc.batchUpdate(
+                "UPDATE import_rows SET issues_json=? WHERE batch_id=? AND sheet_name=? AND `row_number`=?",
+                rows, 500, (statement, row) -> {
+                    statement.setString(1, row.issuesJson()); statement.setLong(2, batchId);
+                    statement.setString(3, row.sheet()); statement.setInt(4, row.rowNumber());
+                });
+        for (int[] counts : issueUpdateCounts) for (int count : counts) {
+            if (count != 1 && count != java.sql.Statement.SUCCESS_NO_INFO)
+                throw ApiException.conflict("IMPORT_SOURCE_CHANGED", "Không cập nhật đủ cảnh báo staging; chưa commit dữ liệu nghiệp vụ");
+        }
 
         Map<String, Supplier> supplierByCode = new HashMap<>();
         Map<String, Supplier> supplierByName = new HashMap<>();
@@ -179,9 +195,8 @@ public class LegacyWorkbookImportService {
         }
         suppliers.saveAll(changedSuppliers);
         suppliers.flush();
-        supplierSourceRows.forEach((rowNumber, entity) -> jdbc.update(
-                "UPDATE import_rows SET committed_entity_type='SUPPLIER', committed_entity_id=? WHERE batch_id=? AND sheet_name='NCC' AND `row_number`=?",
-                entity.getId(), batchId, rowNumber));
+        persistSourceLinks(batchId, supplierSourceRows.entrySet().stream()
+                .map(entry -> new SourceLink("NCC", entry.getKey(), "SUPPLIER", entry.getValue().getId())).toList());
 
         Map<String, Material> materialByCode = new HashMap<>();
         Map<String, Material> materialByName = new HashMap<>();
@@ -217,11 +232,15 @@ public class LegacyWorkbookImportService {
             success++;
         }
         List<HistoricalPurchase> savedHistory = history.saveAll(historyRows);
+        if (savedHistory.size() != historySourceRows.size())
+            throw ApiException.conflict("IMPORT_SOURCE_CHANGED", "Số lịch sử lưu không khớp số dòng nguồn; chưa commit");
+        history.flush();
+        List<SourceLink> historyLinks = new ArrayList<>(savedHistory.size());
         for (int index = 0; index < savedHistory.size(); index++) {
             StoredRow source = historySourceRows.get(index);
-            jdbc.update("UPDATE import_rows SET committed_entity_type='HISTORICAL_PURCHASE', committed_entity_id=? WHERE batch_id=? AND sheet_name=? AND `row_number`=?",
-                    savedHistory.get(index).getId(), batchId, source.sheet(), source.rowNumber());
+            historyLinks.add(new SourceLink(source.sheet(), source.rowNumber(), "HISTORICAL_PURCHASE", savedHistory.get(index).getId()));
         }
+        persistSourceLinks(batchId, historyLinks);
 
         int importedOrders = importOrders(orderRows, batchId, supplierByCode, supplierByName, materialByCode, materialByName);
         suppliers.flush(); materials.flush(); history.flush(); orders.flush();
@@ -234,6 +253,22 @@ public class LegacyWorkbookImportService {
                 historyRows.size(), importedOrders, "Đã đối chiếu từng dòng nguồn với dữ liệu lưu; loại tiền thiếu vẫn là giả định có cảnh báo.", verification);
         audit.record(actorId, "LEGACY_IMPORT_COMMITTED", "IMPORT_BATCH", batchId, result);
         return result;
+    }
+
+    private void persistSourceLinks(long batchId, List<SourceLink> links) {
+        if (links.isEmpty()) return;
+        if (links.stream().anyMatch(link -> link.entityId() == null))
+            throw ApiException.conflict("IMPORT_SOURCE_CHANGED", "Bản ghi nguồn chưa có ID đích; chưa commit");
+        int[][] updated = jdbc.batchUpdate(
+                "UPDATE import_rows SET committed_entity_type=?, committed_entity_id=? WHERE batch_id=? AND sheet_name=? AND `row_number`=?",
+                links, 500, (statement, link) -> {
+                    statement.setString(1, link.entityType()); statement.setLong(2, link.entityId());
+                    statement.setLong(3, batchId); statement.setString(4, link.sheet()); statement.setInt(5, link.rowNumber());
+                });
+        for (int[] counts : updated) for (int count : counts) {
+            if (count != 1 && count != java.sql.Statement.SUCCESS_NO_INFO)
+                throw ApiException.conflict("IMPORT_SOURCE_CHANGED", "Không cập nhật đủ liên kết dòng nguồn; chưa commit");
+        }
     }
 
     private StoredRow revalidated(StoredRow row) {
@@ -292,14 +327,18 @@ public class LegacyWorkbookImportService {
         List<List<StoredRow>> sourceGroups = groups.values().stream().filter(group -> !group.isEmpty()
                 && value(group.get(0).data(), "poNumber") != null).toList();
         List<PurchaseOrder> savedOrders = orders.saveAll(result);
+        if (savedOrders.size() != sourceGroups.size())
+            throw ApiException.conflict("IMPORT_SOURCE_CHANGED", "Số PO lưu không khớp nhóm nguồn; chưa commit");
+        orders.flush();
+        List<SourceLink> orderLinks = new ArrayList<>(rows.size());
         for (int index = 0; index < savedOrders.size(); index++) {
             PurchaseOrder order = savedOrders.get(index);
             List<StoredRow> sourceGroup = sourceGroups.get(index);
             for (StoredRow source : sourceGroup) {
-                jdbc.update("UPDATE import_rows SET committed_entity_type='PURCHASE_ORDER', committed_entity_id=? WHERE batch_id=? AND sheet_name=? AND `row_number`=?",
-                        order.getId(), batchId, source.sheet(), source.rowNumber());
+                orderLinks.add(new SourceLink(source.sheet(), source.rowNumber(), "PURCHASE_ORDER", order.getId()));
             }
         }
+        persistSourceLinks(batchId, orderLinks);
         return savedOrders.size();
     }
 
@@ -342,6 +381,7 @@ public class LegacyWorkbookImportService {
     }
 
     private WorkbookData parse(Workbook workbook) {
+        validateFormulaScope(workbook);
         Map<String, List<LegacyRow>> bySheet = new LinkedHashMap<>();
         List<LegacyRow> all = new ArrayList<>();
         DataFormatter formatter = new DataFormatter(Locale.ROOT);
@@ -415,13 +455,13 @@ public class LegacyWorkbookImportService {
                             issues.add("ERROR:UNMAPPED_FIELD: Sheet " + name + " không lưu trường " + field);
                         mapped.put(field, text.trim());
                         if (effectiveType == CellType.NUMERIC) raw.put(field + "__display", formatter.formatCellValue(cell, evaluator));
-                        if (effectiveType == CellType.NUMERIC && !DateUtil.isCellDateFormatted(cell)
+                        if (effectiveType == CellType.NUMERIC && !dateFormat(cell)
                                 && Set.of("quantity", "unitPrice", "vatPercent").contains(field))
                             mapped.put(field + "__numeric", "true");
                         if (effectiveType == CellType.NUMERIC && Set.of("quantity", "unitPrice", "vatPercent").contains(field)
                                 && formatter.formatCellValue(cell, evaluator).trim().endsWith("%"))
                             issues.add("ERROR:PERCENT_CELL_FORMAT: Ô số có định dạng phần trăm; cần xác nhận tỷ lệ/giá trị nguồn trước khi nhập, không tự nhân 100");
-                        if ("date".equals(field) && effectiveType == CellType.NUMERIC && DateUtil.isCellDateFormatted(cell)) {
+                        if ("date".equals(field) && effectiveType == CellType.NUMERIC && dateFormat(cell)) {
                             BigDecimal serial = numericValue(cell, evaluator);
                             raw.put("date__serial", serial.toPlainString());
                             if (serial.stripTrailingZeros().scale() > 0)
@@ -644,7 +684,7 @@ public class LegacyWorkbookImportService {
         if (cell == null) return "";
         CellValue formulaValue = cell.getCellType() == CellType.FORMULA ? evaluator.evaluate(cell) : null;
         CellType type = formulaValue == null ? cell.getCellType() : formulaValue.getCellType();
-        if (type == CellType.NUMERIC && DateUtil.isCellDateFormatted(cell)) {
+        if (type == CellType.NUMERIC && dateFormat(cell)) {
             double serial = numericValue(cell, evaluator).doubleValue();
             if (!DateUtil.isValidExcelDate(serial)) throw new IllegalArgumentException("Invalid Excel date");
             Workbook workbook = cell.getSheet().getWorkbook();
@@ -659,6 +699,49 @@ public class LegacyWorkbookImportService {
         if (type == CellType.BOOLEAN) return Boolean.toString(formulaValue == null ? cell.getBooleanCellValue() : formulaValue.getBooleanValue());
         if (type == CellType.BLANK) return "";
         return formatter.formatCellValue(cell, evaluator);
+    }
+
+    private static boolean dateFormat(Cell cell) {
+        // DateUtil.isCellDateFormatted reads the stale formula cache. Style inspection does not.
+        return DateUtil.isADateFormat(cell.getCellStyle().getDataFormat(), cell.getCellStyle().getDataFormatString());
+    }
+
+    private static void validateFormulaScope(Workbook workbook) {
+        Set<String> pureFunctions = Set.of("SUM", "AVERAGE", "MIN", "MAX", "ABS", "ROUND", "ROUNDUP", "ROUNDDOWN", "COUNT", "COUNTA", "IF", "AND", "OR", "NOT", "MOD", "INT", "SQRT", "POWER", "TRUE", "FALSE");
+        Pattern sheets = Pattern.compile("(?:'([^']+)'|([A-Za-z_][A-Za-z0-9_]*))!");
+        Pattern identifiers = Pattern.compile("[A-Za-z_][A-Za-z_0-9.]*");
+        for (String name : List.of("NCC", "LICH_SU", "DON_HANG")) {
+            Sheet sheet = workbook.getSheet(name);
+            if (sheet == null) continue;
+            for (Row row : sheet) for (Cell cell : row) {
+                if (cell.getCellType() != CellType.FORMULA) continue;
+                String formula = cell.getCellFormula();
+                // Preflight every business formula before any evaluation, including indirect chains.
+                // Named ranges, external workbooks and dynamic/reference-reading functions are unsupported.
+                if (formula.contains("[") || formula.contains("]") || formula.contains("\""))
+                    throw unsafeFormula(name, row.getRowNum(), cell.getColumnIndex());
+                var sheetMatcher = sheets.matcher(formula);
+                while (sheetMatcher.find()) {
+                    String referencedSheet = sheetMatcher.group(1) == null ? sheetMatcher.group(2) : sheetMatcher.group(1);
+                    if (!EXPECTED_SHEETS.contains(referencedSheet.toUpperCase(Locale.ROOT)))
+                        throw unsafeFormula(name, row.getRowNum(), cell.getColumnIndex());
+                }
+                String expression = sheets.matcher(formula).replaceAll("").replace("$", "");
+                if (expression.contains("!") || expression.contains("'")) throw unsafeFormula(name, row.getRowNum(), cell.getColumnIndex());
+                var identifiersMatcher = identifiers.matcher(expression);
+                while (identifiersMatcher.find()) {
+                    String identifier = identifiersMatcher.group().toUpperCase(Locale.ROOT);
+                    boolean cellReference = identifier.matches("[A-Z]{1,3}[1-9][0-9]*");
+                    boolean function = pureFunctions.contains(identifier) && expression.substring(identifiersMatcher.end()).stripLeading().startsWith("(");
+                    if (!cellReference && !function) throw unsafeFormula(name, row.getRowNum(), cell.getColumnIndex());
+                }
+            }
+        }
+    }
+
+    private static ApiException unsafeFormula(String sheet, int row, int column) {
+        return ApiException.badRequest("WORKSHEET_UNSAFE_FORMULA", "Công thức chưa hỗ trợ tại " + sheet + " dòng " + (row + 1) + " cột " + (column + 1)
+                + "; không đọc CONFIG, named range hoặc nguồn ngoài workbook");
     }
 
     private static CellType effectiveType(Cell cell, FormulaEvaluator evaluator) {
@@ -770,6 +853,7 @@ public class LegacyWorkbookImportService {
     private record LegacyRow(String sheet, int rowNumber, Map<String, String> raw, Map<String, String> mapped, String status, List<String> issues) {}
     private record WorkbookData(Map<String, List<LegacyRow>> sheetRows, List<LegacyRow> rows) {}
     private record StoredRow(String sheet, int rowNumber, Map<String, String> data, String status, String issuesJson) {}
+    private record SourceLink(String sheet, int rowNumber, String entityType, Long entityId) {}
     public record RowIssue(String sheet, int rowNumber, String status, List<String> issues) {}
     public record Summary(Map<String, Integer> rowsPerSheet, int errorRows, int warningRows, int legacyPurchaseOrderGroups, int totalRows, String note) {}
     public record PreviewResult(Long batchId, String fileName, String sha256, String status, Summary summary,

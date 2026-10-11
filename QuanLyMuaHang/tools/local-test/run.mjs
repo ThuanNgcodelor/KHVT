@@ -6,6 +6,7 @@ import { createWriteStream } from 'node:fs'
 import { resolve, join } from 'node:path'
 import { fileURLToPath, pathToFileURL } from 'node:url'
 import { connectBrowserMcp } from '../browser-mcp/client.mjs'
+import { readWorkbookSource, compareWorkbookStaging } from './workbook-source.mjs'
 
 const root = fileURLToPath(new URL('../../', import.meta.url)), source = join(root, 'source'), runtime = join(source, 'target/runtime')
 await mkdir(runtime, { recursive: true })
@@ -28,8 +29,8 @@ function launch(command, args, env, logName, cwd = source) {
 async function sql(statement) {
   assert(/^[a-z0-9_]+$/.test(db))
   return new Promise((resolveResult, reject) => {
-    const child = spawn('docker.exe', ['exec', '-i', 'qmh-local-mysql-1', 'sh', '-c', 'MYSQL_PWD="$MYSQL_ROOT_PASSWORD" exec mysql -uroot --batch --skip-column-names'], { windowsHide: true })
-    let result = ''; child.stdout.on('data', (chunk) => { result += chunk }); child.stderr.resume()
+    const child = spawn('docker.exe', ['exec', '-i', 'qmh-local-mysql-1', 'sh', '-c', 'MYSQL_PWD="$MYSQL_ROOT_PASSWORD" exec mysql -uroot --default-character-set=utf8mb4 --batch --raw --skip-column-names'], { windowsHide: true })
+    let result = ''; child.stdout.setEncoding('utf8'); child.stdout.on('data', (chunk) => { result += chunk }); child.stderr.resume()
     child.on('error', reject); child.on('exit', (code) => code === 0 ? resolveResult(result.trim()) : reject(new Error('Isolated database operation failed')))
     child.stdin.end(statement)
   })
@@ -63,7 +64,7 @@ try {
   report.databaseCreated = true
   console.log(`Created isolated test database ${db}; application database is unchanged`)
   const env = { ...process.env, ...settings, JAVA_TOOL_OPTIONS: '', SPRING_DATASOURCE_URL: `jdbc:mysql://127.0.0.1:3307/${db}`, SPRING_DATASOURCE_USERNAME: 'app', REDIS_HOST: '127.0.0.1', REDIS_PORT: '6380', SERVER_PORT: '8081', ADMIN_BOOTSTRAP_EMAIL: email, ADMIN_BOOTSTRAP_PASSWORD: temporary, ADMIN_BOOTSTRAP_NAME: 'Quản trị kiểm thử', APP_FRONTEND_URL: 'http://127.0.0.1:5174', APP_PDF_FONT_PATH: 'C:/Windows/Fonts/arial.ttf', FILE_STORAGE_ROOT: join(runtime, db, 'files') }
-  const javaArgs = ['-XX:ActiveProcessorCount=2', '-XX:+UseSerialGC', '-XX:TieredStopAtLevel=1', '-Xss512k', '-Xms16m', '-Xmx128m', '-XX:MaxMetaspaceSize=128m', '-XX:ReservedCodeCacheSize=32m', '-XX:CompressedClassSpaceSize=32m', '-jar', join(source, 'target/quan-ly-mua-hang-0.0.1-SNAPSHOT.jar'), `--spring.session.redis.namespace=${report.namespace}`, '--server.servlet.session.cookie.name=QMH_TEST_SESSION', '--logging.level.org.springframework.web=INFO', '--logging.level.org.springframework.security=INFO', '--debug=false']
+  const javaArgs = ['-XX:ActiveProcessorCount=2', '-XX:+UseSerialGC', '-XX:TieredStopAtLevel=1', '-Xss512k', '-Xms16m', '-Xmx128m', '-XX:MaxMetaspaceSize=128m', '-XX:ReservedCodeCacheSize=32m', '-XX:CompressedClassSpaceSize=32m', '-jar', process.env.QMH_TEST_JAR || join(source, 'target/quan-ly-mua-hang-0.0.1-SNAPSHOT.jar'), `--spring.session.redis.namespace=${report.namespace}`, '--server.servlet.session.cookie.name=QMH_TEST_SESSION', '--logging.level.org.springframework.web=INFO', '--logging.level.org.springframework.security=INFO', '--debug=false']
   let backend = launch('C:/Program Files/Java/jdk-21.0.12/bin/java.exe', javaArgs, env, 'isolated-backend.log')
   await ready('http://127.0.0.1:8081/actuator/health', backend); checked('MySQL Flyway from empty schema and Redis runtime health')
   const bootstrapDeadline = Date.now() + 30_000
@@ -136,12 +137,54 @@ try {
   const preview = await json(admin, '/api/imports/legacy/preview', 'POST', undefined, upload)
   report.workbook = { sha256: sha, batchId: preview.batchId, status: preview.status, summary: preview.summary, issueCodes: preview.rowIssues.map((row) => ({ sheet: row.sheet, row: row.rowNumber, status: row.status, codes: row.issues.map((issue) => issue.split(':').slice(0,2).join(':')) })) }
   assert.equal(preview.sha256, sha); checked(`Workbook preview: ${preview.summary.totalRows} rows, ${preview.summary.errorRows} errors, ${preview.summary.warningRows} warning rows, ${preview.summary.legacyPurchaseOrderGroups} PO groups`)
+  const independentSource = await readWorkbookSource(workbookPath)
+  assert.equal(independentSource.sha256, sha)
+  const staging = (await sql(`SELECT JSON_OBJECT('sheet_name',sheet_name,'row_number',\`row_number\`,'mapped_json',mapped_json) FROM \`${db}\`.import_rows WHERE batch_id=${Number(preview.batchId)} ORDER BY sheet_name,\`row_number\`;`)).split(/\r?\n/).filter(Boolean).map((line) => JSON.parse(line))
+  report.workbook.sourceComparison = compareWorkbookStaging(independentSource, staging)
+  assert.equal(report.workbook.sourceComparison.mismatches.length, 0, 'Every mapped workbook field must match independently extracted OpenXML')
+  checked(`Independent OpenXML to MySQL staging: ${staging.length} rows, ${report.workbook.sourceComparison.checkedFields} fields`)
+  // Only counts and mismatch coordinates are retained after the independent comparison.
+  for (const sheet of Object.values(independentSource.sheets)) sheet.rows.length = 0
+  staging.length = 0
+  globalThis.gc?.()
+  const wrongMode = await json(admin, '/api/imports/operational/preview', 'POST', undefined, { ...upload, status: 400 })
+  assert.equal(wrongMode.code, 'LEGACY_WORKBOOK_DETECTED')
+  // Release the POI workbook heap before CSV, SQL checks and transactional commit.
+  const previewStopped = new Promise((wait) => backend.once('exit', wait)); backend.kill(); await previewStopped
+  backend = launch('C:/Program Files/Java/jdk-21.0.12/bin/java.exe', javaArgs.map((arg) => arg === '-Xmx128m' ? '-Xmx256m' : arg), env, 'isolated-commit-backend.log')
+  await ready('http://127.0.0.1:8081/actuator/health', backend)
+  const reopened = await json(admin, `/api/imports/legacy/${preview.batchId}`)
+  assert.equal(reopened.summary.totalRows, preview.summary.totalRows)
+  const issueFile = await call(admin, `/api/imports/legacy/${preview.batchId}/issues.csv`, 'GET', undefined, { headers: { Accept: 'text/csv' } })
+  const issueText = (await issueFile.body()).toString('utf8')
+  const issueCount = Number(await sql(`SELECT COALESCE(SUM(JSON_LENGTH(issues_json)),0) FROM \`${db}\`.import_rows WHERE batch_id=${Number(preview.batchId)};`))
+  assert.equal(issueText.trim().split(/\r?\n/).length - 1, issueCount)
+  await call(viewer1, `/api/imports/legacy/${preview.batchId}/issues.csv`, 'GET', undefined, { status: 401 })
+  checked('Workbook mode guard, report reopen, complete warning CSV and unauthenticated report denial')
   if (preview.summary.errorRows > 0 || preview.rowIssues.some((row) => row.issues.some((issue) => issue.includes('PO_HEADER_CONFLICT')))) {
     await call(admin, `/api/imports/legacy/${preview.batchId}/commit`, 'POST', undefined, { status: 409 }); report.workbook.commit = 'REJECTED_DATA_ERRORS'; checked('Workbook commit safely rejects source errors/header conflicts')
   } else {
-    const committed = await json(admin, `/api/imports/legacy/${preview.batchId}/commit`, 'POST'); report.workbook.commit = committed
+    const parallelAdmin = await request.newContext({ baseURL: 'http://127.0.0.1:8081', storageState: await admin.storageState(), timeout: 180_000 }); clients.push(parallelAdmin)
+    const commits = await Promise.all([admin, parallelAdmin].map(async (ctx) => {
+      const csrf = await (await ctx.get('/api/auth/csrf')).json()
+      return ctx.post(`/api/imports/legacy/${preview.batchId}/commit`, { headers: { [csrf.headerName]: csrf.token } })
+    }))
+    report.workbook.concurrentStatuses = commits.map((reply) => reply.status()).sort()
+    const successfulCommit = commits.find((reply) => reply.status() === 200)
+    const committed = successfulCommit ? await successfulCommit.json() : undefined
+    if (committed) report.workbook.commit = committed
+    assert.deepEqual(report.workbook.concurrentStatuses, [200, 409], 'Concurrent requests must commit exactly once')
+    const concurrentRejection = await commits.find((reply) => reply.status() === 409).json()
+    assert(['IMPORT_IN_PROGRESS', 'IMPORT_ALREADY_PROCESSED'].includes(concurrentRejection.code), 'Concurrent rejection must identify an import in progress or already processed')
+    report.workbook.concurrentCommit = `One success, one ${concurrentRejection.code}`
     assert.equal(committed.historyRowsImported, preview.summary.rowsPerSheet.LICH_SU); assert.equal(committed.purchaseOrdersImported, preview.summary.legacyPurchaseOrderGroups)
-    await call(admin, `/api/imports/legacy/${preview.batchId}/commit`, 'POST', undefined, { status: 409 }); checked(`Workbook committed in isolated MySQL: ${committed.historyRowsImported} historical rows, ${committed.purchaseOrdersImported} PO`)
+    assert.equal(committed.verification.sourceRows, preview.summary.totalRows)
+    assert.equal(committed.verification.verifiedRows, preview.summary.totalRows)
+    assert.equal(committed.verification.purchaseOrderItems, preview.summary.rowsPerSheet.DON_HANG)
+    assert.equal(committed.verification.supplierRows, preview.summary.rowsPerSheet.NCC)
+    const repeatedCommit = await json(admin, `/api/imports/legacy/${preview.batchId}/commit`, 'POST', undefined, { status: 409 })
+    assert.equal(repeatedCommit.code, 'IMPORT_ALREADY_PROCESSED')
+    checked(`Workbook committed in isolated MySQL: ${committed.historyRowsImported} historical rows, ${committed.purchaseOrdersImported} PO`)
   }
   const duplicate = await json(admin, '/api/imports/legacy/preview', 'POST', undefined, upload); assert(duplicate.duplicate); assert.equal(duplicate.batchId, preview.batchId); checked('Workbook checksum replay reuses batch without duplicate business records')
   const priceExport = await call(admin, '/api/exports/prices.xlsx?currency=VND&category=MATERIAL'); assert((await priceExport.body()).subarray(0,2).equals(Buffer.from('PK'))); checked('Filtered price XLSX export after workbook processing')

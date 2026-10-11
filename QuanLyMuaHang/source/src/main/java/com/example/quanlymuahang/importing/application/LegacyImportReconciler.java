@@ -67,6 +67,8 @@ public final class LegacyImportReconciler {
                 FROM suppliers s JOIN import_rows r ON r.committed_entity_id=s.id
                 WHERE r.batch_id=? AND r.sheet_name='NCC' AND r.committed_entity_type='SUPPLIER'
                 """, batchId));
+        MasterNames masterNames = new MasterNames(nameCounts(jdbc.queryForList("SELECT id,name FROM suppliers")),
+                nameCounts(jdbc.queryForList("SELECT id,name FROM materials")));
 
         Set<RowKey> checkedRows = new HashSet<>();
         Set<Long> checkedHistory = new HashSet<>();
@@ -86,7 +88,7 @@ public final class LegacyImportReconciler {
                     long id = linkedId(source, staged, "HISTORICAL_PURCHASE");
                     DbRow history = histories.get(id);
                     if (history == null || !checkedHistory.add(id)) throw failed(source, "historyLink");
-                    verifyHistory(batchId, source, staged, history);
+                    verifyHistory(batchId, source, staged, history, masterNames);
                 }
                 case "DON_HANG" -> {
                     if (value(source, "poNumber") == null) throw failed(source, "poNumber");
@@ -98,6 +100,8 @@ public final class LegacyImportReconciler {
                     String sourceCode = value(source, "supplierCode");
                     if (sourceCode != null && !sourceCode.equalsIgnoreCase(suppliers.get(id).string("code")))
                         throw failed(source, "supplierCodeLink");
+                    // NCC explicitly imports a master row, including an uncoded row whose name is ambiguous.
+                    // Its exact final fields are checked below; uniqueness applies to transaction name resolution.
                     SupplierExpectation expectation = expectedSuppliers.computeIfAbsent(id, ignored -> new SupplierExpectation());
                     expectation.source = source;
                     expectation.name = value(source, "supplierName");
@@ -120,14 +124,14 @@ public final class LegacyImportReconciler {
             long id = linkedId(first, staging.get(new RowKey(first.sheet(), first.rowNumber())), "PURCHASE_ORDER");
             DbRow order = orders.get(id);
             if (order == null || !checkedOrders.add(id)) throw failed(first, "purchaseOrderLink");
-            verifyOrder(batchId, group, order);
+            verifyOrder(batchId, group, order, masterNames);
             for (int index = 0; index < group.size(); index++) {
                 SourceRow source = group.get(index);
                 long linkedOrder = linkedId(source, staging.get(new RowKey(source.sheet(), source.rowNumber())), "PURCHASE_ORDER");
                 equal(source, "purchaseOrderLink", id, linkedOrder);
                 DbRow item = items.get(new ItemKey(id, index + 1));
                 if (item == null) throw failed(source, "lineNo");
-                verifyItem(source, item);
+                verifyItem(source, item, masterNames);
                 expectedItems++;
             }
         }
@@ -144,7 +148,7 @@ public final class LegacyImportReconciler {
         return new Verification(rows.size(), checkedRows.size(), checkedHistory.size(), checkedOrders.size(), expectedItems, supplierRows);
     }
 
-    private void verifyHistory(long batchId, SourceRow source, DbRow staged, DbRow actual) {
+    private void verifyHistory(long batchId, SourceRow source, DbRow staged, DbRow actual, MasterNames masterNames) {
         equal(source, "date", date(source, "date"), actual.date("purchase_date"));
         String supplierName = value(source, "supplierName");
         if (supplierName == null && actual.id("supplier_id") != null) supplierName = actual.string("linked_supplier_name");
@@ -165,11 +169,11 @@ public final class LegacyImportReconciler {
         equal(source, "importBatchId", batchId, actual.id("import_batch_id"));
         equal(source, "category", "MATERIAL", actual.string("category"));
         equal(source, "dataQualityFlags", jsonTree(staged.string("issues_json"), source), jsonTree(actual.string("data_quality_flags"), source));
-        verifyMasterLink(source, actual, "supplier", "supplierCode");
-        verifyMasterLink(source, actual, "material", "materialCode");
+        verifyMasterLink(source, actual, "supplier", "supplierCode", masterNames);
+        verifyMasterLink(source, actual, "material", "materialCode", masterNames);
     }
 
-    private void verifyOrder(long batchId, List<SourceRow> group, DbRow actual) {
+    private void verifyOrder(long batchId, List<SourceRow> group, DbRow actual, MasterNames masterNames) {
         SourceRow first = group.getFirst();
         equal(first, "sourcePoNumber", value(first, "poNumber"), actual.string("source_po_number"));
         if (actual.string("po_number") == null || actual.string("po_number").isBlank()) throw failed(first, "poNumber");
@@ -188,17 +192,17 @@ public final class LegacyImportReconciler {
         equal(first, "status", "EXPORTED", actual.string("status"));
         equal(first, "revision", 1, actual.integer("revision"));
         verifyMasterLink(firstValue(group, "supplierCode") == null ? firstWithValue(group, "supplierName")
-                : firstWithValue(group, "supplierCode"), actual, "supplier", "supplierCode");
+                : firstWithValue(group, "supplierCode"), actual, "supplier", "supplierCode", masterNames);
     }
 
-    private void verifyItem(SourceRow source, DbRow actual) {
+    private void verifyItem(SourceRow source, DbRow actual, MasterNames masterNames) {
         equal(source, "materialCode", value(source, "materialCode"), actual.string("material_code_snapshot"));
         equal(source, "materialName", value(source, "materialName"), actual.string("material_name"));
         equal(source, "specification", value(source, "specification"), actual.string("specification"));
         equal(source, "unit", value(source, "unit"), actual.string("unit"));
         verifyQuantity(source, actual);
         decimalEqual(source, "unitPrice", decimal(source, "unitPrice"), actual.decimal("unit_price"));
-        verifyMasterLink(source, actual, "material", "materialCode");
+        verifyMasterLink(source, actual, "material", "materialCode", masterNames);
     }
 
     private static void verifyQuantity(SourceRow source, DbRow actual) {
@@ -207,19 +211,25 @@ public final class LegacyImportReconciler {
         equal(source, "quantityText", quantity == null ? value(source, "quantity") : null, actual.string("quantity_text"));
     }
 
-    private static void verifyMasterLink(SourceRow source, DbRow actual, String kind, String codeField) {
+    private static void verifyMasterLink(SourceRow source, DbRow actual, String kind, String codeField, MasterNames masterNames) {
         Long id = actual.id(kind + "_id");
         if (id != null && !Objects.equals(id, actual.id("linked_" + kind + "_id"))) throw failed(source, kind + "Link");
         String code = value(source, codeField);
         if (code != null && (id == null || !code.equalsIgnoreCase(actual.string("linked_" + kind + "_code"))))
             throw failed(source, kind + "CodeLink");
         String name = value(source, kind + "Name");
-        if (code == null && id != null && (name == null || !TextNormalizer.normalize(name)
+        if (code == null && id != null && (name == null || masterNames.count(kind, name) != 1 || !TextNormalizer.normalize(name)
                 .equals(TextNormalizer.normalize(actual.string("linked_" + kind + "_name")))))
             throw failed(source, kind + "NameLink");
     }
 
     private List<DbRow> select(String sql, long batchId) { return jdbc.queryForList(sql, batchId).stream().map(DbRow::new).toList(); }
+
+    private static Map<String, Integer> nameCounts(List<Map<String, Object>> rows) {
+        Map<String, Integer> counts = new HashMap<>();
+        for (Map<String, Object> row : rows) counts.merge(TextNormalizer.normalize(new DbRow(row).string("name")), 1, Integer::sum);
+        return counts;
+    }
 
     private static Map<Long, DbRow> index(List<DbRow> rows) {
         Map<Long, DbRow> result = new HashMap<>();
@@ -297,6 +307,11 @@ public final class LegacyImportReconciler {
                                int purchaseOrderItems, int supplierRows) {}
     private record RowKey(String sheet, int rowNumber) {}
     private record ItemKey(long orderId, int lineNo) {}
+    private record MasterNames(Map<String, Integer> suppliers, Map<String, Integer> materials) {
+        int count(String kind, String name) {
+            return ("supplier".equals(kind) ? suppliers : materials).getOrDefault(TextNormalizer.normalize(name), 0);
+        }
+    }
     private static final class SupplierExpectation {
         private SourceRow source;
         private String code;

@@ -175,6 +175,37 @@ class LegacyImportReconcilerTest {
         assertTrue(failure().getMessage().contains("historyRows"));
     }
 
+    @Test void rejectsAnAmbiguousNameOnlyMaterialLinkEvenWhenBothMasterRecordsExist() {
+        jdbc.update("INSERT INTO materials VALUES (3,'VT-02','Vật tư không mã')");
+        jdbc.update("INSERT INTO materials VALUES (4,'VT-03','Vat tu khong ma')");
+        jdbc.update("UPDATE historical_purchases SET material_id=3 WHERE id=11");
+        assertTrue(failure().getMessage().contains("materialNameLink"));
+    }
+
+    @Test void acceptsAUniqueNameOnlyMaterialLink() {
+        jdbc.update("INSERT INTO materials VALUES (3,'VT-02','Vật tư không mã')");
+        jdbc.update("UPDATE historical_purchases SET material_id=3 WHERE id=11");
+        assertEquals(6, reconciler.verify(BATCH, rows).verifiedRows());
+    }
+
+    @Test void acceptsAnExplicitUncodedSupplierMasterEvenWhenItsNameIsAlreadyAmbiguous() throws Exception {
+        addExplicitUncodedSupplier();
+        assertEquals(new LegacyImportReconciler.Verification(7, 7, 2, 1, 2, 3), reconciler.verify(BATCH, rows));
+        assertEquals(3L, jdbc.queryForObject("SELECT committed_entity_id FROM import_rows WHERE sheet_name='NCC' AND `row_number`=6", Long.class));
+        assertNull(jdbc.queryForObject("SELECT code FROM suppliers WHERE id=3", String.class));
+    }
+
+    @Test void anExplicitUncodedNccMasterDoesNotPermitAmbiguousTransactionNameResolution() throws Exception {
+        addExplicitUncodedSupplier();
+        SourceRow original = rows.stream().filter(row -> row.sheet().equals("LICH_SU") && row.rowNumber() == 8).findFirst().orElseThrow();
+        Map<String, String> changed = new LinkedHashMap<>(original.data());
+        changed.put("supplierName", "NCC tên cuối");
+        rows.set(rows.indexOf(original), new SourceRow(original.sheet(), original.rowNumber(), changed));
+        jdbc.update("UPDATE import_rows SET mapped_json=? WHERE sheet_name='LICH_SU' AND `row_number`=8", mapper.writeValueAsString(changed));
+        jdbc.update("UPDATE historical_purchases SET supplier_id=3,supplier_snapshot='NCC tên cuối' WHERE id=11");
+        assertTrue(failure().getMessage().contains("supplierNameLink"));
+    }
+
     @Test void detectsStagingValueMutation() throws Exception {
         jdbc.update("UPDATE import_rows SET mapped_json=? WHERE sheet_name='LICH_SU' AND `row_number`=2", mapper.writeValueAsString(Map.of("materialName", "CHANGED")));
         assertTrue(failure().getMessage().contains("mappedValues"));
@@ -207,6 +238,13 @@ class LegacyImportReconcilerTest {
     private void stage(SourceRow source, String type, long id) throws Exception {
         jdbc.update("INSERT INTO import_rows VALUES (?,?,?,?,?,'READY',?,?)", BATCH, source.sheet(), source.rowNumber(),
                 mapper.writeValueAsString(source.data()), "[]", type, id);
+    }
+
+    private void addExplicitUncodedSupplier() throws Exception {
+        jdbc.update("INSERT INTO suppliers VALUES (3,NULL,?,?,?)", "NCC tên cuối", TextNormalizer.normalize("NCC tên cuối"), "Địa chỉ NCC chưa mã");
+        SourceRow uncoded = row("NCC", 6, "supplierName", "NCC tên cuối", "address", "Địa chỉ NCC chưa mã");
+        rows.add(uncoded);
+        stage(uncoded, "SUPPLIER", 3);
     }
 
     private void history(SourceRow source, long id, Long supplierId, Long materialId) {

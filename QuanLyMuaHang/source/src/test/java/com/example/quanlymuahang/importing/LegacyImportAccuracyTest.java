@@ -14,6 +14,7 @@ import org.apache.poi.ss.usermodel.FormulaError;
 import org.apache.poi.xssf.usermodel.XSSFWorkbook;
 import org.junit.jupiter.api.Test;
 import org.springframework.jdbc.core.JdbcTemplate;
+import org.springframework.dao.PessimisticLockingFailureException;
 import org.springframework.jdbc.datasource.DriverManagerDataSource;
 import org.springframework.mock.web.MockMultipartFile;
 import org.springframework.test.util.ReflectionTestUtils;
@@ -115,7 +116,7 @@ class LegacyImportAccuracyTest {
             var style = book.createCellStyle(); style.setDataFormat(book.createDataFormat().getFormat("yyyy-mm-dd")); date.setCellStyle(style);
             row.getCell(2).setCellFormula("25*4");
         });
-        assertEquals(0, preview.summary().errorRows());
+        assertEquals(0, preview.summary().errorRows(), preview.rowIssues().toString());
         assertEquals("1904-01-01", fixture.data("LICH_SU", "mapped_json").get("date"));
         assertEquals("100", fixture.data("LICH_SU", "mapped_json").get("unitPrice"));
         assertEquals("25*4", fixture.data("LICH_SU", "raw_json").get("unitPrice__formula"));
@@ -196,6 +197,18 @@ class LegacyImportAccuracyTest {
         verify(fixture.suppliers, never()).findAll();
     }
 
+    @Test void concurrentLockTimeoutIsAConflictWithoutAnyImportWrites() {
+        Fixture fixture = new Fixture();
+        when(fixture.batches.findLockedById(1L)).thenThrow(new PessimisticLockingFailureException("synthetic lock timeout"));
+        ApiException exception = assertThrows(ApiException.class, () -> fixture.service.commit(1L, 1L));
+        assertEquals(409, exception.status().value());
+        assertEquals("IMPORT_IN_PROGRESS", exception.code());
+        assertEquals(0, fixture.jdbc.queryForObject("SELECT COUNT(*) FROM import_rows", Integer.class));
+        verify(fixture.suppliers, never()).findAll();
+        verify(fixture.suppliers, never()).saveAll(any());
+        verify(fixture.batches, never()).saveAndFlush(any());
+    }
+
     @Test void explicitHistoricalCurrencyIsRetainedAndMissingCurrencyIsMarkedAssumed() {
         Fixture fixture = new Fixture();
         for (String currency : new String[]{"USD", ""}) {
@@ -206,6 +219,33 @@ class LegacyImportAccuracyTest {
             assertEquals(currency.isEmpty() ? "VND" : "USD", history.getCurrency().name());
             assertEquals(currency.isEmpty() ? "ASSUMED_LEGACY" : "SOURCE", history.getCurrencyBasis());
         }
+    }
+
+    @Test void configAndIndirectFormulaDependenciesAreBlockedBeforeEvaluation() throws Exception {
+        for (String formula : new String[]{"CONFIG!A1", "A7", "LegacySecret", "INDIRECT(A7)"}) {
+            Fixture fixture = new Fixture();
+            var exception = assertThrows(ApiException.class, () -> fixture.preview(book -> {
+                book.createSheet("CONFIG").createRow(0).createCell(0).setCellValue("synthetic private fixture");
+                var indirect = book.getSheet("LICH_SU").createRow(6).createCell(0);
+                if (formula.equals("A7")) indirect.setCellFormula("CONFIG!A1"); else indirect.setCellValue("CONFIG!A1");
+                var named = book.createName(); named.setNameName("LegacySecret"); named.setRefersToFormula("CONFIG!$A$1");
+                book.getSheet("LICH_SU").getRow(1).getCell(2).setCellFormula(formula);
+            }));
+            assertEquals("WORKSHEET_UNSAFE_FORMULA", exception.code());
+            assertEquals(0, fixture.jdbc.queryForObject("SELECT COUNT(*) FROM import_rows", Integer.class));
+            verify(fixture.batches, never()).saveAndFlush(any());
+        }
+    }
+
+    @Test void anEmptyWorkbookCannotProduceACommittedEmptyBatch() throws Exception {
+        Fixture fixture = new Fixture();
+        var exception = assertThrows(ApiException.class, () -> fixture.preview(book -> {
+            for (String name : new String[]{"NCC", "LICH_SU", "DON_HANG"}) {
+                var sheet = book.getSheet(name); sheet.removeRow(sheet.getRow(1));
+            }
+        }));
+        assertEquals("WORKBOOK_EMPTY", exception.code());
+        verify(fixture.batches, never()).saveAndFlush(any());
     }
 
     private static void addSecondOrderRow(XSSFWorkbook book) {
