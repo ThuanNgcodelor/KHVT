@@ -46,7 +46,7 @@ function Read-PrivateEnvironment {
     }
     foreach ($secretName in @('MYSQL_ROOT_PASSWORD', 'DB_PASSWORD', 'REDIS_PASSWORD')) {
         $secretValue = [Environment]::GetEnvironmentVariable($secretName, 'Process')
-        if ([string]::IsNullOrWhiteSpace($secretValue) -or $secretValue -match '(?i)^(replace_with|change_me|changeme|your_password|<.*>)') { throw "Điền giá trị riêng cho $secretName trong source/.env. Script không tạo hoặc đổi mật khẩu database." }
+        if ($secretValue -and $secretValue -match '(?i)^(replace_with|change_me|changeme|your_password|<.*>)') { throw "Điền giá trị riêng cho $secretName trong source/.env. Script không tạo hoặc đổi mật khẩu database." }
     }
     if ($env:ADMIN_BOOTSTRAP_PASSWORD -and $env:ADMIN_BOOTSTRAP_PASSWORD.Length -lt 12) { throw 'ADMIN_BOOTSTRAP_PASSWORD cần ít nhất 12 ký tự; không gửi mật khẩu lên chat.' }
 }
@@ -89,7 +89,7 @@ function Find-Jdk21 {
     foreach ($candidate in ($candidates | Select-Object -Unique)) {
         $jdkBin = Split-Path -Parent $candidate
         if (-not (Test-Path -LiteralPath $candidate -PathType Leaf) -or -not (Test-Path -LiteralPath (Join-Path $jdkBin 'javac.exe') -PathType Leaf)) { continue }
-        $javaVersion = Get-NativeText $candidate @('-Xmx32m', '--version')
+        $javaVersion = Get-NativeText $candidate @('-XX:TieredStopAtLevel=1', '-Xmx64m', '--version')
         if ($javaVersion -match '(?m)^(?:java|openjdk)\s+21(?:[.\s])') { return [IO.Path]::GetFullPath($candidate) }
     }
     throw 'Cần JDK 21. Cài JDK 21 rồi đặt JAVA_HOME hoặc thêm thư mục bin của JDK 21 vào PATH.'
@@ -172,6 +172,18 @@ function Remove-GeneratedStaticDirectory {
         $checkPath = Split-Path -Parent $checkPath
     }
     if (Test-Path -LiteralPath $generatedStatic -PathType Container) { Remove-Item -LiteralPath $generatedStatic -Recurse -Force }
+}
+
+function Test-PortListening([string]$HostName, [int]$Port) {
+    try {
+        $client = New-Object Net.Sockets.TcpClient
+        $iar = $client.BeginConnect($HostName, $Port, $null, $null)
+        $wait = $iar.AsyncWaitHandle.WaitOne(1000, $false)
+        if (-not $wait) { $client.Close(); return $false }
+        $client.EndConnect($iar)
+        $client.Close()
+        return $true
+    } catch { return $false }
 }
 
 function Ensure-DockerServices {
@@ -261,8 +273,19 @@ try {
     $javaExe = Find-Jdk21
     $env:JAVA_HOME = Split-Path -Parent (Split-Path -Parent $javaExe)
     $env:PATH = "$(Split-Path -Parent $javaExe);$env:PATH"
-    Write-Host 'Kiểm tra Docker Desktop và MySQL/Redis của dự án...'
-    Ensure-DockerServices
+    $targetDbPort = 3306
+    if ($env:SPRING_DATASOURCE_URL -match ':(\d+)/') { $targetDbPort = [int]$Matches[1] }
+    $targetRedisPort = if ($env:REDIS_PORT -match '^\d+$') { [int]$env:REDIS_PORT } else { 6379 }
+
+    $mysqlReady = Test-PortListening '127.0.0.1' $targetDbPort
+    $redisReady = Test-PortListening '127.0.0.1' $targetRedisPort
+
+    if ($mysqlReady -and $redisReady) {
+        Write-Host "Phát hiện MySQL (cổng $targetDbPort) và Redis (cổng $targetRedisPort) đang chạy cục bộ (Laragon / Windows Service). Bỏ qua Docker."
+    } else {
+        Write-Host 'Kiểm tra Docker Desktop và MySQL/Redis của dự án...'
+        Ensure-DockerServices
+    }
     if (-not $NoBuild) {
         $nodeCommand = Get-Command node.exe -ErrorAction SilentlyContinue
         $npmCommand = Get-Command npm.cmd -ErrorAction SilentlyContinue
@@ -286,7 +309,10 @@ try {
     Assert-BundledJar
     # Bind conflicts can appear while a long build is running: check again.
     Assert-PortFree $appPort
-    $javaArgs = @('-XX:ActiveProcessorCount=2', '-XX:+UseSerialGC', '-XX:TieredStopAtLevel=1', '-Xss512k', '-Xms32m', "-Xmx${HeapMB}m", '-XX:MaxMetaspaceSize=160m', '-XX:ReservedCodeCacheSize=32m', '-jar', "`"$jarPath`"", '--debug=false', '--logging.level.org.springframework.security=INFO', '--spring.datasource.hikari.maximum-pool-size=5', '--spring.datasource.hikari.minimum-idle=1')
+        $javaArgs = @('-XX:ActiveProcessorCount=2', '-XX:+UseSerialGC', '-XX:TieredStopAtLevel=1', '-Xss512k', '-Xms32m', "-Xmx${HeapMB}m", '-XX:MaxMetaspaceSize=160m', '-XX:ReservedCodeCacheSize=64m', '-jar', "`"$jarPath`"", '--debug=false', '--logging.level.org.springframework.security=INFO', '--spring.datasource.hikari.maximum-pool-size=5', '--spring.datasource.hikari.minimum-idle=1')
+    if ($env:REDIS_PASSWORD) {
+        $javaArgs += "--spring.data.redis.password=$($env:REDIS_PASSWORD)"
+    }
     Write-Host 'Khởi động ứng dụng web/API...'
     $launchedProcess = Start-Process -FilePath $javaExe -ArgumentList $javaArgs -WorkingDirectory $sourceDir -WindowStyle Hidden -PassThru -RedirectStandardOutput (Join-Path $runtimeDir 'windows-app.log') -RedirectStandardError (Join-Path $runtimeDir 'windows-app-error.log')
     $processRecord = [ordered]@{ pid = $launchedProcess.Id; creationUtcTicks = [string]$launchedProcess.StartTime.ToUniversalTime().Ticks; exePath = $javaExe; jarPath = [IO.Path]::GetFullPath($jarPath); port = $appPort; profile = $activeProfile; url = $appUrl; startedAtUtc = [DateTime]::UtcNow.ToString('o') }

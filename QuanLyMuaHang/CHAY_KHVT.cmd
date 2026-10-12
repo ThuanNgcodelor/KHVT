@@ -1,7 +1,7 @@
 @echo off
 setlocal
 chcp 65001 >nul
-rem Docker Desktop is opened separately. This launches the bundled web application.
+rem Khoi dong ung dung KHVT (Ho tro chay truc tiep voi Laragon hoac Docker)
 powershell.exe -NoLogo -NoProfile -ExecutionPolicy Bypass -File "%~dp0tools\run-windows.ps1" %*
 set "KHVT_EXIT_CODE=%ERRORLEVEL%"
 if not "%KHVT_EXIT_CODE%"=="0" (
