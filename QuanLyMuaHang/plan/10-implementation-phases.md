@@ -43,7 +43,7 @@ Theo yêu cầu mới ngày 2026-10-11, phần nhân sự cơ bản được gom
 - Nhập tay/dán/operational request upload.
 - Cart, checkbox selection, latest-price fill, supplier/address/currency/VAT.
 - Backend preview group by supplier/currency; sequence per date; transaction, revision and audit.
-- PDF template with subtotal/VAT/grand total.
+- PDF/Excel đơn gửi NCC theo yêu cầu 12/10/2026 ở [plan 17](17-mua-hang-gon-tra-ncc-va-mau-po.md): 6 cột SL/đơn giá, không thành tiền/tổng; tổng tra cứu nội bộ giữ. Mẫu cũ trong code cần được sửa và kiểm thử.
 - Exit: single/multi supplier, concurrent sequence, edit/retry PDF tests pass.
 
 ## Phase 5 — Operational imports và exports

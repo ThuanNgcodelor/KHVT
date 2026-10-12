@@ -32,19 +32,27 @@ import static com.example.quanlymuahang.importing.application.SourceDocumentMode
 @Service
 public class SourceDocumentParser {
     private static final int MAX_LINES = 5000, MAX_SCAN_ROWS = 10000, MAX_SHEETS = 20, MAX_COLUMNS = 100, MAX_PAGES = 30;
-    private static final String VERSION = "source-v1";
+    private static final String VERSION = "source-v3-visible-row-count";
     private static final Pattern DATE = Pattern.compile("(?<!\\d)(\\d{1,2})[/.\\-](\\d{1,2})[/.\\-](20\\d{2})(?!\\d)");
     private static final Pattern WORD_DATE = Pattern.compile("ngay\\s*(\\d{1,2})\\s*thang\\s*(\\d{1,2})\\s*nam\\s*(20\\d{2})");
 
+    public String parserVersion() { return VERSION; }
+
     public ParsedDocument parse(MultipartFile file, String kind, String sheetName) {
-        kind = kind == null ? "" : kind.toUpperCase(Locale.ROOT);
-        if (!Set.of("REQUEST", "QUOTATION").contains(kind)) throw ApiException.badRequest("INVALID_DOCUMENT_KIND", "Chọn yêu cầu mua hoặc báo giá NCC");
         if (file == null || file.isEmpty()) throw ApiException.badRequest("FILE_REQUIRED", "Chọn chứng từ cần nhập");
         if (file.getSize() > 10L * 1024 * 1024) throw ApiException.badRequest("FILE_TOO_LARGE", "Chứng từ không được vượt quá 10 MB");
-        String name = file.getOriginalFilename() == null ? "upload" : file.getOriginalFilename();
+        try { return parse(file.getOriginalFilename(), file.getBytes(), kind, sheetName); }
+        catch (IOException exception) { throw ApiException.badRequest("FILE_READ_FAILED", "Không đọc được chứng từ; kiểm tra định dạng và tệp gốc"); }
+    }
+
+    public ParsedDocument parse(String name, byte[] bytes, String kind, String sheetName) {
+        kind = kind == null ? "" : kind.toUpperCase(Locale.ROOT);
+        if (!Set.of("REQUEST", "QUOTATION").contains(kind)) throw ApiException.badRequest("INVALID_DOCUMENT_KIND", "Chọn yêu cầu mua hoặc báo giá NCC");
+        name = name == null ? "upload" : name;
+        if (bytes == null || bytes.length == 0) throw ApiException.badRequest("FILE_REQUIRED", "Chọn chứng từ cần nhập");
+        if (bytes.length > 10L * 1024 * 1024) throw ApiException.badRequest("FILE_TOO_LARGE", "Chứng từ không được vượt quá 10 MB");
         String extension = name.toLowerCase(Locale.ROOT);
         try {
-            byte[] bytes = file.getBytes();
             if (extension.endsWith(".xlsx") || extension.endsWith(".xls")) return spreadsheet(name, bytes, kind, sheetName);
             if (extension.endsWith(".pdf")) return pdf(name, bytes, kind);
             if (extension.endsWith(".csv") || extension.endsWith(".tsv") || extension.endsWith(".txt")) return delimited(name, bytes, kind);
@@ -72,13 +80,14 @@ public class SourceDocumentParser {
             }
             if (results.isEmpty()) throw ApiException.badRequest("EMPTY_WORKBOOK", "Không có sheet nghiệp vụ để đọc");
             List<SheetInfo> sheets = results.stream().map(s -> new SheetInfo(s.name, s.lines.size(),
-                    s.lines.stream().map(DocumentLine::requestNumber).filter(Objects::nonNull).distinct().toList(), s.meta.date)).toList();
+                    s.lines.stream().map(DocumentLine::requestNumber).filter(Objects::nonNull).distinct().toList(), s.meta.date, s.excludedHiddenRows)).toList();
             if ((selected == null || selected.isBlank()) && results.size() > 1)
                 return document(kind, name, name.toLowerCase(Locale.ROOT).endsWith(".xlsx") ? "XLSX" : "XLS", sheets, List.of(), new Meta(), List.of("SHEET_SELECTION_REQUIRED"));
             SheetData chosen = selected == null || selected.isBlank() ? results.getFirst() : results.stream().filter(s -> s.name.equals(selected)).findFirst()
                     .orElseThrow(() -> ApiException.badRequest("SHEET_NOT_FOUND", "Sheet đã chọn không có trong workbook"));
             List<String> warnings = new ArrayList<>(chosen.warnings);
             if (chosen.lines.isEmpty()) warnings.add("ITEM_HEADER_NOT_FOUND_OR_EMPTY");
+            if (chosen.excludedHiddenRows > 0) warnings.add("HIDDEN_ROWS_EXCLUDED");
             return document(kind, name, name.toLowerCase(Locale.ROOT).endsWith(".xlsx") ? "XLSX" : "XLS", sheets, chosen.lines, chosen.meta, warnings);
         }
     }
@@ -92,7 +101,7 @@ public class SourceDocumentParser {
         List<String> introductory = new ArrayList<>();
         for (int r = 0; r <= Math.min(sheet.getLastRowNum(), 49); r++) {
             Row row = sheet.getRow(r);
-            if (row == null) continue;
+            if (row == null || row.getZeroHeight()) continue;
             checkColumns(row);
             Map<String, Integer> candidate = new LinkedHashMap<>();
             for (Cell cell : row) {
@@ -118,6 +127,7 @@ public class SourceDocumentParser {
             checkColumns(row);
             String itemName = value(row, columns, "name", formatter);
             if (itemName == null || isFooter(itemName) || headerField(itemName) != null) continue;
+            if (row.getZeroHeight()) { result.excludedHiddenRows++; continue; }
             List<String> issues = new ArrayList<>();
             Map<String, String> raw = rawCells(row, formatter, issues);
             String spec = value(row, columns, "spec", formatter);
@@ -482,7 +492,7 @@ public class SourceDocumentParser {
     }
 
     private static final class Meta { String supplier, date, currency, validity; BigDecimal vat; String priceBasis = "UNKNOWN"; }
-    private static final class SheetData { final String name; final Meta meta; final List<DocumentLine> lines = new ArrayList<>(); final List<String> warnings = new ArrayList<>(); SheetData(String name, Meta meta) { this.name = name; this.meta = meta; } }
+    private static final class SheetData { final String name; final Meta meta; final List<DocumentLine> lines = new ArrayList<>(); final List<String> warnings = new ArrayList<>(); int excludedHiddenRows; SheetData(String name, Meta meta) { this.name = name; this.meta = meta; } }
     private record Glyph(double x, double y, double width, String text) {}
     private static final class TextRow {
         final double y; final List<Glyph> glyphs = new ArrayList<>(); TextRow(double y) { this.y = y; }

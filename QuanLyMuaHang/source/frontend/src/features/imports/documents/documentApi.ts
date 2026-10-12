@@ -12,6 +12,7 @@ export const documentApi = {
   confirm: (id: number, data: Confirmation) => apiClient.post<DocumentView>(`${path}/${id}/confirm`, data),
   source: (id: number) => apiClient.download(`${path}/${id}/source`),
   lookup: (id: number) => apiClient.post<HistoryLookup>(`${path}/${id}/lookup`),
+  lookupPreview: (id: number, lineKeys: string[]) => apiClient.post<HistoryLookup>(`${path}/${id}/lookup-preview`, { lineKeys }),
   saveInquiries: (id: number, selections: InquirySelection[]) => apiClient.post<DocumentView>(`${path}/${id}/inquiries`, { selections }),
   inquiries: (id: number, selections: InquirySelection[]) => apiClient.download(`${path}/${id}/inquiries.xlsx`, 'POST', { selections }),
   comparison: (id: number) => apiClient.get<QuoteComparison>(`${path}/${id}/comparison`),

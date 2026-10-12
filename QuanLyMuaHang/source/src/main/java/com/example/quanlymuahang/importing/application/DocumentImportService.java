@@ -49,7 +49,16 @@ public class DocumentImportService {
             byte[] content = file.getBytes();
             String checksum = checksum(content);
             var existing = documents.findByChecksumAndKindAndSheetKeyAndScopeKey(checksum, kind, sheetKey, "");
-            if (existing.isPresent()) return view(existing.get(), true);
+            if (existing.isPresent()) {
+                DocumentImportEntity cached = existing.get();
+                ParsedDocument previous = read(cached.getParsedJson(), ParsedDocument.class);
+                if (cached.getConfirmedJson() == null && !parser.parserVersion().equals(previous.parserVersion())) {
+                    ParsedDocument refreshed = parser.parse(cached.getFileName(), content, kind, sheetKey.isBlank() ? null : sheetKey);
+                    cached.refreshPreview(write(refreshed));
+                    audit.record(actor, "DOCUMENT_PREVIEW_REFRESHED", "SOURCE_DOCUMENT", cached.getId(), Map.of("rows", refreshed.lines().size()));
+                }
+                return view(cached, true);
+            }
             ParsedDocument parsed = parser.parse(file, kind, sheetKey.isBlank() ? null : sheetKey);
             String fileName = clean(parsed.fileName()).replaceAll("[\\r\\n\\x00]", "");
             if (fileName.isBlank() || fileName.length() > 255) throw bad("FILE_NAME_INVALID", "Tên tệp không hợp lệ hoặc quá dài");
@@ -168,6 +177,22 @@ public class DocumentImportService {
     }
     @Transactional(readOnly = true)
     public DocumentHistoryLookup.Lookup lookup(long id) { return history.lookup(request(id)); }
+    @Transactional(readOnly = true)
+    public DocumentHistoryLookup.Lookup lookupPreview(long id, PreviewLookupBody input) {
+        DocumentImportEntity entity = document(id, false);
+        if (!"REQUEST".equals(entity.getKind())) throw bad("REQUEST_REQUIRED", "Chỉ tra lịch sử từ PCVT / yêu cầu mua");
+        List<String> keys = input == null || input.lineKeys() == null ? List.of() : input.lineKeys();
+        if (keys.isEmpty() || keys.size() > 200 || new HashSet<>(keys).size() != keys.size())
+            throw bad("LINES_INVALID", "Chọn từ 1 đến 200 dòng riêng biệt để tra");
+        ParsedDocument parsed = read(entity.getParsedJson(), ParsedDocument.class);
+        Map<String, DocumentLine> byKey = parsed.lines().stream().collect(java.util.stream.Collectors.toMap(DocumentLine::lineKey, line -> line));
+        List<DocumentLine> lines = keys.stream().map(key -> {
+            DocumentLine line = byKey.get(key);
+            if (line == null) throw bad("LINE_NOT_IN_SOURCE", "Có dòng không thuộc bản xem trước hiện tại");
+            return line;
+        }).toList();
+        return history.lookup(new Confirmation(entity.getTitle(), null, null, null, null, "UNKNOWN", null, lines, null, Map.of(), false));
+    }
     @Transactional
     public DocumentView saveInquiries(long id, InquiryBody input, long actor) {
         DocumentImportEntity entity = document(id, true);
@@ -245,5 +270,6 @@ public class DocumentImportService {
                                ParsedDocument parsed, Confirmation confirmed, List<InquirySelection> inquirySelections, Long sourceDocumentId) {}
     public record InquirySelection(String lineKey, String supplierKey) {}
     public record InquiryBody(List<InquirySelection> selections) {}
+    public record PreviewLookupBody(List<String> lineKeys) {}
     public record SourceFile(String fileName, byte[] content) {}
 }

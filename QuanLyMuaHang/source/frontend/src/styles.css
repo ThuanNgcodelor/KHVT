@@ -53,6 +53,16 @@ h1, h2, p { overflow-wrap: anywhere; }
 .nav-icon { display: flex; flex-shrink: 0; }
 .nav-copy strong { font-size: 13px; font-weight: 500; }
 .sidebar-footer { display: flex; gap: 11px; margin: 38px 10px 0; padding-top: 18px; border-top: 1px solid #ffffff20; }
+.sidebar-collapse-toggle { width: 100%; margin: 12px 0 4px; padding: 7px 8px; border: 1px solid #ffffff2b; border-radius: 4px; background: transparent; color: #d7e4dc; font-size: 11px; }
+.sidebar-collapse-toggle:hover { background: #ffffff12; }
+.app-shell-nav-collapsed .sidebar { width: 76px; flex-basis: 76px; padding-left: 10px; padding-right: 10px; }
+.app-shell-nav-collapsed .brand-block { justify-content: center; }
+.app-shell-nav-collapsed .brand-name, .app-shell-nav-collapsed .brand-caption, .app-shell-nav-collapsed .company-chip,
+.app-shell-nav-collapsed .nav-label, .app-shell-nav-collapsed .nav-copy, .app-shell-nav-collapsed .user-copy { display: none; }
+.app-shell-nav-collapsed .nav-item { justify-content: center; padding-left: 8px; padding-right: 8px; }
+.app-shell-nav-collapsed .sidebar-footer { justify-content: center; margin-left: 0; margin-right: 0; }
+.app-shell-nav-collapsed .sidebar-collapse-toggle { font-size: 0; }
+.app-shell-nav-collapsed .sidebar-collapse-toggle::after { content: 'Mở'; font-size: 11px; }
 .user-avatar, .top-avatar { width: 34px; height: 34px; flex: 0 0 34px; display: grid; place-items: center; border-radius: 4px; background: #ecf1eb; color: #235641; font-size: 11px; font-weight: 700; }
 .user-copy { min-width: 0; display: flex; flex-direction: column; gap: 5px; }
 .user-copy strong { font-size: 12px; font-weight: 600; overflow-wrap: anywhere; }
@@ -226,6 +236,12 @@ label.checkbox-field { display: flex; align-items: center; gap: 8px; font-size: 
   td, th { padding-left: 14px; padding-right: 14px; }
 }
 @media (max-width: 760px) {
+  .sidebar-collapse-toggle { display: none; }
+  .app-shell-nav-collapsed .sidebar { width: 252px; flex-basis: 252px; padding-left: 14px; padding-right: 14px; }
+  .app-shell-nav-collapsed .brand-name, .app-shell-nav-collapsed .brand-caption, .app-shell-nav-collapsed .company-chip,
+  .app-shell-nav-collapsed .nav-label, .app-shell-nav-collapsed .nav-copy, .app-shell-nav-collapsed .user-copy { display: initial; }
+  .app-shell-nav-collapsed .nav-item { justify-content: flex-start; padding-left: 12px; padding-right: 12px; }
+  .app-shell-nav-collapsed .sidebar-footer { justify-content: flex-start; margin-left: 10px; margin-right: 10px; }
   .sidebar { position: fixed; z-index: 20; top: 0; bottom: 0; left: 0; width: 252px; transform: translateX(-100%); visibility: hidden; transition: transform .15s ease; overflow-y: auto; }
   .sidebar-open { transform: translateX(0); visibility: visible; }
   .sidebar-close { display: flex; position: absolute; top: 20px; right: 10px; background: none; border: 0; color: #c4d4cb; padding: 6px; }

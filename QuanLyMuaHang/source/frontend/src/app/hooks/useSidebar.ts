@@ -3,6 +3,7 @@ import { useLocation } from 'react-router-dom'
 
 export function useSidebar() {
   const [open, setOpen] = useState(false)
+  const [collapsed, setCollapsed] = useState(() => window.localStorage.getItem('khvt.sidebar.collapsed') === 'true')
   const toggleRef = useRef<HTMLButtonElement>(null)
   const { pathname } = useLocation()
 
@@ -24,5 +25,12 @@ export function useSidebar() {
     }
   }, [open])
 
-  return { open, toggleRef, toggle: () => setOpen((value) => !value), close: () => setOpen(false) }
+  function toggleCollapsed() {
+    setCollapsed((value) => {
+      const next = !value
+      window.localStorage.setItem('khvt.sidebar.collapsed', String(next))
+      return next
+    })
+  }
+  return { open, collapsed, toggleCollapsed, toggleRef, toggle: () => setOpen((value) => !value), close: () => setOpen(false) }
 }

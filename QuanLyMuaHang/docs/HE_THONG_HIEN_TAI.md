@@ -2,6 +2,12 @@
 
 Cập nhật ngày 2026-10-11. Tài liệu mô tả code và bằng chứng kiểm tra, không phải biên bản nghiệm thu. Import workbook đã qua kiểm thử backend và MySQL/Redis riêng: 11.690 dòng nguồn, 91.526 trường, 0 sai lệch; đủ 10.561 lịch sử, 262 PO và 850 dòng hàng. Có CSV cảnh báo đầy đủ, đối chiếu trước commit, rollback khi lệch và bảo vệ nhập đồng thời. JAR mới đã kiểm tra trên 8080, V6 thành công và số bản ghi trước/sau giữ nguyên; server sau đó đã dừng theo yêu cầu người dùng để lập kế hoạch tiếp. Thông tin thiếu hoặc giả định trong nguồn vẫn cần xác minh nghiệp vụ. Chưa kết nối Cloudflare hoặc nghiệm thu production.
 
+## Kế hoạch bổ sung ngày 12/10/2026 — chỉ phần Mua hàng
+
+Đã lập [kế hoạch 17](../plan/17-mua-hang-gon-tra-ncc-va-mau-po.md) sau đọc code, xem hai PDF và kiểm tra workbook CVT. Triển khai một phần ngày 2026-10-12: PDF và XLSX mới dùng 6 cột gửi NCC, ngày `dd/MM/yyyy`, định dạng số kiểu Việt; bản xuất không còn thành tiền/tổng, trong khi tổng tra cứu nội bộ không đổi. Parser PCVT version `source-v3-visible-row-count` bỏ qua hàng Excel ẩn, báo số hàng ẩn đã loại khỏi sheet và làm mới cache PREVIEW cũ mà không sửa snapshot đã xác nhận. Có endpoint đọc-only tra lịch sử NCC/giá theo các dòng đã chọn ngay trước xác nhận PCVT; sidebar desktop lưu trạng thái thu gọn, áp dụng riêng khu Mua hàng; form PO hiển thị giá/NCC cũ tách khỏi giá hiện tại và chỉ chép khi người dùng bấm. **Các lượt triển khai còn lại chưa xong:** chưa có tra NCC ra danh sách mặt hàng riêng, bulk catalog, workspace draft server-side, nối PCVT sang PO có phân bổ/idempotency, hay nghiệm thu backend/MySQL/PDF mới. Build frontend, 10 test Vitest và 104 test Playwright desktop/mobile đã qua; Maven không có, máy chỉ có Java 23, nên chưa chạy test/backend runtime. Tổng nội bộ, navbar/Quản trị, file gốc và revision PDF đã lưu được giữ.
+
+Các số liệu runtime/database và kết quả bên dưới là bằng chứng có ngày của các lượt trước, không phải truy vấn lại trạng thái chạy ngày 12/10/2026. Lượt này không khởi động/dừng server chính hoặc ghi database.
+
 ## Import PCVT và báo giá đã triển khai ngày 2026-10-11
 
 Theo yêu cầu mới, triển khai **import trước Quản trị**. `/imports` mặc định mở **PCVT / báo giá mới** khi có `IMPORT_OPERATIONAL`. Backend `/api/imports/documents` lưu tệp gốc/checksum, nguồn trích xuất và snapshot xác nhận; chọn từng phiếu từ sổ năm, tra NCC/giá cũ, lưu/xuất XLSX nhóm hỏi giá, nối dòng báo giá và so sánh. Migration V7 lưu chứng từ riêng, không biến báo giá thành giá đã mua.

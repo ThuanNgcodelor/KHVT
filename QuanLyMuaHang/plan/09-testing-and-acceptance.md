@@ -57,8 +57,8 @@ Assertions:
 - Tạo PO một NCC và nhiều NCC; kiểm tra group/result từng PO.
 - Hai request song song không cấp trùng PO.
 - Issue/update/cancel có authorization/audit.
-- PDF có header, dòng hàng, subtotal, VAT, total, currency, font tiếng Việt và page break.
-- Số lượng chữ được in, loại khỏi subtotal, ghi chú rõ.
+- Theo [plan 17](17-mua-hang-gon-tra-ncc-va-mau-po.md), PDF/Excel đơn gửi NCC mục tiêu có header, 6 cột, SL/đơn giá căn phải/phân nghìn, ngày `dd/MM/yyyy`, currency, Unicode và page break; không thành tiền/tổng. Tổng nội bộ vẫn đúng. Đây là acceptance cần triển khai, chưa báo qua.
+- Số lượng chữ lịch sử giữ trong nguồn/snapshot/artifact cũ, loại khỏi subtotal nội bộ; luồng mới không nhập SL chữ và không tự biến thành 0.
 - Legacy VAT null được đánh dấu unknown; không tính thuế giả.
 - File download cần quyền; PDF revision mới không ghi đè file revision cũ.
 - PDF render fail cho retry mà không mất PO.

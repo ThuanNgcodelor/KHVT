@@ -15,6 +15,11 @@ import org.springframework.stereotype.Service;
 
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
+import java.math.BigDecimal;
+import java.text.DecimalFormat;
+import java.text.DecimalFormatSymbols;
+import java.time.format.DateTimeFormatter;
+import java.util.Locale;
 import java.time.format.DateTimeFormatter;
 import java.util.List;
 
@@ -64,27 +69,27 @@ public class ExcelExportService {
             workbook.setCompressTempFiles(true);
             Sheet sheet = workbook.createSheet("Don mua");
             CellStyle header = headerStyle(workbook);
+            CellStyle numeric = workbook.createCellStyle(); numeric.setAlignment(org.apache.poi.ss.usermodel.HorizontalAlignment.RIGHT);
             cell(sheet.createRow(0), 0, "Số PO"); cell(sheet.getRow(0), 1, order.poNumber());
-            cell(sheet.createRow(1), 0, "Ngày"); cell(sheet.getRow(1), 1, order.orderDate() == null ? "" : order.orderDate().toString());
+            cell(sheet.createRow(1), 0, "Ngày"); cell(sheet.getRow(1), 1, order.orderDate() == null ? "" : order.orderDate().format(DateTimeFormatter.ofPattern("dd/MM/uuuu")));
             cell(sheet.createRow(2), 0, "Nhà cung cấp"); cell(sheet.getRow(2), 1, order.supplierName());
             cell(sheet.createRow(3), 0, "Địa chỉ"); cell(sheet.getRow(3), 1, order.supplierAddress());
             cell(sheet.createRow(4), 0, "Tiền tệ"); cell(sheet.getRow(4), 1, order.currency().name());
             cell(sheet.createRow(5), 0, "VAT"); cell(sheet.getRow(5), 1, order.vatPercent() == null ? "Chưa xác định" : order.vatPercent().toPlainString());
             cell(sheet.createRow(6), 0, "Ghi chú"); cell(sheet.getRow(6), 1, order.note());
-            addRow(sheet, 8, header, "STT", "Mã hàng", "Tên hàng/vật tư", "Quy cách", "ĐVT", "Số lượng", "Đơn giá", "Thành tiền");
+            addRow(sheet, 8, header, "STT", "Tên hàng/vật tư", "Quy cách", "ĐVT", "Số lượng", "Đơn giá chưa VAT");
             int rowNumber = 9;
             for (PurchaseOrderService.OrderItemView item : order.items()) {
                 Row row = sheet.createRow(rowNumber++);
-                cell(row, 0, Integer.toString(item.lineNo())); cell(row, 1, item.materialCode()); cell(row, 2, item.materialName());
-                cell(row, 3, item.specification()); cell(row, 4, item.unit());
-                cell(row, 5, item.quantity() == null ? safe(item.quantityText()) : item.quantity().stripTrailingZeros().toPlainString());
-                cell(row, 6, item.unitPrice().toPlainString()); cell(row, 7, item.lineTotal() == null ? "Không cộng tự động" : item.lineTotal().toPlainString());
+                cell(row, 0, Integer.toString(item.lineNo())); cell(row, 1, item.materialName()); cell(row, 2, item.specification());
+                cell(row, 3, item.unit());
+                cell(row, 4, item.quantity() == null ? safe(item.quantityText()) : grouped(item.quantity(), true));
+                cell(row, 5, grouped(item.unitPrice(), false));
+                row.getCell(4).setCellStyle(numeric); row.getCell(5).setCellStyle(numeric);
             }
-            int totalRow = rowNumber + 1;
-            cell(sheet.createRow(totalRow), 6, "Tạm tính"); cell(sheet.getRow(totalRow), 7, order.subtotal() == null ? "Chưa xác định" : order.subtotal().toPlainString());
-            cell(sheet.createRow(totalRow + 1), 6, "VAT"); cell(sheet.getRow(totalRow + 1), 7, order.taxAmount() == null ? "Chưa xác định" : order.taxAmount().toPlainString());
-            cell(sheet.createRow(totalRow + 2), 6, "Tổng cộng"); cell(sheet.getRow(totalRow + 2), 7, order.grandTotal() == null ? "Chưa xác định" : order.grandTotal().toPlainString());
-            sheet.createFreezePane(0, 9); sheet.setAutoFilter(new org.apache.poi.ss.util.CellRangeAddress(8, Math.max(8, rowNumber - 1), 0, 7));
+            sheet.setColumnWidth(0, 8 * 256); sheet.setColumnWidth(1, 38 * 256); sheet.setColumnWidth(2, 34 * 256);
+            sheet.setColumnWidth(3, 12 * 256); sheet.setColumnWidth(4, 16 * 256); sheet.setColumnWidth(5, 22 * 256);
+            sheet.createFreezePane(0, 9); sheet.setAutoFilter(new org.apache.poi.ss.util.CellRangeAddress(8, Math.max(8, rowNumber - 1), 0, 5));
             workbook.write(output); workbook.dispose();
             return new ExportFile("don-hang-" + order.id() + "-r" + order.revision() + ".xlsx", output.toByteArray(), false);
         } catch (IOException exception) { throw new IllegalStateException("Không thể tạo file Excel", exception); }
@@ -99,6 +104,11 @@ public class ExcelExportService {
         for (int i = 0; i < values.length; i++) { row.createCell(i).setCellValue(values[i]); row.getCell(i).setCellStyle(style); }
     }
     private static void cell(Row row, int col, String value) { row.createCell(col).setCellValue(safe(value)); }
+    private static String grouped(BigDecimal value, boolean quantity) {
+        DecimalFormat format = new DecimalFormat(quantity ? "#,##0.00##" : "#,##0.##", DecimalFormatSymbols.getInstance(Locale.forLanguageTag("vi-VN")));
+        format.setRoundingMode(java.math.RoundingMode.HALF_UP);
+        return format.format(value);
+    }
     private static String safe(String value) { return value == null ? "" : value; }
     public record ExportFile(String fileName, byte[] content, boolean truncated) {}
 }

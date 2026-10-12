@@ -5,12 +5,23 @@ const workbook = { name: 'request-fixture.xlsx', mimeType: 'application/vnd.open
 async function upload(page: import('@playwright/test').Page) { await page.getByLabel('Tệp PCVT / báo giá').setInputFiles(workbook); await page.getByRole('button', { name: 'Kiểm tra tệp chứng từ', exact: true }).click() }
 async function acknowledge(page: import('@playwright/test').Page) { await page.getByRole('checkbox', { name: /Tôi đã kiểm tra tệp gốc/ }).check() }
 
+test('selected PCVT preview lines can be looked up before confirmation without writing a purchase', async ({ page }) => {
+  const state = await documentFixtures(page)
+  await page.goto('/imports'); await upload(page)
+  await page.getByLabel('Lọc số phiếu nguồn').selectOption('1')
+  await page.getByRole('button', { name: /^Chọn tất cả 1 dòng$/ }).click()
+  await page.getByRole('button', { name: 'Tra NCC / giá cũ cho 1 dòng đã chọn' }).click()
+  await expect(page.getByRole('heading', { name: 'NCC và giá cũ cho dòng đã chọn' })).toBeVisible()
+  await expect(page.getByRole('cell', { name: 'NCC mẫu A', exact: true })).toBeVisible()
+  expect(state.previewLookupCalls).toEqual([['row5']]); expect(state.confirmCalls).toHaveLength(0)
+})
+
 test('a yearly CVT requires explicit selection of one request and survives reload without prices', async ({ page }) => {
   const state = await documentFixtures(page)
   await page.goto('/imports'); await expect(page.getByRole('heading', { name: 'PCVT và báo giá mới' })).toBeVisible(); await upload(page)
-  await expect(page.getByRole('button', { name: 'Chọn các dòng phiếu đang lọc', exact: true })).toBeDisabled()
   await expect(page.getByRole('button', { name: 'Xác nhận và lưu 0 dòng', exact: true })).toBeDisabled()
-  await page.getByLabel('Lọc số phiếu nguồn').selectOption('1'); await page.getByRole('button', { name: 'Chọn các dòng phiếu đang lọc', exact: true }).click(); await acknowledge(page)
+  await expect(page.getByRole('button', { name: 'Xác nhận và lưu 0 dòng', exact: true })).toBeDisabled()
+  await page.getByLabel('Lọc số phiếu nguồn').selectOption('1'); await page.getByRole('button', { name: /^Chọn tất cả 1 dòng$/ }).click(); await acknowledge(page)
   await page.getByRole('button', { name: 'Xác nhận và lưu 1 dòng', exact: true }).click()
   await expect(page.getByRole('heading', { name: 'Chứng từ đã xác nhận' })).toBeVisible()
   expect(state.confirmCalls[0].lines).toHaveLength(1); expect(state.confirmCalls[0].requestNumber).toBe('1'); expect(state.confirmCalls[0].lines[0].unitPrice).toBeNull()
@@ -31,8 +42,8 @@ test('one item can be asked from two old suppliers and inquiry choices persist a
 test('two PCVT can be selected separately from the same annual source', async ({ page }) => {
   const state = await documentFixtures(page)
   await page.goto('/imports'); await upload(page)
-  await page.getByLabel('Lọc số phiếu nguồn').selectOption('1'); await page.getByRole('button', { name: 'Chọn các dòng phiếu đang lọc', exact: true }).click(); await acknowledge(page); await page.getByRole('button', { name: 'Xác nhận và lưu 1 dòng', exact: true }).click()
-  await page.getByRole('button', { name: 'Nhập phiếu khác từ cùng sổ', exact: true }).click(); await page.getByLabel('Lọc số phiếu nguồn').selectOption('2'); await page.getByRole('button', { name: 'Chọn các dòng phiếu đang lọc', exact: true }).click(); await acknowledge(page); await page.getByRole('button', { name: 'Xác nhận và lưu 1 dòng', exact: true }).click()
+  await page.getByLabel('Lọc số phiếu nguồn').selectOption('1'); await page.getByRole('button', { name: /^Chọn tất cả 1 dòng$/ }).click(); await acknowledge(page); await page.getByRole('button', { name: 'Xác nhận và lưu 1 dòng', exact: true }).click()
+  await page.getByRole('button', { name: 'Nhập phiếu khác từ cùng sổ', exact: true }).click(); await page.getByLabel('Lọc số phiếu nguồn').selectOption('2'); await page.getByRole('button', { name: /^Chọn tất cả 1 dòng$/ }).click(); await acknowledge(page); await page.getByRole('button', { name: 'Xác nhận và lưu 1 dòng', exact: true }).click()
   await expect(page.getByRole('heading', { name: 'Chứng từ đã xác nhận' })).toBeVisible(); expect(state.confirmCalls.map((call) => call.requestNumber)).toEqual(['1', '2']); expect(state.documents[0].status).toBe('PREVIEW'); expect(state.documents.filter((item) => item.status === 'CONFIRMED')).toHaveLength(2)
 })
 
@@ -42,7 +53,7 @@ test('quotation links are explicitly chosen and incompatible historical prices d
   quotation.parsed.lines = [line('quote1', { materialCode: null, unitPrice: 120, requestNumber: null, raw: { manufacturerCode: 'HANG-123' } })]
   const state = await documentFixtures(page, [request]); state.preview = quotation
   await page.goto('/imports'); await page.getByLabel('Loại chứng từ').selectOption('QUOTATION'); await upload(page)
-  await page.getByRole('button', { name: 'Chọn dòng đang hiển thị', exact: true }).click(); await page.getByLabel('Liên kết với PCVT đã lưu').selectOption('1')
+  await page.getByRole('button', { name: /^Chọn tất cả 1 dòng$/ }).click(); await page.getByLabel('Liên kết với PCVT đã lưu').selectOption('1')
   await expect(page.getByLabel('Liên kết PCVT quote1', { exact: true })).toHaveValue(''); await page.getByLabel('Liên kết PCVT quote1', { exact: true }).selectOption('row5'); await acknowledge(page)
   await page.getByRole('button', { name: 'Xác nhận và lưu 1 dòng', exact: true }).click(); await expect(page.getByRole('heading', { name: 'Chứng từ đã xác nhận' })).toBeVisible()
   expect(state.confirmCalls[0].requestLineMappings).toEqual({ quote1: 'row5' }); expect(state.confirmCalls[0].lines[0].materialCode).toBeNull()
@@ -89,7 +100,7 @@ test('a quotation can link an older PCVT by ID only after missing and wrong-kind
   quotation.parsed.lines = [line('quote-old-id', { requestNumber: null, unitPrice: '120' })]
   const state = await documentFixtures(page, [request, wrongKind]); state.hiddenListIds = [123, 2]; state.preview = quotation
   await page.goto('/imports'); await page.getByLabel('Loại chứng từ').selectOption('QUOTATION'); await upload(page)
-  await page.getByRole('button', { name: 'Chọn dòng đang hiển thị', exact: true }).click()
+  await page.getByRole('button', { name: /^Chọn tất cả 1 dòng$/ }).click()
   const idInput = page.getByLabel('ID PCVT ngoài danh sách gần đây', { exact: true })
   const find = page.getByRole('button', { name: 'Tìm PCVT theo ID', exact: true })
   const save = page.getByRole('button', { name: 'Xác nhận và lưu 1 dòng', exact: true })

@@ -60,7 +60,7 @@ class PurchaseOrderDocumentTest {
         verifyNoInteractions(history, audit); assertThat(order.getStatus().name()).isEqualTo("CANCELLED");
         assertThatThrownBy(() -> service().issue(7L, 1L)).isInstanceOf(ApiException.class).hasMessageContaining("hủy");
     }
-    @Test void unicodeTemplateKeepsTotalsTextQuantityAndRepeatsTableAcrossPages() throws Exception {
+    @Test void supplierPdfHasSixColumnsNoTotalsVietnameseDateAndRepeatsTableAcrossPages() throws Exception {
         String configured = System.getenv("QMH_TEST_PDF_FONT_PATH");
         Path font = configured == null ? Path.of("/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf") : Path.of(configured);
         assumeTrue(Files.isRegularFile(font), "Set QMH_TEST_PDF_FONT_PATH to a Unicode font for PDF rendering test");
@@ -71,7 +71,8 @@ class PurchaseOrderDocumentTest {
         try (var pdf = Loader.loadPDF(bytes)) {
             String extracted = new PDFTextStripper().getText(pdf).replaceAll("\\s+", " ");
             assertThat(pdf.getNumberOfPages()).isGreaterThan(1);
-            assertThat(extracted).contains("PHÂN BÓN VÀ HÓA CHẤT CẦN THƠ", "ĐƠN ĐẶT HÀNG", "Qua cân thực tế", "TRƯỞNG P. KHVT", "TỔNG GIÁM ĐỐC", "10800");
+            assertThat(extracted).contains("PHÂN BÓN VÀ HÓA CHẤT CẦN THƠ", "ĐƠN ĐẶT HÀNG", "Ngày: 10/10/2026", "Qua cân thực tế", "TRƯỞNG P. KHVT", "TỔNG GIÁM ĐỐC", "SỐ LƯỢNG", "ĐƠN GIÁ CHƯA VAT");
+            assertThat(extracted).doesNotContain("THÀNH TIỀN", "Tạm tính", "Tổng cộng", "VAT 8%");
             var imagePath = Path.of("target/runtime/pdf-template-test.png"); Files.createDirectories(imagePath.getParent());
             ImageIO.write(new PDFRenderer(pdf).renderImageWithDPI(0, 100), "png", imagePath.toFile());
         }

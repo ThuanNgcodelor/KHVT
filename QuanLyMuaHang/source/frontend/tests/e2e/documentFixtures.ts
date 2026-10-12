@@ -23,7 +23,7 @@ export function confirmedRequest(): DocumentView {
 export async function documentFixtures(page: Page, initial: DocumentView[] = [], permissions?: string[]) {
   const auth = await mockApi(page, { signedIn: true, role: 'PLANNER', permissions })
   const base = { materialCode: 'VT1', materialName: 'Thép kiểm thử', unit: 'kg', unitPrice: 100, currency: 'VND', currencyBasis: 'ASSUMED_LEGACY', purchaseDate: '2026-10-01', source: 'LEGACY_HISTORY', sourceReference: 'LICH_SU!2', qualityWarnings: ['VAT của lịch sử chưa xác nhận'], count: 2 }
-  const state = { documents: structuredClone(initial), hiddenListIds: [] as number[], preview: doc(), confirmCalls: [] as Confirmation[], inquiryCalls: [] as { selections: { lineKey: string; supplierKey: string }[] }[], previewSheets: [] as string[], failConfirm: false, denyList: false,
+  const state = { documents: structuredClone(initial), hiddenListIds: [] as number[], preview: doc(), confirmCalls: [] as Confirmation[], inquiryCalls: [] as { selections: { lineKey: string; supplierKey: string }[] }[], previewLookupCalls: [] as string[][], previewSheets: [] as string[], failConfirm: false, denyList: false,
     lookup: { lines: [{ lineKey: 'row5', matchStatus: 'EXACT_CODE', materialCode: 'VT1', materialName: 'Thép kiểm thử', candidates: [{ ...base, supplierKey: 'id:1', supplierId: 1, supplierCode: 'NCC1', supplierName: 'NCC mẫu A' }, { ...base, supplierKey: 'id:2', supplierId: 2, supplierCode: 'NCC2', supplierName: 'NCC mẫu B', unitPrice: 110 }] }] } as HistoryLookup,
     comparison: { lines: [{ lineKey: 'row5', materialName: 'Thép kiểm thử', unit: 'kg', quantity: 3, history: [], quotes: [{ documentId: 2, supplierName: 'NCC mẫu mới', unit: 'kg', quantity: 3, unitPrice: 120, currency: 'VND', vatPercent: 8, priceBasis: 'EXCL_VAT', comparable: false, reason: 'Tiền tệ lịch sử chỉ là giả định', delta: null, percent: null }] }] } as QuoteComparison }
   await page.route('**/api/imports/documents**', async (route) => {
@@ -52,6 +52,7 @@ export async function documentFixtures(page: Page, initial: DocumentView[] = [],
       item.confirmed = data; item.status = 'CONFIRMED'; item.title = data.title; return reply(item)
     }
     if (action === 'lookup') return reply(state.lookup)
+    if (action === 'lookup-preview') { state.previewLookupCalls.push((request.postDataJSON() as { lineKeys: string[] }).lineKeys); return reply(state.lookup) }
     if (action === 'comparison') return reply(state.comparison)
     if (action === 'source') return route.fulfill({ contentType: 'application/octet-stream', headers: { 'Content-Disposition': `attachment; filename="${item.fileName}"` }, body: 'synthetic source fixture' })
     if (action === 'inquiries' || action === 'inquiries.xlsx') {

@@ -11,7 +11,7 @@ Thay Google Apps Script/Google Sheet bằng hệ thống mua hàng có dữ li�
 - Roles mặc định: ADMIN được seed permission wildcard `*`, HR_MANAGER, PLANNER, VIEWER. Kiểm tra quyền dùng permission hiệu lực, không bypass từ tên role; quản trị CRUD role/permission vẫn là phạm vi cần bổ sung.
 - React cùng origin Spring Boot; base API cấu hình tập trung tại frontend/src/config/baseApi.ts.
 - Compose chỉ có MySQL và Redis. Java chạy native/systemd; cloudflared chạy native system service và trỏ tới app.
-- PO PDF có subtotal/VAT/grand total; dòng quantity text không tính vào số tiền.
+- Theo yêu cầu 12/10/2026, PDF và Excel đơn gửi NCC sẽ có 6 cột, chỉ SL/đơn giá, không thành tiền/tổng; tra cứu nội bộ giữ tổng. Đây là thay đổi đang lập kế hoạch ở [17](17-mua-hang-gon-tra-ncc-va-mau-po.md), chưa phải hành vi code đã sửa.
 - Workbook migration có preview/report/idempotency; xử lý đúng các thiếu dữ liệu đã kiểm kê.
 - Không có OpenAI API feature trong MVP. Dùng [skill UI riêng của KHVT](../skills/khvt-ui/SKILL.md), ảnh tham chiếu và checklist; skill repository này không phải skill chính thức của OpenAI.
 - Giao diện xanh rêu/xanh ngọc, không dùng màu cam theo yêu cầu mới. Login/đổi mật khẩu tạm dẫn tới cổng chọn ứng dụng theo quyền backend; admin cấp quyền qua role hiện có. [Thiết kế cổng ứng dụng](../docs/CONG_UNG_DUNG_VA_PHAN_QUYEN.md) tách rõ triển khai hiện tại và hướng grant độc lập/Bán hàng.
@@ -22,7 +22,7 @@ Thay Google Apps Script/Google Sheet bằng hệ thống mua hàng có dữ li�
 - Java 21, Spring Boot REST, Spring Security, Spring Session Data Redis.
 - JPA + Flyway + MySQL; Redis session/cache.
 - React + TypeScript + Vite + Tailwind.
-- Apache POI, Commons CSV, PDFBox; FreeMarker + OpenHTMLToPDF cho PDF PO.
+- Apache POI, Commons CSV, PDFBox; PDF PO hiện dùng PDFBox, giữ engine này khi sửa mẫu.
 - JUnit/Mockito/Spring Boot Test; Testcontainers hoặc môi trường test cô lập MySQL/Redis.
 - Playwright cho browser E2E.
 - Docker Compose duy nhất cho MySQL/Redis; Cloudflare Tunnel trước ứng dụng host.
@@ -40,6 +40,7 @@ Thay Google Apps Script/Google Sheet bằng hệ thống mua hàng có dữ li�
 9. 11 — hướng dẫn vibecoding.
 10. 13–14 — Identity/Personnel model và code mapping từ demo.
 11. 15–16 — hướng ưu tiên ngày 2026-10-11: Quản trị tài khoản/quyền và PCVT → tra giá/NCC cũ → gom hỏi giá → so sánh báo giá.
+12. 17 — yêu cầu ngày 12/10/2026: Mua hàng gọn, mẫu PDF/Excel 6 cột, PCVT phần đang hiển thị, giá/NCC cũ cùng dòng, tra NCC → mặt hàng và danh mục theo lô.
 
 ## Danh sách tài liệu
 
@@ -60,6 +61,11 @@ Thay Google Apps Script/Google Sheet bằng hệ thống mua hàng có dữ li�
 - [14-demo-auth-personnel-port.md](14-demo-auth-personnel-port.md)
 - [15-quan-tri-tai-khoan-va-phan-quyen.md](15-quan-tri-tai-khoan-va-phan-quyen.md)
 - [16-pcvt-tra-gia-cu-va-bao-gia.md](16-pcvt-tra-gia-cu-va-bao-gia.md)
+- [17-mua-hang-gon-tra-ncc-va-mau-po.md](17-mua-hang-gon-tra-ncc-va-mau-po.md)
+
+## Ưu tiên bổ sung ngày 12/10/2026 — chỉ Mua hàng
+
+[Kế hoạch 17](17-mua-hang-gon-tra-ncc-va-mau-po.md) đã lập theo PDF/workbook và ảnh người dùng, **chưa triển khai**. Giữ navbar/sidebar, bổ sung thu gọn; gom import → tra lịch sử → điền giá/NCC hiện tại → lập nháp vào bảng làm việc. Bỏ thành tiền/tổng ở PDF và Excel đơn gửi NCC; tổng đơn vẫn có ở tra cứu nội bộ. Thêm tra NCC ra mặt hàng và thêm danh mục nhiều dòng. Giữ dữ liệu nguồn/revision cũ, quyền backend và phạm vi kiểm thử riêng. Thứ tự đề xuất và nghiệm thu ở plan 17; Quản trị bước 2–3 vẫn chưa triển khai.
 
 ## Ưu tiên được người dùng làm rõ ngày 2026-10-11
 

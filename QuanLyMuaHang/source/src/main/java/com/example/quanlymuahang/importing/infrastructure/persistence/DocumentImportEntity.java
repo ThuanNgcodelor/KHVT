@@ -31,6 +31,10 @@ public class DocumentImportEntity {
     }
     public void confirm(String title, String json) { this.title = title; this.confirmedJson = json; this.status = "CONFIRMED"; this.updatedAt = Instant.now(); }
     public void inquiries(String json) { this.inquiriesJson = json; this.updatedAt = Instant.now(); }
+    public void refreshPreview(String json) {
+        if (confirmedJson != null || !"PREVIEW".equals(status)) throw new IllegalStateException("Confirmed source snapshot is immutable");
+        this.parsedJson = json; this.updatedAt = Instant.now();
+    }
     public void scope(String key, Long sourceId) { this.scopeKey = key; this.sourceDocumentId = sourceId; }
     public Long getId() { return id; }
     public String getKind() { return kind; }

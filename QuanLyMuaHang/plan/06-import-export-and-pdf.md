@@ -1,5 +1,7 @@
 # Import dữ liệu, xuất file và PDF
 
+**Yêu cầu mới 12/10/2026, chưa triển khai:** [kế hoạch 17](17-mua-hang-gon-tra-ncc-va-mau-po.md) thay phần bố cục xuất đơn gửi NCC: PDF và Excel 6 cột, SL/đơn giá căn phải, số phân nghìn, `dd/MM/yyyy`, không thành tiền/tổng; tra cứu nội bộ giữ tổng. PCVT mặc định phần đang hiển thị và tra giá/NCC từ preview. Tệp gốc/PDF revision cũ giữ nguyên.
+
 **Bổ sung phạm vi ngày 2026-10-11:** workbook cũ là dữ liệu Apps Script để di trú/tra cứu. PCVT mới cần tra lịch sử từng vật tư, gom NCC hỏi giá và so báo giá mới theo [kế hoạch 16](16-pcvt-tra-gia-cu-va-bao-gia.md). Luồng operational vào draft dưới đây là thiết kế ban đầu, chưa đáp ứng toàn bộ nhu cầu mới. Bằng chứng thực thi hiện hành nằm ở [báo cáo workbook](../docs/DOI_CHIEU_CSDL_VA_WORKBOOK.md).
 
 ## Hai luồng import tách biệt
@@ -76,10 +78,10 @@ Mục đích: lấy dòng vật tư từ phiếu yêu cầu/báo giá vào giỏ
 
 ## PDF PO
 
-- Template FreeMarker/HTML server-side + OpenHTMLToPDF; React không tự tính/generate PDF nghiệp vụ.
-- Include logo/tên công ty, PO, ngày, supplier/address/note, item lines, DVT/spec/qty/unit price, subtotal, VAT, grand total, currency và vùng ký.
-- VND hiển thị 0 decimal; USD tối đa 2; dùng BigDecimal, rounding policy cố định trong domain tests.
-- Dòng quantity_text in nguyên văn, đánh dấu không bao gồm trong subtotal; tổng cho biết có dòng chữ không tính.
+- Code hiện dùng PDFBox server-side; giữ engine và sửa theo mẫu ở plan 17. React không tự tính/generate PDF nghiệp vụ.
+- Mẫu mục tiêu mới: tên công ty, PO/ngày, bên bán/địa chỉ/ghi chú, 6 cột STT/tên/quy cách/ĐVT/SL/đơn giá, loại tiền và vùng ký; không thành tiền/tổng trong bản gửi NCC. Tổng backend/tra cứu nội bộ giữ nguyên.
+- SL/đơn giá căn phải, phân nghìn theo locale Việt, ngày `dd/MM/yyyy`; dùng BigDecimal và không cắt số lẻ có ý nghĩa vì mẫu chỉ có giá nguyên.
+- Dữ liệu quantity_text cũ được giữ trong snapshot/artifact cũ; bỏ điều khiển nhập chữ trong luồng mới. Dòng chưa có SL số cần được đối chiếu, không chuyển thành 0.
 - Legacy VAT null render “Chưa xác định VAT”; không tự phát hành PDF tính thuế.
 - Font có glyph tiếng Việt và font license hợp lệ; test dấu, xuống trang, bảng nhiều dòng, text dài.
 - Render từ immutable revision snapshot, không query lại danh mục sau khi PO issue.
@@ -89,6 +91,7 @@ Mục đích: lấy dòng vật tư từ phiếu yêu cầu/báo giá vào giỏ
 ## Export XLSX/CSV
 
 - Export PO/filter, lịch sử giá và import report.
+- Excel đơn gửi NCC theo mẫu 6 cột không thành tiền/tổng ở plan 17; Excel tra cứu nội bộ vẫn có tổng. Tên thao tác tải phân biệt hai mục đích.
 - POI SXSSFWorkbook khi dữ liệu lớn; freeze header, autofilter, format số/ngày.
 - Mã hàng, mã NCC, PO luôn là text.
 - Export chỉ các cột user có quyền xem; không export password hash/session/audit secret.

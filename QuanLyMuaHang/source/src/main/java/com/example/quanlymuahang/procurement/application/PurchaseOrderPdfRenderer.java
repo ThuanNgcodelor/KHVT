@@ -1,6 +1,5 @@
 package com.example.quanlymuahang.procurement.application;
 
-import com.example.quanlymuahang.domain.common.CurrencyCode;
 import org.apache.pdfbox.pdmodel.PDDocument;
 import org.apache.pdfbox.pdmodel.PDPage;
 import org.apache.pdfbox.pdmodel.PDPageContentStream;
@@ -13,14 +12,17 @@ import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.math.BigDecimal;
-import java.math.RoundingMode;
+import java.text.DecimalFormat;
+import java.text.DecimalFormatSymbols;
+import java.time.format.DateTimeFormatter;
+import java.util.Locale;
 import java.util.ArrayList;
 import java.util.List;
 
 /** Native PDF counterpart of legacy buildPoHtml_; does not evaluate workbook HTML. */
 final class PurchaseOrderPdfRenderer {
     private static final float LEFT = 40, WIDTH = 515;
-    private static final float[] COLUMNS = {24, 132, 108, 30, 68, 76, 77};
+    private static final float[] COLUMNS = {24, 148, 142, 46, 75, 80};
     private static final Color NAVY = new Color(31, 56, 100), PALE = new Color(217, 225, 242);
     private final PDDocument document;
     private final PDType0Font font;
@@ -41,13 +43,11 @@ final class PurchaseOrderPdfRenderer {
     private void draw() throws IOException {
         newPage(false);
         for (var item : order.items()) {
-            String quantity = item.quantity() == null ? item.quantityText() : item.quantity().stripTrailingZeros().toPlainString();
+            String quantity = item.quantity() == null ? item.quantityText() : number(item.quantity(), true);
             row(List.of(Integer.toString(item.lineNo()), safe(item.materialName()), safe(item.specification()), safe(item.unit()),
-                    safe(quantity), money(item.unitPrice()), item.lineTotal() == null ? "Không cộng" : money(item.lineTotal())), false);
+                    safe(quantity), money(item.unitPrice())), false);
         }
-        ensure(105, false); y -= 14;
-        total("Tạm tính", order.subtotal()); total("VAT " + order.vatPercent() + "%", order.taxAmount()); total("Tổng cộng", order.grandTotal());
-        if (order.quantityTextLineCount() > 0) paragraph("Lưu ý: " + order.quantityTextLineCount() + " dòng số lượng chữ không được cộng vào tổng tiền.", 9);
+        ensure(75, false); y -= 14;
         if (order.note() != null) paragraph("Ghi chú: " + order.note(), 9);
         ensure(100, false); y -= 28;
         String[] roles = {"NGƯỜI LẬP", "TRƯỞNG P. KHVT", "TỔNG GIÁM ĐỐC"};
@@ -75,7 +75,7 @@ final class PurchaseOrderPdfRenderer {
             centered("KCN Trà Nóc 1, Phường Thới An Đông, TP Cần Thơ | ĐT: (0292) 3.841.599 | www.cfccobay.com", LEFT, WIDTH, y, 7, Color.GRAY); y -= 12;
             stream.setStrokingColor(NAVY); stream.setLineWidth(2); stream.moveTo(LEFT, y); stream.lineTo(LEFT + WIDTH, y); stream.stroke(); y -= 30;
             centered("ĐƠN ĐẶT HÀNG", LEFT, WIDTH, y, 18, NAVY); y -= 22;
-            centered("Số PO: " + order.poNumber() + "    Ngày: " + (order.orderDate() == null ? "Chưa xác định" : order.orderDate()), LEFT, WIDTH, y, 10, Color.BLACK); y -= 28;
+            centered("Số PO: " + order.poNumber() + "    Ngày: " + (order.orderDate() == null ? "Chưa xác định" : order.orderDate().format(DateTimeFormatter.ofPattern("dd/MM/uuuu"))), LEFT, WIDTH, y, 10, Color.BLACK); y -= 28;
             stream.setNonStrokingColor(NAVY); stream.addRect(LEFT, y - 5, WIDTH, 21); stream.fill();
             text("THÔNG TIN NHÀ CUNG CẤP", LEFT + 8, y + 2, 9, Color.WHITE); y -= 23;
             paragraph("Bên bán: " + order.supplierName(), 10);
@@ -84,7 +84,7 @@ final class PurchaseOrderPdfRenderer {
         } else {
             text("ĐƠN ĐẶT HÀNG " + order.poNumber() + " (tiếp)", LEFT, y, 11, NAVY); y -= 25;
         }
-        if (first || continuation) row(List.of("STT", "TÊN HÀNG / VẬT TƯ", "QUY CÁCH / MÔ TẢ", "ĐVT", "SỐ LƯỢNG", "ĐƠN GIÁ CHƯA VAT", "THÀNH TIỀN"), true);
+        if (first || continuation) row(List.of("STT", "TÊN HÀNG / VẬT TƯ", "QUY CÁCH / MÔ TẢ", "ĐVT", "SỐ LƯỢNG", "ĐƠN GIÁ CHƯA VAT"), true);
     }
     private void ensure(float height, boolean table) throws IOException { if (y - height < 55) newPage(table); }
     private void row(List<String> cells, boolean header) throws IOException {
@@ -97,15 +97,14 @@ final class PurchaseOrderPdfRenderer {
             if (header) { stream.setNonStrokingColor(PALE); stream.addRect(x, y - height, COLUMNS[i], height); stream.fill(); }
             stream.setStrokingColor(new Color(160, 170, 180)); stream.setLineWidth(.5f); stream.addRect(x, y - height, COLUMNS[i], height); stream.stroke();
             float lineY = y - 12;
-            for (String line : wrapped.get(i)) { text(line, x + 4, lineY, header ? 8 : 8.5f, Color.BLACK); lineY -= 11; }
+            for (String line : wrapped.get(i)) {
+                boolean numeric = !header && (i == 4 || i == 5);
+                float textX = numeric ? x + COLUMNS[i] - 4 - font.getStringWidth(line) * 8.5f / 1000 : x + 4;
+                text(line, textX, lineY, header ? 8 : 8.5f, Color.BLACK); lineY -= 11;
+            }
             x += COLUMNS[i];
         }
         y -= height;
-    }
-    private void total(String label, BigDecimal amount) throws IOException {
-        text(label, LEFT + 290, y, 10, NAVY);
-        String value = money(amount) + " " + order.currency();
-        text(value, LEFT + WIDTH - font.getStringWidth(value) * 10 / 1000, y, 10, NAVY); y -= 20;
     }
     private void paragraph(String value, float size) throws IOException {
         for (String line : wrap(value, WIDTH, size)) { ensure(size + 6, false); text(line, LEFT, y, size, Color.BLACK); y -= size + 6; }
@@ -132,6 +131,12 @@ final class PurchaseOrderPdfRenderer {
         if (!line.isEmpty() || result.isEmpty()) result.add(line.toString());
         return result;
     }
-    private String money(BigDecimal value) { return value == null ? "Chưa xác định" : value.setScale(order.currency() == CurrencyCode.VND ? 0 : 2, RoundingMode.HALF_UP).toPlainString(); }
+    private String money(BigDecimal value) { return value == null ? "" : number(value, false); }
+    private String number(BigDecimal value, boolean quantity) {
+        DecimalFormatSymbols symbols = DecimalFormatSymbols.getInstance(Locale.forLanguageTag("vi-VN"));
+        DecimalFormat format = new DecimalFormat(quantity ? "#,##0.00##" : "#,##0.##", symbols);
+        format.setRoundingMode(java.math.RoundingMode.HALF_UP);
+        return format.format(value);
+    }
     private static String safe(String value) { return value == null ? "" : value.replaceAll("[\\p{Cc}]", " "); }
 }

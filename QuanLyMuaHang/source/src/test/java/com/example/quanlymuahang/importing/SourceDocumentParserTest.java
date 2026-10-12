@@ -56,6 +56,19 @@ class SourceDocumentParserTest {
         }
     }
 
+    @Test void hiddenWorkbookRowsAreExcludedFromTheDefaultPreview() throws Exception {
+        try (var book = requestWorkbook()) {
+            var sheet = book.getSheetAt(0);
+            requestRow(sheet.createRow(5), "1", "Visible material", "A", "Cái", "1", "40");
+            requestRow(sheet.createRow(6), "2", "Filtered material", "B", "Cái", "2", "39");
+            sheet.getRow(6).setZeroHeight(true);
+            var parsed = parse(book, "filtered.xlsx", "REQUEST", null);
+            assertThat(parsed.lines()).extracting(DocumentLine::materialName).containsExactly("Visible material");
+            assertThat(parsed.sheets().getFirst().excludedHiddenRows()).isEqualTo(1);
+            assertThat(parsed.warnings()).contains("HIDDEN_ROWS_EXCLUDED");
+        }
+    }
+
     @Test void multipleSheetsRequireExplicitChoiceAndOnlyTheChosenSheetSuppliesRows() throws Exception {
         try (var book = requestWorkbook()) {
             requestRow(book.getSheetAt(0).createRow(5), "1", "First material", "Model 1", "Cái", "2", "1");

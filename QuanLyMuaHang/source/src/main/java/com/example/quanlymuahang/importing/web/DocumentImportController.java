@@ -26,6 +26,9 @@ public class DocumentImportController {
     @PostMapping("/{id}/lookup")
     @PreAuthorize("hasAuthority('*') or (hasAuthority('IMPORT_OPERATIONAL') and hasAuthority('PRICE_READ'))")
     public DocumentHistoryLookup.Lookup lookup(@PathVariable long id) { return service.lookup(id); }
+    @PostMapping("/{id}/lookup-preview")
+    @PreAuthorize("hasAuthority('*') or (hasAuthority('IMPORT_OPERATIONAL') and hasAuthority('PRICE_READ'))")
+    public DocumentHistoryLookup.Lookup lookupPreview(@PathVariable long id, @RequestBody DocumentImportService.PreviewLookupBody body) { return service.lookupPreview(id, body); }
     @PostMapping("/{id}/inquiries")
     @PreAuthorize("hasAuthority('*') or (hasAuthority('IMPORT_OPERATIONAL') and hasAuthority('PRICE_READ'))")
     public DocumentView inquiries(@PathVariable long id, @RequestBody InquiryBody body, Authentication auth) { return service.saveInquiries(id, body, actor(auth)); }

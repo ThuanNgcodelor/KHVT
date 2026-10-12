@@ -45,6 +45,7 @@ If there is no `.codegraph/` directory, skip CodeGraph entirely — indexing is 
 
 - Đọc `plan/05-react-vite-tailwind-ui.md` và `plan/12-react-vite-playwright-openai.md` trước khi sửa UI.
 - Đọc và áp dụng [skill giao diện KHVT](skills/khvt-ui/SKILL.md) khi sửa frontend. Đây là skill riêng của repository, được tạo theo yêu cầu người dùng, không phải skill chính thức từ OpenAI. Người dùng đã yêu cầu bỏ màu cam; dùng palette xanh rêu/xanh ngọc của skill trừ khi có chỉ dẫn mới.
+- Khi sửa Mua hàng, đọc [plan 17](plan/17-mua-hang-gon-tra-ncc-va-mau-po.md): yêu cầu 12/10/2026 giữ navbar, bảng PCVT gọn/giá-NCC cũ cùng dòng, phần nguồn cuối và bỏ input SL chữ; PDF/Excel đơn gửi NCC 6 cột không thành tiền/tổng, tổng nội bộ giữ. Đây là kế hoạch chưa triển khai; ưu tiên yêu cầu mới này trên mẫu/tổng PDF ở plan cũ, giữ artifact revision và raw nguồn.
 - Base API nằm ở `source/frontend/src/config/baseApi.ts`; request đi qua `services/apiClient.ts`. Không hard-code host trong component.
 - Auth dùng session cookie HttpOnly và CSRF, không lưu token phiên trong localStorage. Sau login cần lấy lại CSRF token; tài khoản có mật khẩu tạm phải đổi mật khẩu.
 - Client có auth/CSRF, dashboard, nhân sự/tài khoản, vật tư/NCC, giá, giỏ/PO/revisions/PDF/XLSX và import preview/commit. Role/permission/audit UI chưa có. Browser tests và MCP UI smoke dùng API giả lập; test API/database thật chạy riêng. Đọc `docs/DOI_CHIEU_UNG_DUNG_CU.md` khi sửa luồng từ Index.html/Mã.js.

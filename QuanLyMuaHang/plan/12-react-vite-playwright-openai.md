@@ -1,5 +1,7 @@
 # React/Vite, Playwright và hướng dẫn UI liên quan OpenAI
 
+**Bổ sung mục tiêu UI/acceptance ngày 12/10/2026:** đọc [plan 17](17-mua-hang-gon-tra-ncc-va-mau-po.md) khi sửa Mua hàng. Giữ navbar, thêm thu gọn, bảng PCVT gọn với giá/NCC cũ và hiện tại tách riêng; PDF/Excel đơn gửi NCC không có thành tiền/tổng. Các mục này chưa triển khai.
+
 ## Tách ba việc riêng
 
 - React/Vite/Tailwind là công nghệ giao diện sản phẩm.
@@ -55,7 +57,7 @@ playwright.config.ts:
 - Search không dấu, latest price và currency.
 - Nhập dòng bằng paste/XLSX; text quantity được giữ.
 - Hai NCC -> preview hai PO; issue -> tải PDF.
-- PDF có subtotal/VAT/total; text qty được exclude và ghi chú.
+- PDF/Excel đơn gửi NCC có 6 cột, số/ngày theo plan 17, không thành tiền/tổng; tổng tra cứu nội bộ giữ. Snapshot/artifact cũ và quantity_text lịch sử không bị xóa.
 - Sửa PO tăng revision; file cũ vẫn tải được.
 - Legacy workbook preview warning -> commit -> report; cùng checksum không nhân đôi.
 - PDF scan hiện fallback, không báo thành công giả.

@@ -3,7 +3,7 @@ import { moduleForPath, navigation } from '../../app/navigation'
 import { hasEveryPermission, hasPermission, type CurrentUser } from '../../features/auth/types'
 import { Icon } from '../Icon'
 
-export function Navigation({ user, onNavigate }: { user: CurrentUser; onNavigate: () => void }) {
+export function Navigation({ user, onNavigate, collapsed = false }: { user: CurrentUser; onNavigate: () => void; collapsed?: boolean }) {
   const { pathname } = useLocation()
   const module = moduleForPath(pathname)
   const items = navigation.filter((item) => item.moduleCode === module && hasEveryPermission(user, item.permissions)
@@ -12,7 +12,7 @@ export function Navigation({ user, onNavigate }: { user: CurrentUser; onNavigate
     {[...new Set(items.map((item) => item.group))].map((group) => <div className="nav-group" key={group}>
     <p className="nav-label">{group}</p>
     {items.filter((item) => item.group === group).map((item) => <NavLink key={item.path} to={item.path}
-      className={({ isActive }) => `nav-item ${isActive ? 'nav-item-active' : ''}`} onClick={onNavigate}>
+      className={({ isActive }) => `nav-item ${isActive ? 'nav-item-active' : ''}`} onClick={onNavigate} title={collapsed ? item.label : undefined} aria-label={collapsed ? item.label : undefined}>
       <span className="nav-icon"><Icon name={item.icon} /></span>
       <span className="nav-copy"><strong>{item.label}</strong></span>
     </NavLink>)}

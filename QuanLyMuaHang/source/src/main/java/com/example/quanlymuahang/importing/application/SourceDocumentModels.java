@@ -10,7 +10,10 @@ import java.util.Map;
 public final class SourceDocumentModels {
     private SourceDocumentModels() {}
 
-    public record SheetInfo(String name, int detectedLines, List<String> requestNumbers, String quotationDate) {
+    public record SheetInfo(String name, int detectedLines, List<String> requestNumbers, String quotationDate, int excludedHiddenRows) {
+        public SheetInfo(String name, int detectedLines, List<String> requestNumbers, String quotationDate) {
+            this(name, detectedLines, requestNumbers, quotationDate, 0);
+        }
         public SheetInfo { requestNumbers = requestNumbers == null ? List.of() : List.copyOf(requestNumbers); }
     }
 

@@ -1,5 +1,7 @@
 # React, Vite, Tailwind và giao diện quản trị
 
+**Mua hàng — yêu cầu mới 12/10/2026:** [plan 17](17-mua-hang-gon-tra-ncc-va-mau-po.md) mô tả bảng làm việc gọn theo Apps Script, tra giá/NCC ngay từng dòng PCVT, tra NCC ra mặt hàng và thêm danh mục theo lô. Giữ navbar/sidebar, chỉ thêm thu gọn và thay nội dung trang; đây là kế hoạch chưa triển khai.
+
 ## Công nghệ và nguyên tắc
 
 - React + TypeScript + Vite; Tailwind CSS build local.

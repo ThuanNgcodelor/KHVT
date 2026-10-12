@@ -51,12 +51,14 @@ Autocomplete hiển thị giá, ngày, NCC, đơn vị và currency gần nhất
 
 ## Tiền, VAT và PDF
 
+**Mục tiêu sửa ngày 12/10/2026:** mẫu xuất theo [plan 17](17-mua-hang-gon-tra-ncc-va-mau-po.md), chưa triển khai. Bỏ thành tiền/tổng ở PDF và Excel đơn gửi NCC; tính tiền/tra cứu nội bộ giữ.
+
 - Header VAT cho PO mới bắt buộc là 0%, 5%, 8% hoặc 10%; giá dòng là giá chưa VAT.
 - Tổng trước VAT chỉ cộng dòng quantity numeric.
-- Dòng quantity_text vẫn hiển thị, đánh dấu không bao gồm trong subtotal; PDF ghi rõ tổng không bao gồm các dòng số lượng dạng chữ.
+- Dòng quantity_text lịch sử giữ nguyên và không bao gồm trong subtotal nội bộ; bỏ điều khiển nhập chữ ở luồng mới. Dòng chưa có SL số cần được đối chiếu trước lập đơn, không chuyển thành 0.
 - vat_amount = subtotal * vat_percent; grand_total = subtotal + vat_amount; rounding theo currency được ghi cố định trong test.
 - Legacy PO có VAT null được hiển thị là “Chưa xác định VAT”; không tự phát hành lại PDF hoặc tính tổng sau VAT cho đến khi người có quyền bổ sung.
-- PDF chứa PO/date, bên bán/địa chỉ, ghi chú, dòng hàng, spec, DVT, quantity, đơn giá, subtotal, VAT, tổng sau VAT, currency và vùng chữ ký theo mẫu phòng KHVT.
+- PDF/Excel đơn gửi NCC mục tiêu có PO/ngày `dd/MM/yyyy`, bên bán/địa chỉ/ghi chú, 6 cột STT/tên/spec/ĐVT/SL/đơn giá, currency/cơ sở giá và vùng ký; không thành tiền/tổng. Artifact revision cũ giữ nguyên.
 - Font PDF phải hỗ trợ tiếng Việt; kiểm thử dấu tiếng Việt và page break.
 
 ## Accounts, employees và permissions

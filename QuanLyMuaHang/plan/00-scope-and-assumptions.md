@@ -17,7 +17,7 @@ Thay Google Apps Script + Google Sheet bằng ứng dụng quản lý mua hàng 
 - Số lượng nhận số hoặc mô tả chữ như “Cân thực tế”; dòng chữ được in nhưng không tự cộng vào thành tiền.
 - Chọn NCC, địa chỉ, tiền tệ, VAT, người lập và ghi chú.
 - Tách các dòng theo NCC và tiền tệ thành PO riêng; cấp số PO không trùng.
-- Sinh PDF tiếng Việt có thành tiền trước VAT, VAT và tổng sau VAT; tải PDF trong trình duyệt.
+- Sinh PDF tiếng Việt theo mẫu phòng KHVT; yêu cầu mới 12/10/2026 ở [plan 17](17-mua-hang-gon-tra-ncc-va-mau-po.md) bỏ thành tiền/tổng ở PDF và Excel đơn gửi NCC, giữ tổng tra cứu nội bộ. Mẫu mới chưa triển khai.
 - Gọi lại PO để sửa; giữ số PO, tăng revision, giữ bản PDF/audit cũ.
 
 ### Login, tài khoản và nhân sự
@@ -92,7 +92,7 @@ Các bất thường đã kiểm tra trong workbook:
 - ADMIN có wildcard permission; user thiếu quyền bị backend chặn dù gọi API trực tiếp.
 - Import dry-run workbook hiển thị đủ sheet, số lượng dòng, cảnh báo dữ liệu; commit không mất snapshot hoặc tạo duplicate.
 - Tìm vật tư không dấu, xem đúng giá mới nhất theo currency.
-- Lập PO theo NCC, tạo PDF có subtotal/VAT/tổng; sửa PO tăng revision, không mất revision/PDF cũ nếu lỗi.
+- Lập PO theo NCC, PDF/Excel đơn gửi NCC theo mẫu 6 cột của plan 17; sửa PO tăng revision, không mất revision/PDF cũ nếu lỗi; tổng nội bộ giữ.
 - Frontend có trang login, dashboard, mua hàng, tra cứu giá, nhân sự, tài khoản/phân quyền.
 - Docker Compose chỉ có mysql và redis; port không public ra ngoài localhost.
 - Hệ thống chạy native trên máy chủ qua Cloudflare Tunnel HTTPS; MySQL/Redis không được tunnel public.

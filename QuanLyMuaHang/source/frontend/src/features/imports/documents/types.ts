@@ -9,7 +9,7 @@ export type DocumentLine = {
 }
 export type ParsedDocument = {
   kind: DocumentKind; fileName: string; format: string
-  sheets: { name: string; detectedLines: number; requestNumbers: string[]; quotationDate: string | null }[]
+  sheets: { name: string; detectedLines: number; requestNumbers: string[]; quotationDate: string | null; excludedHiddenRows?: number }[]
   lines: DocumentLine[]; supplierName: string | null; quotationDate: string | null; currency: string | null
   vatPercent: Decimal; priceBasis: string | null; validityNote: string | null; warnings: string[]; parserVersion: string
 }
