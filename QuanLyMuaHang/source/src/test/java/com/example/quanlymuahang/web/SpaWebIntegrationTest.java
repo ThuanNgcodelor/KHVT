@@ -19,6 +19,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 class SpaWebIntegrationTest {
     @Autowired MockMvc mvc;
     @MockitoBean UserDetailsService users;
+    @MockitoBean com.example.quanlymuahang.identity.infrastructure.security.RememberMeService rememberMeService;
 
     @Test
     void anonymousNavigationAndDeepLinksReceiveTheFrontendEntryPoint() throws Exception {

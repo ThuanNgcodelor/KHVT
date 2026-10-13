@@ -4,9 +4,13 @@ Cập nhật ngày 2026-10-11. Tài liệu mô tả code và bằng chứng ki�
 
 ## Kế hoạch bổ sung ngày 12/10/2026 — chỉ phần Mua hàng
 
-Đã lập [kế hoạch 17](../plan/17-mua-hang-gon-tra-ncc-va-mau-po.md) sau đọc code, xem hai PDF và kiểm tra workbook CVT. Triển khai một phần ngày 2026-10-12: PDF và XLSX mới dùng 6 cột gửi NCC, ngày `dd/MM/yyyy`, định dạng số kiểu Việt; bản xuất không còn thành tiền/tổng, trong khi tổng tra cứu nội bộ không đổi. Parser PCVT version `source-v3-visible-row-count` bỏ qua hàng Excel ẩn, báo số hàng ẩn đã loại khỏi sheet và làm mới cache PREVIEW cũ mà không sửa snapshot đã xác nhận. Có endpoint đọc-only tra lịch sử NCC/giá theo các dòng đã chọn ngay trước xác nhận PCVT; sidebar desktop lưu trạng thái thu gọn, áp dụng riêng khu Mua hàng; form PO hiển thị giá/NCC cũ tách khỏi giá hiện tại và chỉ chép khi người dùng bấm. **Các lượt triển khai còn lại chưa xong:** chưa có tra NCC ra danh sách mặt hàng riêng, bulk catalog, workspace draft server-side, nối PCVT sang PO có phân bổ/idempotency, hay nghiệm thu backend/MySQL/PDF mới. Build frontend, 10 test Vitest và 104 test Playwright desktop/mobile đã qua; Maven không có, máy chỉ có Java 23, nên chưa chạy test/backend runtime. Tổng nội bộ, navbar/Quản trị, file gốc và revision PDF đã lưu được giữ.
+Đã lập [kế hoạch 17](../plan/17-mua-hang-gon-tra-ncc-va-mau-po.md) sau đọc code, xem hai PDF và kiểm tra workbook CVT. Đã làm PDF/XLSX đơn gửi NCC theo 6 cột và ngày `dd/MM/yyyy`; tổng tra cứu nội bộ giữ nguyên. Parser PCVT bỏ qua hàng ẩn và báo số đã bỏ, lookup giá/NCC có trước khi xác nhận, tra NCC hiển thị mặt hàng và lịch sử trực tiếp. Ngày 2026-10-13, thanh điều hướng Mua hàng có nút thu gọn/mở rộng lưu riêng trong localStorage; Quản trị không bị thu gọn và mobile vẫn dùng drawer. Màn PCVT đã thu gọn danh sách chứng từ cũ, chuyển mã/ghi chú/cảnh báo vào chi tiết dòng, đưa nguồn về cuối và bỏ input SL bằng chữ trong khi vẫn giữ dữ liệu nguồn.
 
-Các số liệu runtime/database và kết quả bên dưới là bằng chứng có ngày của các lượt trước, không phải truy vấn lại trạng thái chạy ngày 12/10/2026. Lượt này không khởi động/dừng server chính hoặc ghi database.
+Kiểm tra lượt giao diện cuối: TypeScript/Vite build qua, Vitest 10/10; Playwright nhóm chứng từ và thanh điều hướng 24/24 qua trên Chromium desktop/mobile. Launcher profile `dev` đã build lại và chạy tại localhost:8080; health `UP`, `/login` 200, bundle mới được phục vụ. Backend toàn bộ suite trước lượt UI: 150 test, 0 lỗi, 7 bỏ qua. Các browser test dùng API fixtures. Plan 17 **chưa hoàn tất**: còn bulk catalog, workspace draft/version/conflict, chuyển PCVT sang PO có phân bổ/idempotency, tra NCC trên dữ liệu thật và kiểm tra render PDF/XLSX/MySQL theo đủ phạm vi. Schema ứng dụng đã được ghi nhận ở v10 trước lượt này; không có migration mới.
+
+Ngày 12/10/2026 lúc 23:42 +07:00 đã chạy launcher profile `dev` tại `http://localhost:8080`. Health `UP`; `/login` và bundle JS trả 200; API tra NCC anonymous trả 401 như yêu cầu đăng nhập. Launcher status xác nhận PID 1872. Startup kết nối MySQL cục bộ `quanlymuahang`, Flyway xác nhận schema v10 đã mới nhất và không chạy migration. Server dev vẫn đang chạy; `CHAY_KHVT.cmd stop` chỉ dừng app, không dừng MySQL/Redis. Không đăng nhập tài khoản thật trong lượt smoke test.
+
+Các số liệu runtime/database và kết quả bên dưới là bằng chứng có ngày của các lượt trước, không phải truy vấn lại trạng thái database trừ khi ghi rõ ở trên. Lượt này không ghi dữ liệu nghiệp vụ trực tiếp; ứng dụng đã kết nối database khi khởi động.
 
 ## Import PCVT và báo giá đã triển khai ngày 2026-10-11
 
@@ -244,3 +248,9 @@ Vì vậy thư mục demo không cần để build/chạy ứng dụng chính hi
 4. OCR PDF scan, alias vật tư có duyệt và phân bổ/lập PO từ PCVT là phần còn lại của kế hoạch 16. Bổ sung chống tạo PO trùng khi mất kết nối và cải thiện giỏ chưa lưu; nghiệm thu nghiệp vụ ngoài sáu mẫu đã thử.
 5. Thống nhất cấu trúc backend từng module; tiếp tục giữ frontend theo pages/hooks/components. Bán hàng chưa có code nghiệp vụ.
 6. Kiểm thử backup/restore, HTTPS, triển khai host và Cloudflare Tunnel trước khi dùng production.
+
+## C?p nh?t giao di?n Mua h�ng � 2026-10-13
+
+B?ng preview PCVT c� th? tra l?ch s? NCC/gi� cho c�c d�ng d� ch?n v� hi?n gi� cu, nh� cung c?p, don v? c�ng ng�y mua ngay trong c�ng b?ng. Ngu?i d�ng nh?p gi� hi?n t?i v� ch?n nh� cung c?p l?ch s? cho t?ng d�ng; n�t L?p PO chuy?n c�c d�ng du?c ch?n c�ng s? lu?ng, gi� hi?n t?i, m�/t�n NCC v� th�ng tin ngu?n v�o form t?o PO. T?o PO v?n l� b?n nh�p ? trang k? ti?p; kh�ng x�c nh?n PCVT, ghi l?ch s? mua hay ph�t h�nh don t? d?ng. N�t tra l?ch s? ch? hi?n khi c� quy?n PRICE_READ; quy?n t?o PO v?n do route/API hi?n c� ki?m tra.
+
+Ki?m tra frontend trong lu?t n�y: npm.cmd run build th�nh c�ng; npm.cmd test -- --run 10/10; Playwright tests/e2e/documents.spec.ts 20/20 tru?c b? sung lu?ng t?o PO; ki?m th? m?i ri�ng desktop/mobile 2/2. C�c browser tests d�ng API fixtures; chua ki?m tra d? li?u MySQL/Redis, ph�n b? nhi?u VAT/ti?n t?, b?n nh�p b?n qua reload ho?c import workbook legacy th?t. Plan 17 c�n c�c ph?n backend/bulk danh m?c v� nghi?m thu th?t du?c ghi ? tr�n v?n chua ho�n t?t.

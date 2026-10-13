@@ -27,6 +27,13 @@ public class PricingController {
         return pricing.search(q, currency, category, pageable);
     }
 
+    @GetMapping("/supplier-history")
+    public Page<PricingService.PriceView> supplierHistory(@RequestParam(defaultValue = "") String q,
+                                                           @RequestParam(required = false) CurrencyCode currency,
+                                                           @PageableDefault(size = 25) Pageable pageable) {
+        return pricing.searchBySupplier(q, currency, pageable);
+    }
+
     @GetMapping("/latest")
     public PricingService.PriceView latest(@RequestParam(required = false) String materialCode,
                                            @RequestParam(required = false) String materialName,

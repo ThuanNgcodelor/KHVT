@@ -16,6 +16,35 @@ test('selected PCVT preview lines can be looked up before confirmation without w
   expect(state.previewLookupCalls).toEqual([['row5']]); expect(state.confirmCalls).toHaveLength(0)
 })
 
+test('PCVT price board transfers selected lines and current price into a new PO draft', async ({ page }) => {
+  await documentFixtures(page, [], ['IMPORT_OPERATIONAL', 'PRICE_READ', 'PO_CREATE', 'PO_READ', 'CATALOG_READ'])
+  await page.goto('/imports'); await upload(page)
+  await page.getByLabel('Lọc số phiếu nguồn').selectOption('1')
+  await page.getByRole('button', { name: /^Chọn tất cả 1 dòng$/ }).click()
+  await page.getByRole('button', { name: 'Tra NCC / giá cũ cho 1 dòng đã chọn' }).click()
+  await expect(page.getByLabel('NCC cũ row5')).toBeVisible()
+  await page.getByLabel('NCC cũ row5').selectOption('id:2')
+  await expect(page.getByLabel('NCC hiện tại row5')).toHaveValue('id:1')
+  await expect(page.getByLabel('Giá hiện tại row5')).toBeVisible()
+  await page.getByLabel('Giá hiện tại row5').fill('125000')
+  await page.getByLabel('NCC hiện tại row5').selectOption('id:2')
+  await page.getByRole('button', { name: 'Lập PO từ 1 dòng đã chọn' }).click()
+  await expect(page.getByRole('heading', { name: 'Lập đơn mua' })).toBeVisible()
+  await expect(page.getByLabel('Tên vật tư dòng 1')).toHaveValue('Thép kiểm thử')
+  await expect(page.getByLabel('Đơn giá dòng 1')).toHaveValue('125000')
+  await expect(page.getByLabel('Số lượng dòng 1')).toHaveValue('3')
+})
+
+test('Excel pasted rows use the same PCVT preview and price board as uploaded files', async ({ page }) => {
+  await documentFixtures(page)
+  await page.goto('/imports')
+  await page.getByLabel('Hoặc dán các dòng từ Excel').fill('Tên vật tư\tQuy cách\tĐVT\tSố lượng\tSố phiếu\nThép kiểm thử\tDày 2 mm\tkg\t3\t1')
+  await page.getByRole('button', { name: 'Kiểm tra dữ liệu dán' }).click()
+  await expect(page.getByLabel('Tên vật tư row5')).toHaveValue('Thép kiểm thử')
+  await page.getByRole('button', { name: /^Chọn tất cả 3 dòng$/ }).click()
+  await expect(page.getByRole('button', { name: /Tra NCC \/ giá cũ/ })).toBeVisible()
+})
+
 test('a yearly CVT requires explicit selection of one request and survives reload without prices', async ({ page }) => {
   const state = await documentFixtures(page)
   await page.goto('/imports'); await expect(page.getByRole('heading', { name: 'PCVT và báo giá mới' })).toBeVisible(); await upload(page)
@@ -88,6 +117,7 @@ test('document list permission errors stay visible and retry after access recove
   await page.goto('/imports'); await expect(page.getByRole('alert')).toContainText('Không có quyền đọc chứng từ.')
   await expect(page.getByText('Chưa có PCVT hoặc báo giá.', { exact: false })).toHaveCount(0)
   state.denyList = false; await page.getByRole('button', { name: 'Thử lại', exact: true }).click()
+  await page.locator('.document-saved > summary').click()
   await expect(page.getByRole('button', { name: 'Mở chứng từ 1', exact: true })).toBeVisible()
   await page.getByRole('button', { name: 'Mở chứng từ 1', exact: true }).click(); await expect(page.getByRole('heading', { name: 'Chứng từ đã xác nhận' })).toBeVisible()
 })

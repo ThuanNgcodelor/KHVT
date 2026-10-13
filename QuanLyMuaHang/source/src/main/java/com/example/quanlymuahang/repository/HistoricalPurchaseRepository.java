@@ -23,6 +23,15 @@ public interface HistoricalPurchaseRepository extends JpaRepository<HistoricalPu
     Page<HistoricalPurchase> searchFiltered(@Param("q") String normalizedQuery, @Param("currency") CurrencyCode currency,
                                             @Param("category") MaterialCategory category, Pageable pageable);
 
+    @Query("select h from HistoricalPurchase h left join h.supplier s where " +
+            "(:q is null or :q = '' or h.supplierCodeSnapshot like concat('%', :raw, '%') " +
+            "or lower(h.supplierSnapshot) like lower(concat('%', :raw, '%')) " +
+            "or s.normalizedName like concat('%', :q, '%') or lower(s.name) like lower(concat('%', :raw, '%')) " +
+            "or lower(s.code) like lower(concat('%', :raw, '%'))) " +
+            "and (:currency is null or h.currency = :currency) and h.purchaseDate is not null")
+    Page<HistoricalPurchase> searchBySupplier(@Param("q") String normalizedQuery, @Param("raw") String rawQuery,
+                                               @Param("currency") CurrencyCode currency, Pageable pageable);
+
     @Query("select h from HistoricalPurchase h where lower(h.materialCodeSnapshot) = lower(:code) " +
             "and h.currency = :currency and h.purchaseDate is not null order by h.purchaseDate desc, h.id desc")
     List<HistoricalPurchase> latestByCode(@Param("code") String code, @Param("currency") CurrencyCode currency, Pageable pageable);

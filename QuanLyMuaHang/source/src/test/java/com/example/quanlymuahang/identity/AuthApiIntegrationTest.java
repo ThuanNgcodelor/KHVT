@@ -122,6 +122,17 @@ class AuthApiIntegrationTest {
     }
 
     @Test
+    void priceReaderCanSearchSupplierHistoryThroughProtectedApi() throws Exception {
+        account("PRICE_READER", false, "PRICE_READ");
+        MockHttpSession session = login();
+
+        mvc.perform(get("/api/prices/supplier-history").param("q", "NCC kiểm thử").session(session))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("totalElements").value(0))
+                .andExpect(jsonPath("content").isArray());
+    }
+
+    @Test
     void hrReadsPersonnelButCannotReadPurchasingDashboard() throws Exception {
         account("HR_MANAGER", false, "PERSONNEL_READ", "PERSONNEL_MANAGE");
         MockHttpSession session = login();

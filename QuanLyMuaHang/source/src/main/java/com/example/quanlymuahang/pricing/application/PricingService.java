@@ -47,6 +47,13 @@ public class PricingService {
     }
 
     @Transactional(readOnly = true)
+    public Page<PriceView> searchBySupplier(String query, CurrencyCode currency, Pageable pageable) {
+        Pageable safe = com.example.quanlymuahang.sharedkernel.web.SafeSortUtil.sanitize(pageable, PRICE_SORT_MAPPING, DEFAULT_PRICE_SORT);
+        String raw = query == null ? "" : query.trim();
+        return history.searchBySupplier(TextNormalizer.normalize(raw), raw, currency, safe).map(PriceView::from);
+    }
+
+    @Transactional(readOnly = true)
     public PriceView latest(String materialCode, String materialName, CurrencyCode currency) {
         if (currency == null) throw ApiException.badRequest("CURRENCY_REQUIRED", "Chọn loại tiền khi tra giá gần nhất");
         boolean hasCode = materialCode != null && !materialCode.isBlank();

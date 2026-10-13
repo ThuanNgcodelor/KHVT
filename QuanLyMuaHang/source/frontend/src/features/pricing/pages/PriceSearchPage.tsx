@@ -17,11 +17,17 @@ const money = (row: PriceRecord) => row.unitPrice == null ? 'Chưa có giá' : n
 export function PriceSearchPage() {
   const { user } = useAuth(), navigate = useNavigate()
   const [search, setSearch] = useState(''), [q, setQ] = useState(''), [currency, setCurrency] = useState(''), [category, setCategory] = useState(''), [page, setPage] = useState(0)
+  const [supplierSearch, setSupplierSearch] = useState(''), [supplierQ, setSupplierQ] = useState(''), [supplierPage, setSupplierPage] = useState(0)
   const [sort, setSort] = useState('purchaseDate,desc')
   const [busy, setBusy] = useState(false), [notice, setNotice] = useState(''), [failure, setFailure] = useState('')
   const [latest, setLatest] = useState<PriceRecord | null>(null)
   const filters = { q, currency, category, page, size: 25, sort }
   const history = useQuery({ queryKey: ['pricing', filters], queryFn: ({ signal }) => pricingApi.history(filters, signal) })
+  const supplierHistory = useQuery({
+    queryKey: ['pricing-by-supplier', supplierQ, currency, supplierPage],
+    queryFn: ({ signal }) => pricingApi.supplierHistory(supplierQ, currency, supplierPage, 25, 'purchaseDate,desc', signal),
+    enabled: supplierQ.length > 0,
+  })
   const data = history.data
 
   function handleSort(newSort: string) {
@@ -52,6 +58,23 @@ export function PriceSearchPage() {
         <button type="submit" className="secondary-button">Tìm kiếm</button>
         <button type="button" className="text-button" onClick={() => { setSearch(''); setQ(''); setCurrency(''); setCategory(''); setSort('purchaseDate,desc'); setPage(0) }}>Xóa lọc</button>
       </form>
+      <form className="filter-bar" aria-label="Tra cứu theo nhà cung cấp" onSubmit={(event) => { event.preventDefault(); setSupplierQ(supplierSearch.trim()); setSupplierPage(0) }}>
+        <div className="form-field search-field"><label htmlFor="price-supplier-q">Nhà cung cấp đã mua</label><input id="price-supplier-q" type="search" value={supplierSearch} onChange={(event) => setSupplierSearch(event.target.value)} placeholder="Nhập tên hoặc mã NCC" /></div>
+        <button type="submit" className="secondary-button">Xem mặt hàng và lịch sử mua</button>
+        {supplierQ && <button type="button" className="text-button" onClick={() => { setSupplierSearch(''); setSupplierQ(''); setSupplierPage(0) }}>Xóa tra NCC</button>}
+      </form>
+      {supplierQ && <section className="panel" aria-label="Mặt hàng đã mua từ nhà cung cấp">
+        <h2 className="section-title">Mặt hàng đã mua từ NCC: {supplierQ}</h2>
+        <TableFeedback pending={supplierHistory.isPending} error={supplierHistory.error} empty={!supplierHistory.data?.content.length} onRetry={() => { void supplierHistory.refetch() }} emptyTitle="Chưa tìm thấy lịch sử mua" emptyMessage="Thử tên hoặc mã nhà cung cấp khác." />
+        {!supplierHistory.error && supplierHistory.data && supplierHistory.data.content.length > 0 && <div className="table-wrap"><table><caption className="sr-only">Mặt hàng và lịch sử mua theo nhà cung cấp</caption><thead><tr><th scope="col">Mặt hàng</th><th scope="col">Ngày mua</th><th scope="col" className="numeric-cell">Số lượng</th><th scope="col" className="numeric-cell">Đơn giá</th><th scope="col">Nguồn</th><th scope="col">Thao tác</th></tr></thead><tbody>{supplierHistory.data.content.map((row) => <tr key={row.id}>
+          <td><strong className="cell-title">{row.materialName}</strong><span className="cell-subtitle">{row.materialCode || 'Chưa có mã'} · {row.unit || 'Chưa có ĐVT'}</span></td>
+          <td>{row.purchaseDate ? new Date(`${row.purchaseDate}T00:00:00`).toLocaleDateString('vi-VN') : 'Chưa có ngày'}</td>
+          <td className="numeric-cell">{row.quantity == null ? row.quantityText || '—' : new Intl.NumberFormat('vi-VN').format(row.quantity)} {row.unit || ''}</td>
+          <td className="numeric-cell">{money(row)} {row.currency}</td><td>{row.source === 'PURCHASE_ORDER' ? 'Đơn mua hàng' : 'Lịch sử nhập'}<span className="cell-subtitle">{row.sourceSheet}{row.sourceRowNumber ? ` · dòng ${row.sourceRowNumber}` : ''}</span></td>
+          <td>{user && hasPermission(user, 'PO_CREATE') && row.unitPrice != null && <button className="text-button" onClick={() => draftFrom(row)}>Lập đơn từ dòng</button>}</td>
+        </tr>)}</tbody></table></div>}
+        {!supplierHistory.error && supplierHistory.data && <Pagination page={supplierHistory.data.number} size={supplierHistory.data.size} total={supplierHistory.data.totalElements} pages={supplierHistory.data.totalPages} busy={supplierHistory.isFetching} onChange={setSupplierPage} />}
+      </section>}
       <TableFeedback pending={history.isPending} error={history.error} empty={!data?.content.length} onRetry={() => { void history.refetch() }} emptyTitle="Chưa có lịch sử giá phù hợp" emptyMessage="Thử tên khác hoặc xóa bộ lọc. Giá được ghi khi import lịch sử hoặc phát hành đơn." />
       {!history.error && data && data.content.length > 0 && <div className="table-wrap"><table><caption className="sr-only">Lịch sử giá mua hàng</caption><thead><tr>
         <SortTh label="Vật tư" column="materialName" currentSort={sort} onSort={handleSort} defaultDirection="asc" />

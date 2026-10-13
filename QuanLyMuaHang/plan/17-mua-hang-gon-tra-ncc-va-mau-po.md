@@ -4,11 +4,19 @@ Ngày lập: **12/10/2026**. Trạng thái: **đang triển khai một phần; c
 
 ### Trạng thái triển khai 12/10/2026
 
-- Đã sửa template PDF/XLSX mới: 6 cột, ĐVT rộng hơn, số căn phải và định dạng theo `vi-VN`, ngày `dd/MM/yyyy`; tổng nội bộ không đổi. Cần chạy test Java, render và so PDF thực tế; Maven chưa có trong môi trường.
+- Đã sửa template PDF/XLSX mới: 6 cột, ĐVT rộng hơn, số căn phải và định dạng theo `vi-VN`, ngày `dd/MM/yyyy`; tổng nội bộ không đổi. Maven portable 3.9.11/JDK 21 hiện chạy được. Nhóm test PO/import 17 trường hợp: 16 qua, 1 bỏ qua; render/so PDF thực tế vẫn cần.
 - Đã thêm parser version `source-v3-visible-row-count`, bỏ hàng bị ẩn, trả số hàng ẩn đã loại khỏi từng sheet và reparse cache cũ chỉ khi còn PREVIEW; confirmed snapshot bất biến. Thêm test unit cho hàng ẩn nhưng chưa chạy Maven.
 - Đã thêm `POST /api/imports/documents/{id}/lookup-preview` với quyền `IMPORT_OPERATIONAL + PRICE_READ`, CSRF mặc định, chỉ nhận `lineKey` thuộc bản xem trước và tối đa 200 dòng; đã nối nút tra trong preview. Chưa chạy integration/MySQL hoặc browser test.
 - Đã thu gọn sidebar desktop và lưu preference trong localStorage cho khu Mua hàng; form PO tách giá/NCC lịch sử khỏi giá hiện tại và chỉ chép khi người lập bấm. Footer khớp nhãn link đã chọn. Build TypeScript/Vite qua, 10 test Vitest qua, Playwright desktop/mobile 104/104 qua sau cập nhật test theo giao diện mới.
-- Chưa làm: tra NCC ra danh sách mặt hàng; bulk catalog; server-side workspace draft/version/conflict; chuyển PCVT thành PO với phân bổ và idempotency; kiểm thử PDF/XLSX render và runtime backend/MySQL.
+- Tiếp tục ngày 12/10: thêm `GET /api/prices/supplier-history` (yêu cầu `PRICE_READ`) có phân trang, lọc tên/mã NCC và loại tiền; trang Tra cứu giá hiển thị mặt hàng, ngày, số lượng, đơn giá và nguồn theo NCC mà không cần mở từng PO. Thêm JPA test cho NCC liên kết/snapshot, loại tiền và phân trang (2/2 qua), cùng API integration test có đăng nhập/quyền `PRICE_READ` (1/1 qua). Sửa test slice SPA để mock `RememberMeService` theo dependency hiện tại của `SecurityConfig`. Frontend build qua; full Playwright 106/106 và Vitest 10/10 qua. Maven toàn bộ suite chạy 150 test, 0 lỗi, 7 bỏ qua.
+- Launcher dev đã build và chạy profile `dev` lúc 23:42 +07:00 tại `http://localhost:8080`. Health `UP`, `/login` và JS `200`, API NCC anonymous `401`; MySQL `quanlymuahang` báo schema v10 đã mới nhất, không chạy migration. Launcher status xác nhận PID 1872. Server vẫn đang chạy; dừng bằng `CHAY_KHVT.cmd stop` (không dừng MySQL/Redis). Chưa đăng nhập tài khoản thật, nên chưa xác minh truy vấn NCC qua API live.
+- Còn thiếu: rà nghiệm thu tra NCC bằng backend thật và render chứng từ; bulk catalog; server-side workspace draft/version/conflict; chuyển PCVT thành PO với phân bổ và idempotency; kiểm thử backend/MySQL.
+
+### Bổ sung giao diện 13/10/2026
+
+- Thu gọn/mở rộng thanh điều hướng bằng nút có nhãn/icon rõ; chỉ hiện và lưu trạng thái ở khu Mua hàng với khóa `qmh:ui:purchasing-sidebar:v1`. Quản trị giữ chiều rộng bình thường; mobile vẫn dùng drawer và Escape. Browser test desktop/mobile cho nhớ trạng thái, điều hướng Quản trị và drawer qua 4/4.
+- Màn PCVT gọn hơn: chứng từ đã lưu thu gọn mặc định, metadata ít dùng nằm trong chi tiết từng dòng, cột nguồn ở cuối và bỏ ô nhập SL bằng chữ. Giá trị SL chữ từ file vẫn được giữ để đối chiếu.
+- Build Vite/TypeScript qua; Vitest 10/10; bộ Playwright liên quan chứng từ và thanh điều hướng 24/24 qua sau bản cuối. Launcher đã đóng gói và khởi động lại profile `dev`; health `UP`, `/login` 200 và phục vụ bundle mới. Đây vẫn là kiểm thử UI bằng API fixtures; không thay thế kiểm tra dữ liệu nghiệp vụ thật.
 
 ## 1. Kết quả cần đạt
 
@@ -49,7 +57,7 @@ Phiếu cấp vật tư là nguồn yêu cầu xem xét; không mặc định m�
 | `SourceDocumentParser.readSheet` | Đọc cả dòng/cột ẩn, chưa lưu thông tin hidden cho lựa chọn hiển thị |
 | `DocumentWorkbench`, `DocumentPreview`, `HistoryReview` | Các bước/bảng lớn tách rời; nguồn đứng đầu và còn input SL bằng chữ |
 | `PurchaseOrderFormPage.copyLatest` | Lấy giá cũ rồi ghi vào giá/NCC hiện tại, chưa có hai nhóm cột rõ ràng |
-| `useSidebar`, `catalogApi`, `CatalogController` | Menu mobile đã có; chưa desktop collapse hoặc API thêm danh mục theo lô |
+| `useSidebar`, `catalogApi`, `CatalogController` | Desktop collapse riêng Mua hàng và mobile drawer đã có; API thêm danh mục theo lô chưa có |
 
 Rà soát này chỉ đọc source/file mẫu. Chưa test runtime, chưa sửa code chức năng hoặc import vào database trong lượt lập kế hoạch.
 
@@ -227,3 +235,9 @@ Nếu cần schema mới cho hidden metadata, phân bổ hoặc lô danh mục, 
 Kiểm tra backend/formatter và TypeScript/Vite theo phần thay đổi; Playwright desktop/mobile bằng fixtures tách khỏi test thật. Nghiệm thu thật dùng schema MySQL/Redis namespace riêng, MCP/UI và các mẫu đã xác minh; không commit thử vào database người dùng. Giữ source/checksum, báo cáo dòng/trường và ảnh PDF/Excel trước khi kết luận. Không báo đạt chỉ vì build qua hoặc có controller.
 
 Kế hoạch này thay yêu cầu **thành tiền/tổng trong PDF/XLSX đơn gửi NCC** ở các plan cũ 03/06/09/10/12. Tính tiền và tra cứu nội bộ vẫn theo nghiệp vụ cũ. Grant/deny tài khoản, giữ đăng nhập dài hạn, OCR và triển khai Cloudflare là các phạm vi riêng.
+
+## C?p nh?t giao di?n Mua h�ng � 2026-10-13
+
+B?ng preview PCVT c� th? tra l?ch s? NCC/gi� cho c�c d�ng d� ch?n v� hi?n gi� cu, nh� cung c?p, don v? c�ng ng�y mua ngay trong c�ng b?ng. Ngu?i d�ng nh?p gi� hi?n t?i v� ch?n nh� cung c?p l?ch s? cho t?ng d�ng; n�t L?p PO chuy?n c�c d�ng du?c ch?n c�ng s? lu?ng, gi� hi?n t?i, m�/t�n NCC v� th�ng tin ngu?n v�o form t?o PO. T?o PO v?n l� b?n nh�p ? trang k? ti?p; kh�ng x�c nh?n PCVT, ghi l?ch s? mua hay ph�t h�nh don t? d?ng. N�t tra l?ch s? ch? hi?n khi c� quy?n PRICE_READ; quy?n t?o PO v?n do route/API hi?n c� ki?m tra.
+
+Ki?m tra frontend trong lu?t n�y: npm.cmd run build th�nh c�ng; npm.cmd test -- --run 10/10; Playwright tests/e2e/documents.spec.ts 20/20 tru?c b? sung lu?ng t?o PO; ki?m th? m?i ri�ng desktop/mobile 2/2. C�c browser tests d�ng API fixtures; chua ki?m tra d? li?u MySQL/Redis, ph�n b? nhi?u VAT/ti?n t?, b?n nh�p b?n qua reload ho?c import workbook legacy th?t. Plan 17 c�n c�c ph?n backend/bulk danh m?c v� nghi?m thu th?t du?c ghi ? tr�n v?n chua ho�n t?t.

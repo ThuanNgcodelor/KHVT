@@ -21,7 +21,7 @@ export function AppShell() {
   const purchasingArea = ['/dashboard', '/purchase-orders', '/price-search', '/imports', '/catalog', '/materials', '/suppliers'].some((path) => pathname === path || pathname.startsWith(`${path}/`))
   return <div className={`app-shell ${purchasingArea && sidebar.collapsed ? 'app-shell-nav-collapsed' : ''}`}>
     <a className="skip-link" href="#main-content">Đến nội dung chính</a>
-    <Sidebar user={user} initials={initials} open={sidebar.open} onClose={sidebar.close} collapsed={purchasingArea && sidebar.collapsed} onToggleCollapsed={sidebar.toggleCollapsed} />
+    <Sidebar user={user} initials={initials} open={sidebar.open} onClose={sidebar.close} collapsed={purchasingArea && sidebar.collapsed} canCollapse={purchasingArea} onToggleCollapsed={sidebar.toggleCollapsed} />
     <div className="main-content">
       <Header title={title} initials={initials} sidebarOpen={sidebar.open} menuRef={sidebar.toggleRef}
         onToggleMenu={sidebar.toggle} onLogout={logout.signout} loggingOut={logout.pending} />

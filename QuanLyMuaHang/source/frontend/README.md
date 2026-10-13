@@ -81,6 +81,8 @@ tests/e2e/documents.spec.ts         chọn phiếu/sheet, reload, scan nhập ta
 
 Page là điểm vào của một URL; component dựng giao diện; hook chứa logic trạng thái/đồng bộ; service gọi HTTP. Không cần tạo các tầng trống cho tính năng chưa làm.
 
+Trong khu Mua hàng, desktop có thể thu gọn thanh điều hướng bằng nút trong sidebar; trạng thái lưu ở `qmh:ui:purchasing-sidebar:v1` và không áp dụng cho Quản trị. Mobile dùng drawer riêng. Màn PCVT mặc định thu gọn danh sách chứng từ đã lưu; bảng đặt nguồn ở cột cuối, metadata dòng trong phần chi tiết và không có ô nhập SL bằng chữ. Giá trị SL chữ từ file vẫn được giữ để đối chiếu. Browser coverage cho chứng từ và sidebar chạy bằng API fixtures.
+
 `useEffect` hiện dùng cho đăng ký/hủy listener và đồng bộ trạng thái phiên/menu. Việc tải dữ liệu có cache, trạng thái tải/lỗi và hủy request nằm trong TanStack Query. `useMemo` chưa cần ở các phép lọc menu nhỏ; chỉ thêm khi có phép tính đáng kể và lý do đo được. React tự quản lý Virtual DOM/reconciliation và cập nhật DOM thật qua `react-dom`; ứng dụng không viết lớp Virtual DOM riêng.
 
 ## Chạy giao diện cùng backend trên Windows
@@ -165,3 +167,9 @@ Lịch sử trước UI mua hàng ngày 2026-10-10: backend/frontend health từ
 Ngày 2026-10-09 đã kiểm tra riêng qua browser với backend/MySQL/Redis local thật: đăng nhập admin bootstrap, chuyển tới trang đổi mật khẩu, reload vẫn giữ phiên, truy cập dashboard bị chuyển lại trang đổi mật khẩu, rồi logout thành công. Không đổi mật khẩu admin trong smoke test; chưa kiểm tra luồng ghi nghiệp vụ thật hay hoàn tất đổi mật khẩu bằng tài khoản này. Đây là bằng chứng lịch sử trước thay đổi indexed session, không xác nhận auth thật của runtime mới. Backend đã kiểm tra service thu hồi phiên bằng một test Redis thật riêng; xem [README backend](../README.md) để biết phạm vi và cách bật.
 
 Đọc [skill KHVT UI](../../skills/khvt-ui/SKILL.md) khi sửa frontend, kèm [plan 05](../../plan/05-react-vite-tailwind-ui.md) và [plan 12](../../plan/12-react-vite-playwright-openai.md). Skill được tạo riêng trong repository theo yêu cầu người dùng và được AGENTS.md tham chiếu; không phải skill chính thức của OpenAI hay skill đã cài vào catalog toàn cục.
+
+## C?p nh?t giao di?n Mua h�ng � 2026-10-13
+
+B?ng preview PCVT c� th? tra l?ch s? NCC/gi� cho c�c d�ng d� ch?n v� hi?n gi� cu, nh� cung c?p, don v? c�ng ng�y mua ngay trong c�ng b?ng. Ngu?i d�ng nh?p gi� hi?n t?i v� ch?n nh� cung c?p l?ch s? cho t?ng d�ng; n�t L?p PO chuy?n c�c d�ng du?c ch?n c�ng s? lu?ng, gi� hi?n t?i, m�/t�n NCC v� th�ng tin ngu?n v�o form t?o PO. T?o PO v?n l� b?n nh�p ? trang k? ti?p; kh�ng x�c nh?n PCVT, ghi l?ch s? mua hay ph�t h�nh don t? d?ng. N�t tra l?ch s? ch? hi?n khi c� quy?n PRICE_READ; quy?n t?o PO v?n do route/API hi?n c� ki?m tra.
+
+Ki?m tra frontend trong lu?t n�y: npm.cmd run build th�nh c�ng; npm.cmd test -- --run 10/10; Playwright tests/e2e/documents.spec.ts 20/20 tru?c b? sung lu?ng t?o PO; ki?m th? m?i ri�ng desktop/mobile 2/2. C�c browser tests d�ng API fixtures; chua ki?m tra d? li?u MySQL/Redis, ph�n b? nhi?u VAT/ti?n t?, b?n nh�p b?n qua reload ho?c import workbook legacy th?t. Plan 17 c�n c�c ph?n backend/bulk danh m?c v� nghi?m thu th?t du?c ghi ? tr�n v?n chua ho�n t?t.

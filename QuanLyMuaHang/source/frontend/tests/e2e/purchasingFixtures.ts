@@ -6,7 +6,7 @@ import type { LegacyCommit, LegacyPreview } from '../../src/features/imports/typ
 
 export async function purchasing(page: Page, role = 'ADMIN') {
   const auth = await mockApi(page, { signedIn: true, role })
-  const state = { failCatalog: false, failSave: false, commits: 0, legacyDetected: false, legacyPreviewCalls: 0, operationalPreviewCalls: 0,
+  const state = { failCatalog: false, failSave: false, commits: 0, legacyDetected: false, legacyPreviewCalls: 0, operationalPreviewCalls: 0, supplierHistoryQueries: [] as string[],
     legacyPreview: { batchId:1,fileName:'fixture.xlsx',sha256:'synthetic',status:'PREVIEW',summary:{rowsPerSheet:{NCC:1,LICH_SU:2,DON_HANG:1},errorRows:0,warningRows:1,legacyPurchaseOrderGroups:1,totalRows:4,note:'CONFIG bỏ qua'},rowIssues:[{sheet:'DON_HANG',rowNumber:2,status:'WARNING',issues:['WARNING:VAT_UNKNOWN: Cần đối chiếu VAT']}],duplicate:false,message:null } as LegacyPreview,
     legacyCommit: {batchId:1,status:'COMMITTED',committedRows:4,errorRows:0,warningRows:1,supplierRowsProcessed:1,materialRowsProcessed:1,historyRowsImported:2,purchaseOrdersImported:1,message:'Đã commit dữ liệu thử',verification:{sourceRows:4,verifiedRows:4,historyRows:2,purchaseOrders:1,purchaseOrderItems:1,supplierRows:1}} as LegacyCommit,
     issueCsv: 'sheet,rowNumber,status,issue\r\nDON_HANG,2,WARNING,WARNING:VAT_UNKNOWN\r\n',
@@ -41,6 +41,7 @@ export async function purchasing(page: Page, role = 'ADMIN') {
     }
     if (path.startsWith('/api/prices')) {
       const price = { id: 1, materialName: 'Thép kiểm thử', materialCode: '0001', unit: 'kg', quantity: 2, quantityText: null, unitPrice: 100, currency: 'VND', currencyBasis: 'SOURCE', purchaseDate: '2026-10-10', supplierName: 'NCC mẫu A', supplierCode: 'NCC1', source: 'PURCHASE_ORDER', sourceSheet: null, sourceRowNumber: 1 }
+      if (path.endsWith('/supplier-history')) state.supplierHistoryQueries.push(url.searchParams.get('q') ?? '')
       return reply(path.endsWith('/latest') ? price : paged([price],url.searchParams))
     }
     if (path.startsWith('/api/purchase-orders')) {
