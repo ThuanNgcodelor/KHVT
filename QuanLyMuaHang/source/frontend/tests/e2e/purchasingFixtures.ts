@@ -6,7 +6,7 @@ import type { LegacyCommit, LegacyPreview } from '../../src/features/imports/typ
 
 export async function purchasing(page: Page, role = 'ADMIN') {
   const auth = await mockApi(page, { signedIn: true, role })
-  const state = { failCatalog: false, failSave: false, commits: 0, legacyDetected: false, legacyPreviewCalls: 0, operationalPreviewCalls: 0, supplierHistoryQueries: [] as string[],
+  const state = { failCatalog: false, failSave: false, failIssueId: 0, issueCalls: [] as number[], commits: 0, legacyDetected: false, legacyPreviewCalls: 0, operationalPreviewCalls: 0, supplierHistoryQueries: [] as string[],
     legacyPreview: { batchId:1,fileName:'fixture.xlsx',sha256:'synthetic',status:'PREVIEW',summary:{rowsPerSheet:{NCC:1,LICH_SU:2,DON_HANG:1},errorRows:0,warningRows:1,legacyPurchaseOrderGroups:1,totalRows:4,note:'CONFIG bỏ qua'},rowIssues:[{sheet:'DON_HANG',rowNumber:2,status:'WARNING',issues:['WARNING:VAT_UNKNOWN: Cần đối chiếu VAT']}],duplicate:false,message:null } as LegacyPreview,
     legacyCommit: {batchId:1,status:'COMMITTED',committedRows:4,errorRows:0,warningRows:1,supplierRowsProcessed:1,materialRowsProcessed:1,historyRowsImported:2,purchaseOrdersImported:1,message:'Đã commit dữ liệu thử',verification:{sourceRows:4,verifiedRows:4,historyRows:2,purchaseOrders:1,purchaseOrderItems:1,supplierRows:1}} as LegacyCommit,
     issueCsv: 'sheet,rowNumber,status,issue\r\nDON_HANG,2,WARNING,WARNING:VAT_UNKNOWN\r\n',
@@ -53,7 +53,7 @@ export async function purchasing(page: Page, role = 'ADMIN') {
         return reply(order)
       }
       state.writes.push({ path, data: req.postData() ? body() : {} })
-      if (match?.[2] === 'issue') { order!.status = 'EXPORTED'; return reply(order) }
+      if (match?.[2] === 'issue') { state.issueCalls.push(Number(match[1])); if (state.failIssueId === Number(match[1])) return reply({ message: 'Lỗi phát hành mô phỏng' }, 500); order!.status = 'EXPORTED'; return reply(order) }
       if (match?.[2] === 'cancel') { order!.status = 'CANCELLED'; return reply(order) }
       if (state.failSave) { state.failSave = false; return reply({ message: 'Chưa thể lưu đơn' },409) }
       const command = body(), id = match ? Number(match[1]) : state.orders.length+1

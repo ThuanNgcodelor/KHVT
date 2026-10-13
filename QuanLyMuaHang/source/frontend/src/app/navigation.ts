@@ -1,6 +1,7 @@
 import type { IconName } from '../components/Icon'
 
 export const navigation: { path: string; label: string; icon: IconName; group: string; moduleCode: string; permissions: string[]; anyPermissions?: string[] }[] = [
+  { path: '/purchase-orders/new', label: 'Mua hàng', icon: 'import', group: 'Mua hàng', moduleCode: 'PURCHASING', permissions: ['PO_CREATE'] },
   { path: '/dashboard', label: 'Tổng quan', icon: 'overview', group: 'Mua hàng', moduleCode: 'PURCHASING', permissions: ['PO_READ', 'CATALOG_READ'] },
   { path: '/purchase-orders', label: 'Đơn mua hàng', icon: 'orders', group: 'Mua hàng', moduleCode: 'PURCHASING', permissions: ['PO_READ'] },
   { path: '/price-search', label: 'Tra cứu giá', icon: 'search', group: 'Mua hàng', moduleCode: 'PURCHASING', permissions: ['PRICE_READ'] },

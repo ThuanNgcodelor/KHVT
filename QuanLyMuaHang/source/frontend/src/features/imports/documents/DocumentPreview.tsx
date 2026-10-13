@@ -1,4 +1,4 @@
-import { useMemo, useRef, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { Pagination } from '../../../components/Pagination'
 import { errorMessage } from '../../../services/errorMessage'
@@ -29,6 +29,7 @@ export function DocumentPreview({ document, requests, busy, lookup, onConfirm, o
   const [mappings, setMappings] = useState<Record<string, string>>(saved?.requestLineMappings ?? {})
   const [current, setCurrent] = useState<Record<string, { price: string; supplierKey: string; oldSupplierKey: string }>>({})
   const lastClickedIndexRef = useRef<number | null>(null)
+  const attemptedLookupRef = useRef(new Set<string>())
 
   const listedRequest = requests.find((item) => item.id === requestId)
   const requestQuery = useQuery({ queryKey: ['imports', 'documents', requestId], queryFn: () => documentApi.get(requestId!), enabled: quotation && !!requestId && !listedRequest, retry: false })
@@ -47,6 +48,15 @@ export function DocumentPreview({ document, requests, busy, lookup, onConfirm, o
   const isSomePageSelected = pageKeys.some((key) => selected.includes(key)) && !isAllPageSelected
   const isAllVisibleSelected = visible.length > 0 && visible.every((line) => selected.includes(line.lineKey))
   const histories = new Map((lookup?.lines ?? []).map((line) => [line.lineKey, line]))
+
+  useEffect(() => {
+    if (!onLookup || quotation || readOnly || busy) return
+    const missing = pageKeys.filter((key) => !histories.has(key) && !attemptedLookupRef.current.has(key))
+    if (missing.length) {
+      missing.forEach((key) => attemptedLookupRef.current.add(key))
+      onLookup(missing)
+    }
+  }, [onLookup, quotation, readOnly, busy, pageKeys, histories])
 
   function changeLine(key: string, field: keyof DocumentLine, value: string) {
     setLines((current) => current.map((line) => line.lineKey === key ? { ...line, [field]: value === '' && field !== 'materialName' ? null : value } : line)); setAck(false)

@@ -13,7 +13,29 @@ test('selected PCVT preview lines can be looked up before confirmation without w
   await page.getByRole('button', { name: 'Tra NCC / giá cũ cho 1 dòng đã chọn' }).click()
   await expect(page.getByRole('heading', { name: 'NCC và giá cũ cho dòng đã chọn' })).toBeVisible()
   await expect(page.getByRole('cell', { name: 'NCC mẫu A', exact: true })).toBeVisible()
-  expect(state.previewLookupCalls).toEqual([['row5']]); expect(state.confirmCalls).toHaveLength(0)
+  expect(state.previewLookupCalls.flat()).toContain('row5'); expect(state.confirmCalls).toHaveLength(0)
+})
+
+test('Mua hàng keeps the PCVT intake beside the PO grid and transfers an edited line without saving a PO', async ({ page }) => {
+  const state = await documentFixtures(page, [], ['IMPORT_OPERATIONAL', 'PRICE_READ', 'PO_CREATE', 'PO_READ', 'CATALOG_READ'])
+  await page.goto('/purchase-orders/new')
+  await expect(page.getByRole('heading', { name: 'Mua hàng' })).toBeVisible()
+  if (test.info().project.name === 'chromium-mobile') { await page.getByRole('button', { name: 'Mở menu' }).click(); await page.getByRole('link', { name: 'Mua hàng', exact: true }).click() }
+  if (test.info().project.name === 'chromium-desktop') {
+    await expect(page.getByRole('link', { name: 'Mua hàng', exact: true })).toHaveAttribute('aria-current', 'page')
+    await expect(page.getByRole('link', { name: 'Đơn mua hàng' })).not.toHaveAttribute('aria-current', 'page')
+  }
+  await upload(page)
+  await page.getByLabel('Lọc số phiếu nguồn').selectOption('1')
+  await page.getByRole('button', { name: /^Chọn tất cả 1 dòng$/ }).click()
+  await page.getByLabel('NCC hiện tại row5').selectOption('id:2')
+  await page.getByLabel('Giá hiện tại row5').fill('125000')
+  await page.getByRole('button', { name: 'Lập PO từ 1 dòng đã chọn' }).click()
+  await expect(page.getByText('Đã chuyển 1 dòng xuống bảng chuẩn bị đơn mua.')).toBeVisible()
+  await expect(page.getByLabel('Tên vật tư dòng 1')).toHaveValue('Thép kiểm thử')
+  await expect(page.getByLabel('Đơn giá dòng 1')).toHaveValue('125000')
+  await expect(page.getByLabel('Số lượng dòng 1')).toHaveValue('3')
+  expect(state.confirmCalls).toHaveLength(0)
 })
 
 test('PCVT price board transfers selected lines and current price into a new PO draft', async ({ page }) => {
@@ -29,7 +51,7 @@ test('PCVT price board transfers selected lines and current price into a new PO 
   await page.getByLabel('Giá hiện tại row5').fill('125000')
   await page.getByLabel('NCC hiện tại row5').selectOption('id:2')
   await page.getByRole('button', { name: 'Lập PO từ 1 dòng đã chọn' }).click()
-  await expect(page.getByRole('heading', { name: 'Lập đơn mua' })).toBeVisible()
+  await expect(page.getByRole('heading', { name: 'Mua hàng' })).toBeVisible()
   await expect(page.getByLabel('Tên vật tư dòng 1')).toHaveValue('Thép kiểm thử')
   await expect(page.getByLabel('Đơn giá dòng 1')).toHaveValue('125000')
   await expect(page.getByLabel('Số lượng dòng 1')).toHaveValue('3')

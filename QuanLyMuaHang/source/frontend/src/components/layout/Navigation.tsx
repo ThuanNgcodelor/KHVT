@@ -11,7 +11,7 @@ export function Navigation({ user, onNavigate, collapsed = false }: { user: Curr
   return <nav className="nav-list" aria-label="Điều hướng chính">
     {[...new Set(items.map((item) => item.group))].map((group) => <div className="nav-group" key={group}>
     <p className="nav-label">{group}</p>
-    {items.filter((item) => item.group === group).map((item) => <NavLink key={item.path} to={item.path}
+    {items.filter((item) => item.group === group).map((item) => <NavLink key={item.path} to={item.path} end={item.path === '/purchase-orders'}
       className={({ isActive }) => `nav-item ${isActive ? 'nav-item-active' : ''}`} onClick={onNavigate} title={collapsed ? item.label : undefined} aria-label={collapsed ? item.label : undefined}>
       <span className="nav-icon"><Icon name={item.icon} /></span>
       <span className="nav-copy"><strong>{item.label}</strong></span>

@@ -1,5 +1,9 @@
 # Frontend — Quản lý mua hàng KHVT
 
+### Mua hàng theo luồng PCVT (2026-10-13)
+
+Trang `/purchase-orders/new` là điểm bắt đầu cho nhập PCVT/báo giá và lập PO, sidebar trái giữ nguyên. Người dùng có thể chọn file, dán Excel hoặc nhập vật tư thủ công; preview PCVT tải lịch sử NCC/giá gần nhất cho trang đang xem, cho sửa giá/NCC hiện tại và chuyển các dòng đã chọn sang bảng PO. Sau khi rà các nhóm NCC, một xác nhận tạo từng PO, phát hành từng PDF và gửi tải. Nếu lỗi tạo PO, dừng trước phát hành; nếu lỗi phát hành một NCC, trạng thái được báo riêng và các NCC tiếp tục. Playwright desktop/mobile với API fixtures: 50/50; không thay thế kiểm thử database/backend thật. API chưa cung cấp idempotency/giao dịch theo lô; khi lỗi mạng lúc tạo, cần kiểm tra danh sách PO trước khi thử lại.
+
 React + TypeScript + Vite, tổ chức theo tính năng. Router quản lý trang, TanStack Query quản lý dữ liệu API, React Hook Form + Zod xử lý form và kiểm tra đầu vào.
 
 Phase 1 Quản trị ngày **2026-10-11**: cổng còn **Mua hàng và Quản trị**; danh bạ/phòng ban/chức vụ là danh mục trong Quản trị. Form tài khoản có mã nhân viên, phòng ban và chức vụ tùy chọn, lưu cùng hồ sơ qua một request; vẫn tạo được tài khoản độc lập hoặc liên kết hồ sơ đã có. Danh sách tìm kiếm/lọc trạng thái/phòng ban trên server, phân trang và thể hiện thông tin nhân viên. Vai trò backend đánh dấu `assignable`; người quản lý tài khoản không được cấp vai trò cao hơn phạm vi được giao. TypeScript/Vite build, **10 unit tests và 56 browser cases** auth/tài khoản/danh bạ trên desktop/mobile đã qua, log `source/target/runtime/admin-phase1-browser.log`. Browser cases dùng API fixtures; kết quả MySQL/Redis thật được ghi riêng trong [hệ thống hiện tại](../../docs/HE_THONG_HIEN_TAI.md). Chưa có grant/deny cá nhân hoặc giữ đăng nhập lâu dài.

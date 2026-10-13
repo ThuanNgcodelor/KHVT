@@ -14,7 +14,7 @@ export function AppShell() {
   const { pathname } = useLocation()
   if (!user) return null
   const initials = user.displayName.trim().split(/\s+/).slice(-2).map((part) => part[0]).join('').toUpperCase()
-  const title = pathname === '/purchase-orders/new' ? 'Lập đơn mua'
+  const title = pathname === '/purchase-orders/new' ? 'Mua hàng'
     : /^\/purchase-orders\/\d+\/edit$/.test(pathname) ? 'Sửa đơn mua'
     : /^\/purchase-orders\/\d+$/.test(pathname) ? 'Chi tiết đơn mua'
     : navigation.find((item) => pathname === item.path || pathname.startsWith(`${item.path}/`))?.label ?? 'Hệ thống'

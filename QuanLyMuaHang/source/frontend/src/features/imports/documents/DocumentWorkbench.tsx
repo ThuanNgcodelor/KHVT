@@ -7,15 +7,16 @@ import { useDocumentImports } from './useDocumentImports'
 import { DocumentPreview } from './DocumentPreview'
 import { HistoryReview } from './HistoryReview'
 import { ComparisonReview } from './ComparisonReview'
+import type { ImportedOrderDraft } from '../../procurement/types'
 import type { Confirmation, DocumentKind, HistoryLookup, InquirySelection, QuoteComparison } from './types'
 import './documents.css'
 
-export function DocumentWorkbench({ canReadPrices, canCreateOrders, onBusy }: { canReadPrices: boolean; canCreateOrders: boolean; onBusy: (busy: boolean) => void }) {
+export function DocumentWorkbench({ canReadPrices, canCreateOrders, onBusy, onCreateOrder, embedded = false }: { canReadPrices: boolean; canCreateOrders: boolean; onBusy: (busy: boolean) => void; onCreateOrder?: (draft: ImportedOrderDraft) => void; embedded?: boolean }) {
   const state = useDocumentImports(), { active, busy, run } = state
   const navigate = useNavigate()
-  const [kind, setKind] = useState<DocumentKind>('REQUEST'), [file, setFile] = useState<File | null>(null), [pasteText, setPasteText] = useState('')
+  const [kind, setKind] = useState<DocumentKind>('REQUEST'), [file, setFile] = useState<File | null>(null), [pasteText, setPasteText] = useState(''), [transferred, setTransferred] = useState(0)
   const [lookup, setLookup] = useState<HistoryLookup | null>(null), [comparison, setComparison] = useState<QuoteComparison | null>(null)
-  useEffect(() => { setLookup(null); setComparison(null) }, [state.id])
+  useEffect(() => { setLookup(null); setComparison(null); setTransferred(0) }, [state.id])
   useEffect(() => { onBusy(busy); return () => onBusy(false) }, [busy, onBusy])
   async function preview(sheet = '', pastedFile?: File) {
     await run(async () => {
@@ -35,7 +36,11 @@ export function DocumentWorkbench({ canReadPrices, canCreateOrders, onBusy }: { 
   }
   async function previewHistory(lineKeys: string[]) {
     if (!active) return
-    await run(async () => { setLookup(await documentApi.lookupPreview(active.id, lineKeys)); setComparison(null) })
+    await run(async () => {
+      const result = await documentApi.lookupPreview(active.id, lineKeys)
+      setLookup((current) => ({ lines: [...new Map([...(current?.lines ?? []), ...result.lines].map((line) => [line.lineKey, line])).values()] }))
+      setComparison(null)
+    })
   }
   async function compare() {
     if (!active) return
@@ -49,6 +54,10 @@ export function DocumentWorkbench({ canReadPrices, canCreateOrders, onBusy }: { 
       state.setNotice(download ? 'Đã lưu nhóm hỏi giá và tải XLSX. Kiểm tra nội dung trước khi gửi NCC.' : 'Đã lưu nhóm hỏi giá; mở lại PCVT để tiếp tục.')
     })
   }
+  function createOrder(draft: ImportedOrderDraft) {
+    if (onCreateOrder) { onCreateOrder(draft); setTransferred(draft.items.length) }
+    else navigate('/purchase-orders/new', { state: { importDraft: draft } })
+  }
   return <div className="document-workbench">
     <section className="panel import-panel document-intake"><div className="document-step-title"><span aria-hidden="true">1</span><div><h2>PCVT và báo giá mới</h2><p>Chọn file Excel, CSV hoặc PDF có chữ. Sau đó chọn dòng cần xử lý.</p></div></div>
       <fieldset disabled={busy}><div className="form-grid"><div className="form-field"><label htmlFor="document-kind">Loại chứng từ</label><select id="document-kind" value={kind} onChange={(event) => { setKind(event.target.value as DocumentKind); setFile(null) }}><option value="REQUEST">PCVT / yêu cầu cần mua</option><option value="QUOTATION">Báo giá nhà cung cấp</option></select></div><div className="form-field"><label htmlFor="document-file">Tệp PCVT / báo giá</label><input key={kind} id="document-file" type="file" accept=".xlsx,.xls,.csv,.pdf" onChange={(event) => setFile(event.target.files?.[0] ?? null)} /></div></div></fieldset>
@@ -61,7 +70,8 @@ export function DocumentWorkbench({ canReadPrices, canCreateOrders, onBusy }: { 
     </details>
     {state.id && state.detail.isPending && <p className="table-message" role="status">Đang mở chứng từ…</p>}
     {state.detail.isError && <p className="form-error" role="alert">{errorMessage(state.detail.error)} <button className="text-button" onClick={() => { void state.detail.refetch() }}>Thử lại</button></p>}
-    {active && <DocumentPreview key={`${active.id}-${active.status}`} document={active} requests={state.list.data?.filter((document) => document.kind === 'REQUEST' && !!document.confirmed) ?? []} busy={busy} lookup={lookup} onConfirm={(data) => { void confirm(data) }} onSource={() => { void run(async () => saveDownload(await documentApi.source(active.id))) }} onSheet={(name) => { void preview(name) }} onLookup={canReadPrices ? (keys) => { void previewHistory(keys) } : undefined} onCreateOrder={canCreateOrders ? (importDraft) => navigate('/purchase-orders/new', { state: { importDraft } }) : undefined} />}
+    {active && embedded && transferred > 0 && <section className="panel import-note" role="status"><strong>Đã chuyển {transferred} dòng xuống bảng chuẩn bị đơn mua.</strong><div className="header-actions"><span>PCVT gốc vẫn giữ nguyên để đối chiếu.</span><button className="text-button" type="button" onClick={() => setTransferred(0)}>Xem lại bảng PCVT</button></div></section>}
+    {active && !(embedded && transferred > 0) && <DocumentPreview key={`${active.id}-${active.status}`} document={active} requests={state.list.data?.filter((document) => document.kind === 'REQUEST' && !!document.confirmed) ?? []} busy={busy} lookup={lookup} onConfirm={(data) => { void confirm(data) }} onSource={() => { void run(async () => saveDownload(await documentApi.source(active.id))) }} onSheet={(name) => { void preview(name) }} onLookup={canReadPrices ? (keys) => { void previewHistory(keys) } : undefined} onCreateOrder={canCreateOrders ? createOrder : undefined} />}
     {active?.confirmed && active.kind === 'REQUEST' && <section className="panel import-panel"><h2>Tra cứu cho PCVT đã lưu</h2>{active.sourceDocumentId && active.sourceDocumentId !== active.id && <button className="secondary-button" disabled={busy} onClick={() => { state.open(active.sourceDocumentId!); setFile(null) }}>Nhập phiếu khác từ cùng sổ</button>}{canReadPrices ? <div className="header-actions"><button className="primary-button" disabled={busy} onClick={() => { void history() }}>Tra NCC và giá cũ</button><button className="secondary-button" disabled={busy} onClick={() => { void compare() }}>Xem so sánh báo giá</button></div> : <p className="field-help">Tài khoản chưa có quyền tra giá. Liên hệ quản trị để được cấp quyền phù hợp.</p>}<p className="field-help">Báo giá mới cần chọn đúng PCVT và liên kết từng dòng sau khi đối chiếu tên, quy cách, ĐVT.</p></section>}
     {active && lookup && <HistoryReview key={active.id} document={active} lookup={lookup} busy={busy} onSave={(choices) => { void inquiries(choices, false) }} onExport={(choices) => { void inquiries(choices, true) }} />}
     {comparison && <ComparisonReview comparison={comparison} busy={busy} />}
