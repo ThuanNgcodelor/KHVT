@@ -54,6 +54,7 @@ class PurchaseOrderDocumentTest {
     @Test void downloadsStoredBytesWithoutChangingCancelledOrder() throws Exception {
         var order = order(); order.cancel("Test cancellation");
         var file = temp.resolve("purchase-orders/7/r1.pdf"); Files.createDirectories(file.getParent()); Files.write(file, new byte[]{1,2,3});
+        when(documents.findByPurchaseOrderIdAndRevisionAndDocumentType(7L, order.getRevision(), "PO_PDF_V5")).thenReturn(Optional.empty());
         when(documents.findByPurchaseOrderIdAndRevisionAndDocumentType(7L, order.getRevision(), "PO_PDF_V4")).thenReturn(Optional.empty());
         when(documents.findByPurchaseOrderIdAndRevisionAndDocumentType(7L, order.getRevision(), "PO_PDF_V3")).thenReturn(Optional.empty());
         when(documents.findByPurchaseOrderIdAndRevisionAndDocumentType(7L, order.getRevision(), "PO_PDF_V2")).thenReturn(Optional.empty());
@@ -63,10 +64,19 @@ class PurchaseOrderDocumentTest {
         verifyNoInteractions(history, audit); assertThat(order.getStatus().name()).isEqualTo("CANCELLED");
         assertThatThrownBy(() -> service().issue(7L, 1L)).isInstanceOf(ApiException.class).hasMessageContaining("hủy");
     }
-    @Test void downloadsV3WhenNoV4ArtifactExists() throws Exception {
+    @Test void downloadsV4WhenNoV5ArtifactExists() throws Exception {
+        var order = order();
+        var file = temp.resolve("purchase-orders/7/r1-v4.pdf"); Files.createDirectories(file.getParent()); Files.write(file, new byte[]{4, 4, 4});
+        var oldV4 = new GeneratedDocument(7L, order.getRevision(), "PO_PDF_V4", "previous-template.pdf", "purchase-orders/7/r1-v4.pdf", "application/pdf", "old-v4-checksum", 1L);
+        when(documents.findByPurchaseOrderIdAndRevisionAndDocumentType(7L, order.getRevision(), "PO_PDF_V5")).thenReturn(Optional.empty());
+        when(documents.findByPurchaseOrderIdAndRevisionAndDocumentType(7L, order.getRevision(), "PO_PDF_V4")).thenReturn(Optional.of(oldV4));
+        assertThat(service().pdf(7L, 1L).content()).containsExactly(4, 4, 4);
+    }
+    @Test void downloadsV3WhenNoV5OrV4ArtifactExists() throws Exception {
         var order = order();
         var file = temp.resolve("purchase-orders/7/r1-v3.pdf"); Files.createDirectories(file.getParent()); Files.write(file, new byte[]{3, 3, 3});
         var oldV3 = new GeneratedDocument(7L, order.getRevision(), "PO_PDF_V3", "previous-template.pdf", "purchase-orders/7/r1-v3.pdf", "application/pdf", "old-v3-checksum", 1L);
+        when(documents.findByPurchaseOrderIdAndRevisionAndDocumentType(7L, order.getRevision(), "PO_PDF_V5")).thenReturn(Optional.empty());
         when(documents.findByPurchaseOrderIdAndRevisionAndDocumentType(7L, order.getRevision(), "PO_PDF_V4")).thenReturn(Optional.empty());
         when(documents.findByPurchaseOrderIdAndRevisionAndDocumentType(7L, order.getRevision(), "PO_PDF_V3")).thenReturn(Optional.of(oldV3));
         assertThat(service().pdf(7L, 1L).content()).containsExactly(3, 3, 3);
@@ -75,6 +85,7 @@ class PurchaseOrderDocumentTest {
         var order = order();
         var file = temp.resolve("purchase-orders/7/r1-v2.pdf"); Files.createDirectories(file.getParent()); Files.write(file, new byte[]{2, 2, 2});
         var oldV2 = new GeneratedDocument(7L, order.getRevision(), "PO_PDF_V2", "older-template.pdf", "purchase-orders/7/r1-v2.pdf", "application/pdf", "old-v2-checksum", 1L);
+        when(documents.findByPurchaseOrderIdAndRevisionAndDocumentType(7L, order.getRevision(), "PO_PDF_V5")).thenReturn(Optional.empty());
         when(documents.findByPurchaseOrderIdAndRevisionAndDocumentType(7L, order.getRevision(), "PO_PDF_V4")).thenReturn(Optional.empty());
         when(documents.findByPurchaseOrderIdAndRevisionAndDocumentType(7L, order.getRevision(), "PO_PDF_V3")).thenReturn(Optional.empty());
         when(documents.findByPurchaseOrderIdAndRevisionAndDocumentType(7L, order.getRevision(), "PO_PDF_V2")).thenReturn(Optional.of(oldV2));
@@ -83,7 +94,7 @@ class PurchaseOrderDocumentTest {
     @Test void reissueCreatesVersionedCurrentTemplateAndKeepsLegacyArtifact() throws Exception {
         var order = order();
         var legacy = new GeneratedDocument(7L, order.getRevision(), "PO_PDF", "legacy.pdf", "purchase-orders/7/r1.pdf", "application/pdf", "legacy-checksum", 1L);
-        when(documents.findByPurchaseOrderIdAndRevisionAndDocumentType(7L, order.getRevision(), "PO_PDF_V4")).thenReturn(Optional.empty());
+        when(documents.findByPurchaseOrderIdAndRevisionAndDocumentType(7L, order.getRevision(), "PO_PDF_V5")).thenReturn(Optional.empty());
         var oldV2 = new GeneratedDocument(7L, order.getRevision(), "PO_PDF_V2", "older-template.pdf", "purchase-orders/7/r1-v2.pdf", "application/pdf", "old-v2-checksum", 1L);
         when(documents.findByPurchaseOrderIdAndRevisionAndDocumentType(7L, order.getRevision(), "PO_PDF_V2")).thenReturn(Optional.of(oldV2));
         when(documents.findByPurchaseOrderIdAndRevisionAndDocumentType(7L, order.getRevision(), "PO_PDF")).thenReturn(Optional.of(legacy));
@@ -94,10 +105,10 @@ class PurchaseOrderDocumentTest {
         }
         var saved = org.mockito.ArgumentCaptor.forClass(GeneratedDocument.class);
         verify(documents).save(saved.capture());
-        assertThat(ReflectionTestUtils.getField(saved.getValue(), "documentType")).isEqualTo("PO_PDF_V4");
+        assertThat(ReflectionTestUtils.getField(saved.getValue(), "documentType")).isEqualTo("PO_PDF_V5");
         assertThat(saved.getValue().getContentType()).isEqualTo("application/pdf");
-        assertThat(saved.getValue().getStorageKey()).isEqualTo("purchase-orders/7/r1-v4.pdf");
-        when(documents.findByPurchaseOrderIdAndRevisionAndDocumentType(7L, order.getRevision(), "PO_PDF_V4"))
+        assertThat(saved.getValue().getStorageKey()).isEqualTo("purchase-orders/7/r1-v5.pdf");
+        when(documents.findByPurchaseOrderIdAndRevisionAndDocumentType(7L, order.getRevision(), "PO_PDF_V5"))
                 .thenReturn(Optional.of(saved.getValue()));
         assertThat(service().pdf(7L, 1L).content()).containsExactly(4, 5, 6);
         verify(documents, never()).delete(oldV2);
@@ -114,7 +125,7 @@ class PurchaseOrderDocumentTest {
         try (var pdf = Loader.loadPDF(bytes)) {
             String extracted = new PDFTextStripper().getText(pdf).replaceAll("\\s+", " ");
             assertThat(pdf.getNumberOfPages()).isGreaterThan(1);
-            assertThat(extracted).contains("PHÂN BÓN VÀ HÓA CHẤT CẦN THƠ", "ĐƠN ĐẶT HÀNG", "Ngày: 10/10/2026", "Qua cân thực tế", "TRƯỞNG P. KHVT", "TỔNG GIÁM ĐỐC", "SỐ LƯỢNG", "ĐƠN GIÁ CHƯA VAT");
+            assertThat(extracted).contains("PHÂN BÓN VÀ HÓA CHẤT CẦN THƠ", "ĐƠN ĐẶT HÀNG", "Ngày: 10 / 10 / 2026", "Qua cân thực tế", "TRƯỞNG P. KHVT", "TỔNG GIÁM ĐỐC", "SỐ LƯỢNG", "ĐƠN GIÁ CHƯA VAT");
             assertThat(extracted).contains("2,00");
             assertThat(extracted).doesNotContain("THÀNH TIỀN", "Tạm tính", "Tổng cộng", "VAT 8%", "Loại tiền");
             assertThat(extracted).contains("STT", "TÊN HÀNG");
@@ -133,7 +144,7 @@ class PurchaseOrderDocumentTest {
         try (var pdf = Loader.loadPDF(bytes)) {
             String extracted = new PDFTextStripper().getText(pdf).replaceAll("\\s+", " ");
             assertThat(pdf.getNumberOfPages()).isEqualTo(1);
-            assertThat(extracted).contains("Số PO: PO-TEST-01", "Ngày: 10/10/2026", "Bên Bán:", "Địa Chỉ:", "Ghi chú:",
+            assertThat(extracted).contains("Số PO: PO-TEST-01", "Ngày: 10 / 10 / 2026", "Bên Bán:", "Địa Chỉ:", "Ghi chú:",
                     "Chỉ may bao công nghiệp", "PE 20/9 Màu đỏ", "ĐVT", "SỐ LƯỢNG", "ĐƠN GIÁ CHƯA VAT (VND)", "NGƯỜI LẬP", "TRƯỞNG P. KHVT");
             assertThat(extracted).contains("50,00");
             assertThat(extracted).doesNotContain("THÀNH TIỀN", "Tạm tính", "Tổng cộng", "VAT 8%");

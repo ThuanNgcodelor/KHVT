@@ -21,10 +21,10 @@ import java.util.List;
 
 /** Native PDF counterpart of legacy buildPoHtml_; does not evaluate workbook HTML. */
 final class PurchaseOrderPdfRenderer {
-    private static final float LEFT = 40, WIDTH = 515;
+    private static final float LEFT = 48, WIDTH = 500;
     // Match the compact six-column grid in the approved PO reference.
     // Specification and unit wrap naturally; numeric columns get more width.
-    private static final float[] COLUMNS = {31, 155, 57, 42, 98, 132};
+    private static final float[] COLUMNS = {32, 184, 65, 40, 80, 99};
     private static final Color NAVY = new Color(31, 56, 100);
     private static final Color HEADER_FILL = Color.WHITE;
     private final PDDocument document;
@@ -52,32 +52,32 @@ final class PurchaseOrderPdfRenderer {
             row(List.of(Integer.toString(item.lineNo()), safe(item.materialName()), safe(item.specification()), safe(item.unit()),
                     safe(quantity), money(item.unitPrice())), false);
         }
-        ensure(100, false); y -= 28;
+        ensure(100, false); y -= 37;
         String[] roles = {"NGƯỜI LẬP", "TRƯỞNG P. KHVT", "TỔNG GIÁM ĐỐC"};
         for (int i = 0; i < roles.length; i++) {
-            centeredBold(roles[i], LEFT + WIDTH * i / 3, WIDTH / 3, y, 10, NAVY);
-            centered("(Ký, họ tên)", LEFT + WIDTH * i / 3, WIDTH / 3, y - 16, 8, Color.GRAY);
+            centeredBold(roles[i], LEFT + WIDTH * i / 3, WIDTH / 3, y, 9, NAVY);
+            centered("(Ký, họ tên)", LEFT + WIDTH * i / 3, WIDTH / 3, y - 10, 8, Color.GRAY);
         }
-        if (order.preparedBy() != null) centered(order.preparedBy(), LEFT, WIDTH / 3, y - 50, 9, Color.BLACK);
+        if (order.preparedBy() != null) centered(order.preparedBy(), LEFT, WIDTH / 3, y - 34, 9, Color.BLACK);
         stream.close();
     }
     private void newPage(boolean continuation) throws IOException {
         boolean first = document.getNumberOfPages() == 0;
         if (stream != null) stream.close();
         var page = new PDPage(PDRectangle.A4); document.addPage(page);
-        stream = new PDPageContentStream(document, page); y = 780;
+        stream = new PDPageContentStream(document, page); y = 787;
         if (first) {
             centered("TẬP ĐOÀN HÓA CHẤT VIỆT NAM", LEFT, WIDTH, y, 8, Color.GRAY); y -= 13;
-            centeredBold("CÔNG TY CỔ PHẦN PHÂN BÓN VÀ HÓA CHẤT CẦN THƠ", LEFT, WIDTH, y, 11, NAVY); y -= 13;
+            centeredBold("CÔNG TY CỔ PHẦN PHÂN BÓN VÀ HÓA CHẤT CẦN THƠ", LEFT, WIDTH, y, 12, NAVY); y -= 13;
             centered("KCN Trà Nóc 1, Phường Thới An Đông, TP Cần Thơ | ĐT: (0292) 3.841.599 | www.cfccobay.com", LEFT, WIDTH, y, 7, Color.BLACK); y -= 9;
-            stream.setStrokingColor(NAVY); stream.setLineWidth(2); stream.moveTo(LEFT, y); stream.lineTo(LEFT + WIDTH, y); stream.stroke(); y -= 18;
+            stream.setStrokingColor(NAVY); stream.setLineWidth(2); stream.moveTo(LEFT, y); stream.lineTo(LEFT + WIDTH, y); stream.stroke(); y -= 26;
             centeredBold("ĐƠN ĐẶT HÀNG", LEFT, WIDTH, y, 16, Color.BLACK); y -= 17;
             poMetadata(); y -= 22;
             text("THÔNG TIN NHÀ CUNG CẤP", LEFT + 8, y, 8.5f, Color.GRAY); y -= 15;
             supplierField("Bên Bán:", order.supplierName());
             supplierField("Địa Chỉ:", safe(order.supplierAddress()));
             if (order.note() != null && !order.note().isBlank()) supplierField("Ghi chú:", order.note());
-            y -= 11;
+            y -= 1;
         } else {
             text("ĐƠN ĐẶT HÀNG " + order.poNumber() + " (tiếp)", LEFT, y, 11, NAVY); y -= 25;
         }
@@ -87,12 +87,13 @@ final class PurchaseOrderPdfRenderer {
     private void row(List<String> cells, boolean header) throws IOException {
         List<List<String>> wrapped = new ArrayList<>(); int count = 1;
         for (int i = 0; i < cells.size(); i++) {
+            float horizontalPadding = i == 1 ? 20 : 10;
             var lines = header && i == 5
                     ? List.of("ĐƠN GIÁ CHƯA", "VAT (VND)")
-                    : wrap(cells.get(i), COLUMNS[i] - 10, header ? 7.5f : 8.5f, header || i == 1);
+                    : wrap(cells.get(i), COLUMNS[i] - horizontalPadding, header ? 7.5f : 8.5f, header || i == 1);
             wrapped.add(lines); count = Math.max(count, lines.size());
         }
-        float lineHeight = header ? 10 : 11;
+        float lineHeight = header ? 8 : 10;
         float height = Math.max(header ? 28 : 25, count * lineHeight + 12);
         if (!header) ensure(height, true);
         float x = LEFT;
@@ -125,11 +126,11 @@ final class PurchaseOrderPdfRenderer {
         List<String> lines = wrap(value == null || value.isBlank() ? "—" : value, WIDTH - (valueX - LEFT), 9, false);
         ensure(lines.size() * 13, false);
         textBold(label, labelX, y, 9, Color.BLACK);
-        for (String line : lines) { text(line, valueX, y, 9, Color.BLACK); y -= 13; }
+        for (String line : lines) { text(line, valueX, y, 9, Color.BLACK); y -= 17; }
     }
     private void poMetadata() throws IOException {
         String prefix = "Số PO: ", number = safe(order.poNumber());
-        String suffix = "    Ngày: " + (order.orderDate() == null ? "Chưa xác định" : order.orderDate().format(DateTimeFormatter.ofPattern("dd/MM/uuuu")));
+        String suffix = "    Ngày: " + (order.orderDate() == null ? "Chưa xác định" : order.orderDate().format(DateTimeFormatter.ofPattern("dd / MM / uuuu")));
         float total = measure(prefix, 9, false) + measure(number, 9, true) + measure(suffix, 9, false);
         float x = LEFT + (WIDTH - total) / 2;
         text(prefix, x, y, 9, Color.BLACK); x += measure(prefix, 9, false);
