@@ -262,3 +262,10 @@ Ki?m tra frontend trong lu?t n�y: npm.cmd run build th�nh c�ng; npm.cmd te
 Đã tích hợp nhập PCVT/báo giá vào trang `/purchase-orders/new`, giữ sidebar bên trái. Từ trang này có thể nhập tệp hoặc dán Excel, duyệt preview, tự tải lịch sử giá/NCC cho trang dòng đang xem, sửa giá/NCC hiện tại rồi chuyển dòng được chọn vào bảng PO. Đơn theo nhiều NCC tiếp tục được chia thành các nhóm bản nháp; phát hành vẫn là thao tác riêng. Menu chỉ tô sáng đúng “Mua hàng” trên trang lập đơn.
 
 Xác minh UI Mua hàng ngày 2026-10-13: một xác nhận tạo PO theo từng NCC, phát hành và gửi tải từng PDF; lỗi một NCC được báo riêng, luồng tiếp tục NCC kế tiếp. `npm.cmd run build` qua; `npm.cmd test -- --run` 10/10; Playwright `tests/e2e/documents.spec.ts tests/e2e/purchasing.spec.ts` 50/50 trên Chromium desktop/mobile; `git diff --check` qua. Browser tests dùng API fixtures, không kết nối database hay xác minh backend thật. Không truy cập production. Vì API chưa có giao dịch/idempotency theo lô, lỗi mạng khi tạo PO cần kiểm tra danh sách đơn trước khi thử lại; Plan 17 chưa nghiệm thu đầy đủ.
+
+## Cập nhật mẫu PDF PO — 2026-10-13
+
+Bản render hiện chia bảng 6 cột theo mẫu ảnh 3; cột quy cách và ĐVT xuống dòng, tiêu đề đơn giá xuống hai dòng. Số lượng số luôn có tối thiểu hai chữ số thập phân (ví dụ `50,00`), còn số lượng nhập dạng chữ được giữ nguyên. `PurchaseOrderDocumentTest`: 6/6 qua với Arial trên Windows; ảnh kiểm tra tại `source/target/runtime/pdf-template-test.png`. Đây là kiểm tra renderer bằng dữ liệu tổng hợp; chưa build JAR hoặc phát hành lại PO thật, và không đụng production.
+## Cập nhật chẩn đoán PDF — 2026-10-13
+
+Nguyên nhân file cũ không đổi sau khi sửa renderer: artifact đã phát hành được lưu theo PO/revision; tải xuống ưu tiên artifact đó, và cùng version V3 thì phát hành lại cũng có thể trả file V3 đã lưu. Renderer hiện tăng lên V4, ghi ra `-v4.pdf`; tải xuống ưu tiên V4 rồi fallback V3/V2/legacy để giữ file cũ. Đã cân lại cột theo mẫu ảnh và chạy `PurchaseOrderDocumentTest` 7/7 qua với Arial; ảnh render dùng dữ liệu tổng hợp. Chưa đóng gói/restart ứng dụng hoặc tạo lại PDF PO thật.

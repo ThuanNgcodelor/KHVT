@@ -22,11 +22,9 @@ import java.util.List;
 /** Native PDF counterpart of legacy buildPoHtml_; does not evaluate workbook HTML. */
 final class PurchaseOrderPdfRenderer {
     private static final float LEFT = 40, WIDTH = 515;
-    // Keep the grid inside the A4 content width. Give unit and numeric columns
-    // enough room for readable values while preserving a wide material name.
-    // Proportions follow PO-261012-02: a wide item name, compact specification,
-    // and enough room for quantity and the wrapped unit-price heading.
-    private static final float[] COLUMNS = {28, 176, 96, 46, 90, 79};
+    // Match the compact six-column grid in the approved PO reference.
+    // Specification and unit wrap naturally; numeric columns get more width.
+    private static final float[] COLUMNS = {31, 155, 57, 42, 98, 132};
     private static final Color NAVY = new Color(31, 56, 100);
     private static final Color HEADER_FILL = Color.WHITE;
     private final PDDocument document;
@@ -88,7 +86,12 @@ final class PurchaseOrderPdfRenderer {
     private void ensure(float height, boolean table) throws IOException { if (y - height < 55) newPage(table); }
     private void row(List<String> cells, boolean header) throws IOException {
         List<List<String>> wrapped = new ArrayList<>(); int count = 1;
-        for (int i = 0; i < cells.size(); i++) { var lines = wrap(cells.get(i), COLUMNS[i] - 10, header ? 7.5f : 8.5f, header || i == 1); wrapped.add(lines); count = Math.max(count, lines.size()); }
+        for (int i = 0; i < cells.size(); i++) {
+            var lines = header && i == 5
+                    ? List.of("ĐƠN GIÁ CHƯA", "VAT (VND)")
+                    : wrap(cells.get(i), COLUMNS[i] - 10, header ? 7.5f : 8.5f, header || i == 1);
+            wrapped.add(lines); count = Math.max(count, lines.size());
+        }
         float lineHeight = header ? 10 : 11;
         float height = Math.max(header ? 28 : 25, count * lineHeight + 12);
         if (!header) ensure(height, true);
@@ -182,7 +185,7 @@ final class PurchaseOrderPdfRenderer {
     private String money(BigDecimal value) { return value == null ? "" : number(value, false); }
     private String number(BigDecimal value, boolean quantity) {
         DecimalFormatSymbols symbols = DecimalFormatSymbols.getInstance(Locale.forLanguageTag("vi-VN"));
-        DecimalFormat format = new DecimalFormat(quantity ? "#,##0.####" : "#,##0.##", symbols);
+        DecimalFormat format = new DecimalFormat(quantity ? "#,##0.00##" : "#,##0.##", symbols);
         format.setRoundingMode(java.math.RoundingMode.HALF_UP);
         return format.format(value);
     }
