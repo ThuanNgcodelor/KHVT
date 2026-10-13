@@ -22,15 +22,13 @@ import java.util.List;
 /** Native PDF counterpart of legacy buildPoHtml_; does not evaluate workbook HTML. */
 final class PurchaseOrderPdfRenderer {
     private static final float LEFT = 48, WIDTH = 500;
-    // Match the compact six-column grid in the approved PO reference.
-    // Specification and unit wrap naturally; numeric columns get more width.
-    private static final float[] COLUMNS = {32, 184, 65, 40, 80, 99};
     private static final Color NAVY = new Color(31, 56, 100);
     private static final Color HEADER_FILL = Color.WHITE;
     private final PDDocument document;
     private final PDType0Font font;
     private final PDType0Font boldFont;
     private final PurchaseOrderService.OrderView order;
+    private float[] columns;
     private PDPageContentStream stream;
     private float y;
 
@@ -46,11 +44,13 @@ final class PurchaseOrderPdfRenderer {
         } catch (IOException exception) { throw new IllegalStateException("Không thể tạo PDF đơn mua", exception); }
     }
     private void draw() throws IOException {
+        columns = columnWidths();
         newPage(false);
-        for (var item : order.items()) {
+        for (int i = 0; i < order.items().size(); i++) {
+            var item = order.items().get(i);
             String quantity = item.quantity() == null ? item.quantityText() : number(item.quantity(), true);
             row(List.of(Integer.toString(item.lineNo()), safe(item.materialName()), safe(item.specification()), safe(item.unit()),
-                    safe(quantity), money(item.unitPrice())), false);
+                    safe(quantity), money(item.unitPrice())), false, i == order.items().size() - 1 ? 100 : 0);
         }
         ensure(100, false); y -= 37;
         String[] roles = {"NGƯỜI LẬP", "TRƯỞNG P. KHVT", "TỔNG GIÁM ĐỐC"};
@@ -81,51 +81,69 @@ final class PurchaseOrderPdfRenderer {
         } else {
             text("ĐƠN ĐẶT HÀNG " + order.poNumber() + " (tiếp)", LEFT, y, 11, NAVY); y -= 25;
         }
-        if (first || continuation) row(List.of("STT", "TÊN HÀNG HÓA / VẬT TƯ", "QUY CÁCH / MÔ TẢ", "ĐVT", "SỐ LƯỢNG", "ĐƠN GIÁ CHƯA VAT (VND)"), true);
+        if (first || continuation) row(List.of("STT", "TÊN HÀNG HÓA / VẬT TƯ", "QUY CÁCH / MÔ TẢ", "ĐVT", "SỐ LƯỢNG", "ĐƠN GIÁ CHƯA VAT (" + order.currency() + ")"), true);
+    }
+    private float[] columnWidths() throws IOException {
+        // Both reference forms keep the numeric columns fixed and share the
+        // remaining width between name and specification. Compute this once per
+        // order so every row and continuation page has the same column edges.
+        float nameWidth = 0, specificationWidth = 0;
+        for (var item : order.items()) {
+            nameWidth = Math.max(nameWidth, measure(safe(item.materialName()), 8.5f, true) + 10);
+            specificationWidth = Math.max(specificationWidth, measure(safe(item.specification()), 8.5f, false) + 10);
+        }
+        float sharedWidth = 249;
+        float name = nameWidth + specificationWidth == 0 ? 184
+                : Math.max(72, Math.min(184, sharedWidth * nameWidth / (nameWidth + specificationWidth)));
+        return new float[]{32, name, sharedWidth - name, 40, 80, 99};
     }
     private void ensure(float height, boolean table) throws IOException { if (y - height < 55) newPage(table); }
     private void row(List<String> cells, boolean header) throws IOException {
+        row(cells, header, 0);
+    }
+    private void row(List<String> cells, boolean header, float reserveAfter) throws IOException {
         List<List<String>> wrapped = new ArrayList<>(); int count = 1;
+        var currency = order.currency();
+        String currencyLabel = currency == null || currency.name().equalsIgnoreCase("VND") ? "VNĐ" : currency.name();
         for (int i = 0; i < cells.size(); i++) {
             float horizontalPadding = i == 1 ? 20 : 10;
             var lines = header && i == 5
-                    ? List.of("ĐƠN GIÁ CHƯA", "VAT (VND)")
-                    : wrap(cells.get(i), COLUMNS[i] - horizontalPadding, header ? 7.5f : 8.5f, header || i == 1);
+                    ? List.of("ĐƠN GIÁ CHƯA VAT", "(" + currencyLabel + ")")
+                    : wrap(cells.get(i), columns[i] - horizontalPadding, header ? 7.5f : 8.5f, header || i == 1);
             wrapped.add(lines); count = Math.max(count, lines.size());
         }
-        float lineHeight = header ? 8 : 10;
-        float height = Math.max(header ? 28 : 25, count * lineHeight + 12);
-        if (!header) ensure(height, true);
+        float lineHeight = header ? 8.5f : 11.0f;
+        float height = Math.max(header ? 30f : 28f, count * lineHeight + (header ? 13f : 16f));
+        if (!header) ensure(height + reserveAfter, true);
         float x = LEFT;
         for (int i = 0; i < cells.size(); i++) {
             if (header) {
-                stream.setNonStrokingColor(HEADER_FILL); stream.addRect(x, y - height, COLUMNS[i], height); stream.fill();
+                stream.setNonStrokingColor(HEADER_FILL); stream.addRect(x, y - height, columns[i], height); stream.fill();
             }
-            stream.setStrokingColor(header ? NAVY : new Color(145, 155, 165)); stream.setLineWidth(header ? .7f : .5f); stream.addRect(x, y - height, COLUMNS[i], height); stream.stroke();
-            float blockHeight = wrapped.get(i).size() * lineHeight;
-            float lineY = y - (height + blockHeight) / 2 + lineHeight - (header ? 1 : 2);
+            stream.setStrokingColor(header ? NAVY : new Color(145, 155, 165)); stream.setLineWidth(header ? .7f : .5f); stream.addRect(x, y - height, columns[i], height); stream.stroke();
+            float size = header ? 7.5f : 8.5f;
+            float opticalOffset = header ? 2.6f : 3.0f;
+            float lineY = (y - height / 2.0f) + (wrapped.get(i).size() - 1) * lineHeight / 2.0f - opticalOffset;
             for (String line : wrapped.get(i)) {
-                float size = header ? 7.5f : 8.5f;
                 boolean emphasize = header || i == 1;
                 float textWidth = measure(line, size, emphasize);
                 float textX;
-                if (header) textX = x + (COLUMNS[i] - textWidth) / 2;
-                else if (i == 0 || i == 3) textX = x + (COLUMNS[i] - textWidth) / 2;
-                else if (i == 4 || i == 5) textX = x + COLUMNS[i] - 5 - textWidth;
+                if (header || i == 0 || i == 2 || i == 3) textX = x + (columns[i] - textWidth) / 2;
+                else if (i == 4 || i == 5) textX = x + columns[i] - 5 - textWidth;
                 else textX = x + 5;
-                if (emphasize) textBold(line, textX, lineY, size, header ? NAVY : Color.BLACK);
+                if (emphasize) textBold(line, textX, lineY, size, Color.BLACK);
                 else text(line, textX, lineY, size, Color.BLACK);
                 lineY -= lineHeight;
             }
-            x += COLUMNS[i];
+            x += columns[i];
         }
         y -= height;
     }
     private void supplierField(String label, String value) throws IOException {
         float labelX = LEFT + 8, valueX = LEFT + 108;
         List<String> lines = wrap(value == null || value.isBlank() ? "—" : value, WIDTH - (valueX - LEFT), 9, false);
-        ensure(lines.size() * 13, false);
-        textBold(label, labelX, y, 9, Color.BLACK);
+        ensure(lines.size() * 17, false);
+        textBold(label, labelX, y - (lines.size() - 1) * 17 / 2f, 9, Color.BLACK);
         for (String line : lines) { text(line, valueX, y, 9, Color.BLACK); y -= 17; }
     }
     private void poMetadata() throws IOException {

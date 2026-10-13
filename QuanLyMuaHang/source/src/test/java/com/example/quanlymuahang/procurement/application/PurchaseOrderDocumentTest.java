@@ -54,7 +54,7 @@ class PurchaseOrderDocumentTest {
     @Test void downloadsStoredBytesWithoutChangingCancelledOrder() throws Exception {
         var order = order(); order.cancel("Test cancellation");
         var file = temp.resolve("purchase-orders/7/r1.pdf"); Files.createDirectories(file.getParent()); Files.write(file, new byte[]{1,2,3});
-        when(documents.findByPurchaseOrderIdAndRevisionAndDocumentType(7L, order.getRevision(), "PO_PDF_V5")).thenReturn(Optional.empty());
+        when(documents.findByPurchaseOrderIdAndRevisionAndDocumentType(7L, order.getRevision(), "PO_PDF_V6")).thenReturn(Optional.empty());
         when(documents.findByPurchaseOrderIdAndRevisionAndDocumentType(7L, order.getRevision(), "PO_PDF_V4")).thenReturn(Optional.empty());
         when(documents.findByPurchaseOrderIdAndRevisionAndDocumentType(7L, order.getRevision(), "PO_PDF_V3")).thenReturn(Optional.empty());
         when(documents.findByPurchaseOrderIdAndRevisionAndDocumentType(7L, order.getRevision(), "PO_PDF_V2")).thenReturn(Optional.empty());
@@ -64,28 +64,36 @@ class PurchaseOrderDocumentTest {
         verifyNoInteractions(history, audit); assertThat(order.getStatus().name()).isEqualTo("CANCELLED");
         assertThatThrownBy(() -> service().issue(7L, 1L)).isInstanceOf(ApiException.class).hasMessageContaining("hủy");
     }
-    @Test void downloadsV4WhenNoV5ArtifactExists() throws Exception {
+    @Test void downloadsV5WhenNoV6ArtifactExistsWithoutRegenerating() throws Exception {
+        var order = order();
+        var file = temp.resolve("purchase-orders/7/r1-v5.pdf"); Files.createDirectories(file.getParent()); Files.write(file, new byte[]{5, 5, 5});
+        var oldV5 = new GeneratedDocument(7L, order.getRevision(), "PO_PDF_V5", "previous-template.pdf", "purchase-orders/7/r1-v5.pdf", "application/pdf", "old-v5-checksum", 1L);
+        when(documents.findByPurchaseOrderIdAndRevisionAndDocumentType(7L, order.getRevision(), "PO_PDF_V5")).thenReturn(Optional.of(oldV5));
+        assertThat(service().pdf(7L, 1L).content()).containsExactly(5, 5, 5);
+        verifyNoInteractions(history, audit); verify(documents, never()).save(any());
+    }
+    @Test void downloadsV4WhenNoNewerArtifactExists() throws Exception {
         var order = order();
         var file = temp.resolve("purchase-orders/7/r1-v4.pdf"); Files.createDirectories(file.getParent()); Files.write(file, new byte[]{4, 4, 4});
         var oldV4 = new GeneratedDocument(7L, order.getRevision(), "PO_PDF_V4", "previous-template.pdf", "purchase-orders/7/r1-v4.pdf", "application/pdf", "old-v4-checksum", 1L);
-        when(documents.findByPurchaseOrderIdAndRevisionAndDocumentType(7L, order.getRevision(), "PO_PDF_V5")).thenReturn(Optional.empty());
+        when(documents.findByPurchaseOrderIdAndRevisionAndDocumentType(7L, order.getRevision(), "PO_PDF_V6")).thenReturn(Optional.empty());
         when(documents.findByPurchaseOrderIdAndRevisionAndDocumentType(7L, order.getRevision(), "PO_PDF_V4")).thenReturn(Optional.of(oldV4));
         assertThat(service().pdf(7L, 1L).content()).containsExactly(4, 4, 4);
     }
-    @Test void downloadsV3WhenNoV5OrV4ArtifactExists() throws Exception {
+    @Test void downloadsV3WhenNoNewerArtifactExists() throws Exception {
         var order = order();
         var file = temp.resolve("purchase-orders/7/r1-v3.pdf"); Files.createDirectories(file.getParent()); Files.write(file, new byte[]{3, 3, 3});
         var oldV3 = new GeneratedDocument(7L, order.getRevision(), "PO_PDF_V3", "previous-template.pdf", "purchase-orders/7/r1-v3.pdf", "application/pdf", "old-v3-checksum", 1L);
-        when(documents.findByPurchaseOrderIdAndRevisionAndDocumentType(7L, order.getRevision(), "PO_PDF_V5")).thenReturn(Optional.empty());
+        when(documents.findByPurchaseOrderIdAndRevisionAndDocumentType(7L, order.getRevision(), "PO_PDF_V6")).thenReturn(Optional.empty());
         when(documents.findByPurchaseOrderIdAndRevisionAndDocumentType(7L, order.getRevision(), "PO_PDF_V4")).thenReturn(Optional.empty());
         when(documents.findByPurchaseOrderIdAndRevisionAndDocumentType(7L, order.getRevision(), "PO_PDF_V3")).thenReturn(Optional.of(oldV3));
         assertThat(service().pdf(7L, 1L).content()).containsExactly(3, 3, 3);
     }
-    @Test void downloadsV2WhenNoV4OrV3ArtifactExists() throws Exception {
+    @Test void downloadsV2WhenNoNewerArtifactExists() throws Exception {
         var order = order();
         var file = temp.resolve("purchase-orders/7/r1-v2.pdf"); Files.createDirectories(file.getParent()); Files.write(file, new byte[]{2, 2, 2});
         var oldV2 = new GeneratedDocument(7L, order.getRevision(), "PO_PDF_V2", "older-template.pdf", "purchase-orders/7/r1-v2.pdf", "application/pdf", "old-v2-checksum", 1L);
-        when(documents.findByPurchaseOrderIdAndRevisionAndDocumentType(7L, order.getRevision(), "PO_PDF_V5")).thenReturn(Optional.empty());
+        when(documents.findByPurchaseOrderIdAndRevisionAndDocumentType(7L, order.getRevision(), "PO_PDF_V6")).thenReturn(Optional.empty());
         when(documents.findByPurchaseOrderIdAndRevisionAndDocumentType(7L, order.getRevision(), "PO_PDF_V4")).thenReturn(Optional.empty());
         when(documents.findByPurchaseOrderIdAndRevisionAndDocumentType(7L, order.getRevision(), "PO_PDF_V3")).thenReturn(Optional.empty());
         when(documents.findByPurchaseOrderIdAndRevisionAndDocumentType(7L, order.getRevision(), "PO_PDF_V2")).thenReturn(Optional.of(oldV2));
@@ -93,8 +101,12 @@ class PurchaseOrderDocumentTest {
     }
     @Test void reissueCreatesVersionedCurrentTemplateAndKeepsLegacyArtifact() throws Exception {
         var order = order();
+        var previousPath = temp.resolve("purchase-orders/7/r1-v5.pdf");
+        Files.createDirectories(previousPath.getParent()); Files.write(previousPath, new byte[]{5, 5, 5});
+        var oldV5 = new GeneratedDocument(7L, order.getRevision(), "PO_PDF_V5", "previous.pdf", "purchase-orders/7/r1-v5.pdf", "application/pdf", "v5-checksum", 1L);
+        when(documents.findByPurchaseOrderIdAndRevisionAndDocumentType(7L, order.getRevision(), "PO_PDF_V5")).thenReturn(Optional.of(oldV5));
         var legacy = new GeneratedDocument(7L, order.getRevision(), "PO_PDF", "legacy.pdf", "purchase-orders/7/r1.pdf", "application/pdf", "legacy-checksum", 1L);
-        when(documents.findByPurchaseOrderIdAndRevisionAndDocumentType(7L, order.getRevision(), "PO_PDF_V5")).thenReturn(Optional.empty());
+        when(documents.findByPurchaseOrderIdAndRevisionAndDocumentType(7L, order.getRevision(), "PO_PDF_V6")).thenReturn(Optional.empty());
         var oldV2 = new GeneratedDocument(7L, order.getRevision(), "PO_PDF_V2", "older-template.pdf", "purchase-orders/7/r1-v2.pdf", "application/pdf", "old-v2-checksum", 1L);
         when(documents.findByPurchaseOrderIdAndRevisionAndDocumentType(7L, order.getRevision(), "PO_PDF_V2")).thenReturn(Optional.of(oldV2));
         when(documents.findByPurchaseOrderIdAndRevisionAndDocumentType(7L, order.getRevision(), "PO_PDF")).thenReturn(Optional.of(legacy));
@@ -105,14 +117,19 @@ class PurchaseOrderDocumentTest {
         }
         var saved = org.mockito.ArgumentCaptor.forClass(GeneratedDocument.class);
         verify(documents).save(saved.capture());
-        assertThat(ReflectionTestUtils.getField(saved.getValue(), "documentType")).isEqualTo("PO_PDF_V5");
+        assertThat(ReflectionTestUtils.getField(saved.getValue(), "documentType")).isEqualTo("PO_PDF_V6");
         assertThat(saved.getValue().getContentType()).isEqualTo("application/pdf");
-        assertThat(saved.getValue().getStorageKey()).isEqualTo("purchase-orders/7/r1-v5.pdf");
-        when(documents.findByPurchaseOrderIdAndRevisionAndDocumentType(7L, order.getRevision(), "PO_PDF_V5"))
+        assertThat(saved.getValue().getStorageKey()).isEqualTo("purchase-orders/7/r1-v6.pdf");
+        when(documents.findByPurchaseOrderIdAndRevisionAndDocumentType(7L, order.getRevision(), "PO_PDF_V6"))
                 .thenReturn(Optional.of(saved.getValue()));
         assertThat(service().pdf(7L, 1L).content()).containsExactly(4, 5, 6);
+        assertThat(Files.readAllBytes(previousPath)).containsExactly(5, 5, 5);
+        verify(documents, never()).delete(oldV5);
         verify(documents, never()).delete(oldV2);
         verify(documents, never()).delete(legacy);
+        // Issuing the same revision again reads V6 and does not create another artifact.
+        service().issue(7L, 1L);
+        verify(documents, times(1)).save(any());
     }
     @Test void supplierPdfHasSixColumnsNoTotalsVietnameseDateAndRepeatsTableAcrossPages() throws Exception {
         String configured = System.getenv("QMH_TEST_PDF_FONT_PATH");

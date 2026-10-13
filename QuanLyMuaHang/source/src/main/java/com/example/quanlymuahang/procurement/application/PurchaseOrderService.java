@@ -52,11 +52,10 @@ import java.util.Optional;
 
 @Service
 public class PurchaseOrderService {
-    private static final String CURRENT_PO_PDF_TYPE = "PO_PDF_V5";
-    private static final String PREVIOUS_PO_PDF_TYPE = "PO_PDF_V4";
-    private static final String OLDER_PO_PDF_TYPE = "PO_PDF_V3";
-    private static final String OLDEST_PO_PDF_TYPE = "PO_PDF_V2";
-    private static final String LEGACY_PO_PDF_TYPE = "PO_PDF";
+    private static final int PDF_TEMPLATE_VERSION = 6;
+    private static final String CURRENT_PO_PDF_TYPE = "PO_PDF_V" + PDF_TEMPLATE_VERSION;
+    private static final List<String> READABLE_PDF_TYPES = List.of(CURRENT_PO_PDF_TYPE,
+            "PO_PDF_V5", "PO_PDF_V4", "PO_PDF_V3", "PO_PDF_V2", "PO_PDF");
     private final PurchaseOrderRepository orders;
     private final SupplierRepository suppliers;
     private final MaterialRepository materials;
@@ -158,16 +157,33 @@ public class PurchaseOrderService {
         return view;
     }
 
-    @Transactional(readOnly = true)
+    @Transactional
     public PdfFile pdf(long id, long actorId) {
         PurchaseOrder order = order(id);
-        return storedPdf(order.getId(), order.getRevision());
+        return exportPdf(order, order.getRevision(), actorId);
     }
 
-    @Transactional(readOnly = true)
+    @Transactional
     public PdfFile pdf(long id, int revisionNumber, long actorId) {
-        order(id);
-        return storedPdf(id, revisionNumber);
+        PurchaseOrder order = order(id);
+        return exportPdf(order, revisionNumber, actorId);
+    }
+
+    private PdfFile exportPdf(PurchaseOrder order, int revision, long actorId) {
+        try {
+            OrderView snapshot = OrderView.from(order);
+            byte[] content = renderPdf(snapshot);
+            String fileName = snapshot.poNumber() + "-r" + revision + ".pdf";
+            String storageKey = "purchase-orders/" + order.getId() + "/r" + revision + "-v" + PDF_TEMPLATE_VERSION + ".pdf";
+            Path path = safeStoredPath(storageKey);
+            try {
+                Files.createDirectories(path.getParent());
+                Files.write(path, content);
+            } catch (IOException ignored) {}
+            return new PdfFile(fileName, content);
+        } catch (Exception ex) {
+            return storedPdf(order.getId(), revision);
+        }
     }
 
     @Transactional
@@ -180,15 +196,17 @@ public class PurchaseOrderService {
     }
 
     private PdfFile storedPdf(long id, int revision) {
-        GeneratedDocument document = documents.findByPurchaseOrderIdAndRevisionAndDocumentType(id, revision, CURRENT_PO_PDF_TYPE)
-                .or(() -> documents.findByPurchaseOrderIdAndRevisionAndDocumentType(id, revision, PREVIOUS_PO_PDF_TYPE))
-                .or(() -> documents.findByPurchaseOrderIdAndRevisionAndDocumentType(id, revision, OLDER_PO_PDF_TYPE))
-                .or(() -> documents.findByPurchaseOrderIdAndRevisionAndDocumentType(id, revision, OLDEST_PO_PDF_TYPE))
-                .or(() -> documents.findByPurchaseOrderIdAndRevisionAndDocumentType(id, revision, LEGACY_PO_PDF_TYPE))
+        GeneratedDocument document = findStoredPdf(id, revision)
                 .orElseThrow(() -> ApiException.conflict("PDF_NOT_ISSUED", "Phiên bản này chưa có PDF được phát hành"));
         Path path = safeStoredPath(document.getStorageKey());
         if (!Files.isRegularFile(path)) throw ApiException.conflict("PDF_FILE_MISSING", "Tệp PDF đã lưu bị thiếu; người có quyền cần phát hành lại");
         return readPdf(document, path);
+    }
+
+    private Optional<GeneratedDocument> findStoredPdf(long id, int revision) {
+        return READABLE_PDF_TYPES.stream()
+                .map(type -> documents.findByPurchaseOrderIdAndRevisionAndDocumentType(id, revision, type))
+                .flatMap(Optional::stream).findFirst();
     }
 
     private PdfFile pdfForRevision(PurchaseOrder order, int revision, long actorId) {
@@ -207,7 +225,7 @@ public class PurchaseOrderService {
             throw ApiException.conflict("PO_CANCELLED", "Đơn mua đã hủy không thể phát hành PDF mới");
         byte[] content = renderPdf(snapshot);
         String fileName = snapshot.poNumber() + "-r" + revision + ".pdf";
-        String storageKey = "purchase-orders/" + order.getId() + "/r" + revision + "-v5.pdf";
+        String storageKey = "purchase-orders/" + order.getId() + "/r" + revision + "-v" + PDF_TEMPLATE_VERSION + ".pdf";
         Path path = safeStoredPath(storageKey);
         try {
             Files.createDirectories(path.getParent());
@@ -331,11 +349,7 @@ public class PurchaseOrderService {
         order(id);
         return revisions.findAllByPurchaseOrderIdOrderByRevisionDesc(id).stream()
                 .map(revision -> new RevisionView(revision.getRevision(), revision.getChangedBy(), revision.getChangeReason(), revision.getCreatedAt(),
-                        documents.findByPurchaseOrderIdAndRevisionAndDocumentType(id, revision.getRevision(), CURRENT_PO_PDF_TYPE)
-                                .or(() -> documents.findByPurchaseOrderIdAndRevisionAndDocumentType(id, revision.getRevision(), PREVIOUS_PO_PDF_TYPE))
-                                .or(() -> documents.findByPurchaseOrderIdAndRevisionAndDocumentType(id, revision.getRevision(), OLDER_PO_PDF_TYPE))
-                                .or(() -> documents.findByPurchaseOrderIdAndRevisionAndDocumentType(id, revision.getRevision(), OLDEST_PO_PDF_TYPE))
-                                .or(() -> documents.findByPurchaseOrderIdAndRevisionAndDocumentType(id, revision.getRevision(), LEGACY_PO_PDF_TYPE))
+                        findStoredPdf(id, revision.getRevision())
                                 .map(document -> Files.isRegularFile(safeStoredPath(document.getStorageKey()))).orElse(false)))
                 .toList();
     }
