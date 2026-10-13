@@ -52,6 +52,9 @@ import java.util.Optional;
 
 @Service
 public class PurchaseOrderService {
+    private static final String CURRENT_PO_PDF_TYPE = "PO_PDF_V3";
+    private static final String PREVIOUS_PO_PDF_TYPE = "PO_PDF_V2";
+    private static final String LEGACY_PO_PDF_TYPE = "PO_PDF";
     private final PurchaseOrderRepository orders;
     private final SupplierRepository suppliers;
     private final MaterialRepository materials;
@@ -175,7 +178,9 @@ public class PurchaseOrderService {
     }
 
     private PdfFile storedPdf(long id, int revision) {
-        GeneratedDocument document = documents.findByPurchaseOrderIdAndRevisionAndDocumentType(id, revision, "PO_PDF")
+        GeneratedDocument document = documents.findByPurchaseOrderIdAndRevisionAndDocumentType(id, revision, CURRENT_PO_PDF_TYPE)
+                .or(() -> documents.findByPurchaseOrderIdAndRevisionAndDocumentType(id, revision, PREVIOUS_PO_PDF_TYPE))
+                .or(() -> documents.findByPurchaseOrderIdAndRevisionAndDocumentType(id, revision, LEGACY_PO_PDF_TYPE))
                 .orElseThrow(() -> ApiException.conflict("PDF_NOT_ISSUED", "Phiên bản này chưa có PDF được phát hành"));
         Path path = safeStoredPath(document.getStorageKey());
         if (!Files.isRegularFile(path)) throw ApiException.conflict("PDF_FILE_MISSING", "Tệp PDF đã lưu bị thiếu; người có quyền cần phát hành lại");
@@ -187,7 +192,7 @@ public class PurchaseOrderService {
     }
 
     private PdfFile generatePdf(PurchaseOrder order, OrderView snapshot, int revision, long actorId, boolean currentRevision) {
-        Optional<GeneratedDocument> existing = documents.findByPurchaseOrderIdAndRevisionAndDocumentType(order.getId(), revision, "PO_PDF");
+        Optional<GeneratedDocument> existing = documents.findByPurchaseOrderIdAndRevisionAndDocumentType(order.getId(), revision, CURRENT_PO_PDF_TYPE);
         if (existing.isPresent()) {
             Path path = safeStoredPath(existing.get().getStorageKey());
             if (Files.isRegularFile(path)) return readPdf(existing.get(), path);
@@ -198,7 +203,7 @@ public class PurchaseOrderService {
             throw ApiException.conflict("PO_CANCELLED", "Đơn mua đã hủy không thể phát hành PDF mới");
         byte[] content = renderPdf(snapshot);
         String fileName = snapshot.poNumber() + "-r" + revision + ".pdf";
-        String storageKey = "purchase-orders/" + order.getId() + "/r" + revision + ".pdf";
+        String storageKey = "purchase-orders/" + order.getId() + "/r" + revision + "-v3.pdf";
         Path path = safeStoredPath(storageKey);
         try {
             Files.createDirectories(path.getParent());
@@ -206,7 +211,7 @@ public class PurchaseOrderService {
         } catch (IOException exception) {
             throw new IllegalStateException("Không thể lưu PDF đơn mua", exception);
         }
-        if (existing.isEmpty()) documents.save(new GeneratedDocument(order.getId(), revision, "PO_PDF", fileName, storageKey,
+        if (existing.isEmpty()) documents.save(new GeneratedDocument(order.getId(), revision, CURRENT_PO_PDF_TYPE, fileName, storageKey,
                 "application/pdf", sha256(content), actorId));
         if (currentRevision) {
             recordPriceHistory(order);
@@ -322,7 +327,9 @@ public class PurchaseOrderService {
         order(id);
         return revisions.findAllByPurchaseOrderIdOrderByRevisionDesc(id).stream()
                 .map(revision -> new RevisionView(revision.getRevision(), revision.getChangedBy(), revision.getChangeReason(), revision.getCreatedAt(),
-                        documents.findByPurchaseOrderIdAndRevisionAndDocumentType(id, revision.getRevision(), "PO_PDF")
+                        documents.findByPurchaseOrderIdAndRevisionAndDocumentType(id, revision.getRevision(), CURRENT_PO_PDF_TYPE)
+                                .or(() -> documents.findByPurchaseOrderIdAndRevisionAndDocumentType(id, revision.getRevision(), PREVIOUS_PO_PDF_TYPE))
+                                .or(() -> documents.findByPurchaseOrderIdAndRevisionAndDocumentType(id, revision.getRevision(), LEGACY_PO_PDF_TYPE))
                                 .map(document -> Files.isRegularFile(safeStoredPath(document.getStorageKey()))).orElse(false)))
                 .toList();
     }
