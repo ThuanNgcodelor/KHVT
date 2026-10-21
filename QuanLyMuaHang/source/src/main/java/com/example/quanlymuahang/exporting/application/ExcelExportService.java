@@ -11,11 +11,17 @@ import com.example.quanlymuahang.domain.supplier.Supplier;
 import com.example.quanlymuahang.repository.HistoricalPurchaseRepository;
 import com.example.quanlymuahang.repository.PurchaseOrderRepository;
 import com.example.quanlymuahang.repository.SupplierRepository;
+import org.apache.poi.ss.usermodel.BorderStyle;
 import org.apache.poi.ss.usermodel.Cell;
 import org.apache.poi.ss.usermodel.CellStyle;
+import org.apache.poi.ss.usermodel.FillPatternType;
 import org.apache.poi.ss.usermodel.Font;
+import org.apache.poi.ss.usermodel.HorizontalAlignment;
+import org.apache.poi.ss.usermodel.IndexedColors;
 import org.apache.poi.ss.usermodel.Row;
 import org.apache.poi.ss.usermodel.Sheet;
+import org.apache.poi.ss.usermodel.VerticalAlignment;
+import org.apache.poi.ss.util.CellRangeAddress;
 import org.apache.poi.xssf.streaming.SXSSFWorkbook;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
@@ -123,15 +129,46 @@ public class ExcelExportService {
         try (SXSSFWorkbook workbook = new SXSSFWorkbook(200); ByteArrayOutputStream output = new ByteArrayOutputStream()) {
             workbook.setCompressTempFiles(true);
 
-            CellStyle header = headerStyle(workbook);
+            CellStyle masterHeader = createMasterHeaderStyle(workbook);
+
+            Font dataFont = workbook.createFont();
+            dataFont.setFontName("Segoe UI");
+            dataFont.setFontHeightInPoints((short) 10);
+
+            CellStyle textStyle = workbook.createCellStyle();
+            textStyle.setFont(dataFont);
+            applyCellBorders(textStyle);
+            textStyle.setAlignment(HorizontalAlignment.LEFT);
+
+            CellStyle centerStyle = workbook.createCellStyle();
+            centerStyle.setFont(dataFont);
+            applyCellBorders(centerStyle);
+            centerStyle.setAlignment(HorizontalAlignment.CENTER);
+
             CellStyle dateStyle = workbook.createCellStyle();
+            dateStyle.setFont(dataFont);
+            applyCellBorders(dateStyle);
+            dateStyle.setAlignment(HorizontalAlignment.CENTER);
             dateStyle.setDataFormat(workbook.createDataFormat().getFormat("yyyy-mm-dd"));
+
             CellStyle numericStyle = workbook.createCellStyle();
+            numericStyle.setFont(dataFont);
+            applyCellBorders(numericStyle);
+            numericStyle.setAlignment(HorizontalAlignment.RIGHT);
             numericStyle.setDataFormat(workbook.createDataFormat().getFormat("#,##0.00"));
+
+            CellStyle vatStyle = workbook.createCellStyle();
+            vatStyle.setFont(dataFont);
+            applyCellBorders(vatStyle);
+            vatStyle.setAlignment(HorizontalAlignment.CENTER);
+            vatStyle.setDataFormat(workbook.createDataFormat().getFormat("0.##"));
 
             // Sheet 1: DON_HANG
             Sheet donHangSheet = workbook.createSheet("DON_HANG");
-            addRow(donHangSheet, 0, header, "Ngay", "SoPO", "MaNCC", "NhaCungCap", "MaHang", "TenHang", "DVT",
+            donHangSheet.setDisplayGridlines(true);
+            Row dhHeaderRow = donHangSheet.createRow(0);
+            dhHeaderRow.setHeightInPoints(28f);
+            addStyledRow(dhHeaderRow, masterHeader, "Ngay", "SoPO", "MaNCC", "NhaCungCap", "MaHang", "TenHang", "DVT",
                     "SoLuong", "DonGia", "NguoiLap", "QuyCach", "GhiChu", "VAT", "DiaChi", "LoaiTien");
 
             int donHangRowIdx = 1;
@@ -150,93 +187,152 @@ public class ExcelExportService {
                 List<PurchaseOrderItem> items = po.getItems();
                 if (items.isEmpty()) {
                     Row row = donHangSheet.createRow(donHangRowIdx++);
-                    setDateCell(row, 0, orderDate, dateStyle);
-                    cell(row, 1, poNumber);
-                    cell(row, 2, maNCC);
-                    cell(row, 3, nhaCungCap);
-                    cell(row, 4, "");
-                    cell(row, 5, "");
-                    cell(row, 6, "");
-                    cell(row, 7, "");
-                    cell(row, 8, "");
-                    cell(row, 9, nguoiLap);
-                    cell(row, 10, "");
-                    cell(row, 11, ghiChu);
-                    setNumericOrEmpty(row, 12, vat, numericStyle);
-                    cell(row, 13, diaChi);
-                    cell(row, 14, loaiTien);
+                    row.setHeightInPoints(21f);
+                    setDateCell(row, 0, orderDate, dateStyle, centerStyle);
+                    setStyledCell(row, 1, poNumber, centerStyle);
+                    setStyledCell(row, 2, maNCC, centerStyle);
+                    setStyledCell(row, 3, nhaCungCap, textStyle);
+                    setStyledCell(row, 4, "", centerStyle);
+                    setStyledCell(row, 5, "", textStyle);
+                    setStyledCell(row, 6, "", centerStyle);
+                    setStyledCell(row, 7, "", numericStyle);
+                    setStyledCell(row, 8, "", numericStyle);
+                    setStyledCell(row, 9, nguoiLap, textStyle);
+                    setStyledCell(row, 10, "", textStyle);
+                    setStyledCell(row, 11, ghiChu, textStyle);
+                    setNumericOrEmpty(row, 12, vat, vatStyle, centerStyle);
+                    setStyledCell(row, 13, diaChi, textStyle);
+                    setStyledCell(row, 14, loaiTien, centerStyle);
                 } else {
                     for (PurchaseOrderItem item : items) {
                         Row row = donHangSheet.createRow(donHangRowIdx++);
-                        setDateCell(row, 0, orderDate, dateStyle);
-                        cell(row, 1, poNumber);
-                        cell(row, 2, maNCC);
-                        cell(row, 3, nhaCungCap);
+                        row.setHeightInPoints(21f);
+                        setDateCell(row, 0, orderDate, dateStyle, centerStyle);
+                        setStyledCell(row, 1, poNumber, centerStyle);
+                        setStyledCell(row, 2, maNCC, centerStyle);
+                        setStyledCell(row, 3, nhaCungCap, textStyle);
                         String maHang = item.getMaterialCodeSnapshot() != null ? item.getMaterialCodeSnapshot() : (item.getMaterial() != null ? safe(item.getMaterial().getCode()) : "");
-                        cell(row, 4, maHang);
-                        cell(row, 5, item.getMaterialName());
-                        cell(row, 6, item.getUnit());
-                        setQuantityCell(row, 7, item.getQuantity(), item.getQuantityText(), numericStyle);
-                        setNumericOrEmpty(row, 8, item.getUnitPrice(), numericStyle);
-                        cell(row, 9, nguoiLap);
-                        cell(row, 10, item.getSpecification());
-                        cell(row, 11, ghiChu);
-                        setNumericOrEmpty(row, 12, vat, numericStyle);
-                        cell(row, 13, diaChi);
-                        cell(row, 14, loaiTien);
+                        setStyledCell(row, 4, maHang, centerStyle);
+                        setStyledCell(row, 5, item.getMaterialName(), textStyle);
+                        setStyledCell(row, 6, item.getUnit(), centerStyle);
+                        setQuantityCell(row, 7, item.getQuantity(), item.getQuantityText(), numericStyle, textStyle);
+                        setNumericOrEmpty(row, 8, item.getUnitPrice(), numericStyle, textStyle);
+                        setStyledCell(row, 9, nguoiLap, textStyle);
+                        setStyledCell(row, 10, item.getSpecification(), textStyle);
+                        setStyledCell(row, 11, ghiChu, textStyle);
+                        setNumericOrEmpty(row, 12, vat, vatStyle, centerStyle);
+                        setStyledCell(row, 13, diaChi, textStyle);
+                        setStyledCell(row, 14, loaiTien, centerStyle);
                     }
                 }
             }
+
+            // Spacious Column Widths for DON_HANG
+            donHangSheet.setColumnWidth(0, 14 * 256);  // Ngay
+            donHangSheet.setColumnWidth(1, 18 * 256);  // SoPO
+            donHangSheet.setColumnWidth(2, 16 * 256);  // MaNCC
+            donHangSheet.setColumnWidth(3, 48 * 256);  // NhaCungCap
+            donHangSheet.setColumnWidth(4, 16 * 256);  // MaHang
+            donHangSheet.setColumnWidth(5, 45 * 256);  // TenHang
+            donHangSheet.setColumnWidth(6, 12 * 256);  // DVT
+            donHangSheet.setColumnWidth(7, 14 * 256);  // SoLuong
+            donHangSheet.setColumnWidth(8, 18 * 256);  // DonGia
+            donHangSheet.setColumnWidth(9, 18 * 256);  // NguoiLap
+            donHangSheet.setColumnWidth(10, 36 * 256); // QuyCach
+            donHangSheet.setColumnWidth(11, 32 * 256); // GhiChu
+            donHangSheet.setColumnWidth(12, 12 * 256); // VAT
+            donHangSheet.setColumnWidth(13, 58 * 256); // DiaChi
+            donHangSheet.setColumnWidth(14, 12 * 256); // LoaiTien
             donHangSheet.createFreezePane(0, 1);
+            if (donHangRowIdx > 1) {
+                donHangSheet.setAutoFilter(new CellRangeAddress(0, donHangRowIdx - 1, 0, 14));
+            }
 
             // Sheet 2: NCC
             Sheet nccSheet = workbook.createSheet("NCC");
-            addRow(nccSheet, 0, header, "MaNCC", "TenNCC", "DiaChi");
+            nccSheet.setDisplayGridlines(true);
+            Row nccHeaderRow = nccSheet.createRow(0);
+            nccHeaderRow.setHeightInPoints(28f);
+            addStyledRow(nccHeaderRow, masterHeader, "MaNCC", "TenNCC", "DiaChi");
+
             int nccRowIdx = 1;
             List<Supplier> supplierList = suppliers.findAll(Sort.by(Sort.Direction.ASC, "id"));
             for (Supplier s : supplierList) {
                 Row row = nccSheet.createRow(nccRowIdx++);
-                cell(row, 0, s.getCode());
-                cell(row, 1, s.getName());
-                cell(row, 2, s.getAddress());
+                row.setHeightInPoints(21f);
+                setStyledCell(row, 0, s.getCode(), centerStyle);
+                setStyledCell(row, 1, s.getName(), textStyle);
+                setStyledCell(row, 2, s.getAddress(), textStyle);
             }
+
+            // Spacious Column Widths for NCC
+            nccSheet.setColumnWidth(0, 18 * 256);  // MaNCC
+            nccSheet.setColumnWidth(1, 55 * 256);  // TenNCC
+            nccSheet.setColumnWidth(2, 78 * 256);  // DiaChi
             nccSheet.createFreezePane(0, 1);
+            if (nccRowIdx > 1) {
+                nccSheet.setAutoFilter(new CellRangeAddress(0, nccRowIdx - 1, 0, 2));
+            }
 
             // Sheet 3: LICH_SU
             Sheet lichSuSheet = workbook.createSheet("LICH_SU");
-            addRow(lichSuSheet, 0, header, "Ngay", "MaNCC", "NhaCungCap", "MaHang", "TenHang", "DVT", "SoLuong", "DonGia");
+            lichSuSheet.setDisplayGridlines(true);
+            Row lsHeaderRow = lichSuSheet.createRow(0);
+            lsHeaderRow.setHeightInPoints(28f);
+            addStyledRow(lsHeaderRow, masterHeader, "Ngay", "MaNCC", "NhaCungCap", "MaHang", "TenHang", "DVT", "SoLuong", "DonGia");
+
             int lichSuRowIdx = 1;
             int page = 0;
             while (true) {
                 Page<HistoricalPurchase> batch = history.findAll(PageRequest.of(page, 1000, Sort.by(Sort.Direction.ASC, "id")));
                 for (HistoricalPurchase hp : batch.getContent()) {
                     Row row = lichSuSheet.createRow(lichSuRowIdx++);
-                    setDateCell(row, 0, hp.getPurchaseDate(), dateStyle);
+                    row.setHeightInPoints(21f);
+                    setDateCell(row, 0, hp.getPurchaseDate(), dateStyle, centerStyle);
                     String maNCC = hp.getSupplierCodeSnapshot() != null ? hp.getSupplierCodeSnapshot() : (hp.getSupplier() != null ? safe(hp.getSupplier().getCode()) : "");
-                    cell(row, 1, maNCC);
+                    setStyledCell(row, 1, maNCC, centerStyle);
                     String ncc = hp.getSupplierSnapshot() != null ? hp.getSupplierSnapshot() : (hp.getSupplier() != null ? safe(hp.getSupplier().getName()) : "");
-                    cell(row, 2, ncc);
+                    setStyledCell(row, 2, ncc, textStyle);
                     String maHang = hp.getMaterialCodeSnapshot() != null ? hp.getMaterialCodeSnapshot() : (hp.getMaterial() != null ? safe(hp.getMaterial().getCode()) : "");
-                    cell(row, 3, maHang);
-                    cell(row, 4, hp.getMaterialNameSnapshot());
-                    cell(row, 5, hp.getUnit());
-                    setQuantityCell(row, 6, hp.getQuantity(), hp.getQuantityText(), numericStyle);
-                    setNumericOrEmpty(row, 7, hp.getUnitPrice(), numericStyle);
+                    setStyledCell(row, 3, maHang, centerStyle);
+                    setStyledCell(row, 4, hp.getMaterialNameSnapshot(), textStyle);
+                    setStyledCell(row, 5, hp.getUnit(), centerStyle);
+                    setQuantityCell(row, 6, hp.getQuantity(), hp.getQuantityText(), numericStyle, textStyle);
+                    setNumericOrEmpty(row, 7, hp.getUnitPrice(), numericStyle, textStyle);
                 }
                 if (!batch.hasNext()) break;
                 page++;
             }
+
+            // Spacious Column Widths for LICH_SU
+            lichSuSheet.setColumnWidth(0, 14 * 256);  // Ngay
+            lichSuSheet.setColumnWidth(1, 16 * 256);  // MaNCC
+            lichSuSheet.setColumnWidth(2, 48 * 256);  // NhaCungCap
+            lichSuSheet.setColumnWidth(3, 16 * 256);  // MaHang
+            lichSuSheet.setColumnWidth(4, 45 * 256);  // TenHang
+            lichSuSheet.setColumnWidth(5, 12 * 256);  // DVT
+            lichSuSheet.setColumnWidth(6, 14 * 256);  // SoLuong
+            lichSuSheet.setColumnWidth(7, 18 * 256);  // DonGia
             lichSuSheet.createFreezePane(0, 1);
+            if (lichSuRowIdx > 1) {
+                lichSuSheet.setAutoFilter(new CellRangeAddress(0, lichSuRowIdx - 1, 0, 7));
+            }
 
             // Sheet 4: CONFIG
             Sheet configSheet = workbook.createSheet("CONFIG");
+            configSheet.setDisplayGridlines(true);
             Row configRow0 = configSheet.createRow(0);
-            configRow0.createCell(0).setCellValue("PO_SEQ");
-            configRow0.createCell(1).setCellValue((double) orders.count());
+            configRow0.setHeightInPoints(24f);
+            Cell c00 = configRow0.createCell(0); c00.setCellValue("PO_SEQ"); c00.setCellStyle(masterHeader);
+            Cell c01 = configRow0.createCell(1); c01.setCellValue((double) orders.count()); c01.setCellStyle(centerStyle);
 
             Row configRow1 = configSheet.createRow(1);
-            configRow1.createCell(0).setCellValue("ACCESS_CODE");
-            configRow1.createCell(1).setCellValue("KHVT@2026");
+            configRow1.setHeightInPoints(24f);
+            Cell c10 = configRow1.createCell(0); c10.setCellValue("ACCESS_CODE"); c10.setCellStyle(masterHeader);
+            Cell c11 = configRow1.createCell(1); c11.setCellValue("KHVT@2026"); c11.setCellStyle(centerStyle);
+
+            configSheet.setColumnWidth(0, 24 * 256);
+            configSheet.setColumnWidth(1, 30 * 256);
 
             workbook.write(output);
             if (!workbook.dispose()) throw new IllegalStateException("Không dọn được file tạm XLSX");
@@ -246,35 +342,89 @@ public class ExcelExportService {
         }
     }
 
-    private static void setDateCell(Row row, int col, LocalDate date, CellStyle dateStyle) {
+    private static CellStyle createMasterHeaderStyle(SXSSFWorkbook workbook) {
+        CellStyle style = workbook.createCellStyle();
+        Font font = workbook.createFont();
+        font.setFontName("Segoe UI");
+        font.setBold(true);
+        font.setFontHeightInPoints((short) 11);
+        font.setColor(IndexedColors.WHITE.getIndex());
+        style.setFont(font);
+        style.setFillForegroundColor(IndexedColors.ROYAL_BLUE.getIndex());
+        style.setFillPattern(FillPatternType.SOLID_FOREGROUND);
+        style.setAlignment(HorizontalAlignment.CENTER);
+        style.setVerticalAlignment(VerticalAlignment.CENTER);
+        style.setWrapText(true);
+        style.setBorderTop(BorderStyle.THIN);
+        style.setTopBorderColor(IndexedColors.WHITE.getIndex());
+        style.setBorderBottom(BorderStyle.MEDIUM);
+        style.setBottomBorderColor(IndexedColors.DARK_BLUE.getIndex());
+        style.setBorderLeft(BorderStyle.THIN);
+        style.setLeftBorderColor(IndexedColors.WHITE.getIndex());
+        style.setBorderRight(BorderStyle.THIN);
+        style.setRightBorderColor(IndexedColors.WHITE.getIndex());
+        return style;
+    }
+
+    private static void applyCellBorders(CellStyle style) {
+        style.setBorderTop(BorderStyle.THIN);
+        style.setTopBorderColor(IndexedColors.GREY_25_PERCENT.getIndex());
+        style.setBorderBottom(BorderStyle.THIN);
+        style.setBottomBorderColor(IndexedColors.GREY_25_PERCENT.getIndex());
+        style.setBorderLeft(BorderStyle.THIN);
+        style.setLeftBorderColor(IndexedColors.GREY_25_PERCENT.getIndex());
+        style.setBorderRight(BorderStyle.THIN);
+        style.setRightBorderColor(IndexedColors.GREY_25_PERCENT.getIndex());
+        style.setVerticalAlignment(VerticalAlignment.CENTER);
+    }
+
+    private static void addStyledRow(Row row, CellStyle style, String... values) {
+        for (int i = 0; i < values.length; i++) {
+            Cell cell = row.createCell(i);
+            cell.setCellValue(values[i]);
+            cell.setCellStyle(style);
+        }
+    }
+
+    private static void setStyledCell(Row row, int col, String value, CellStyle style) {
+        Cell cell = row.createCell(col);
+        cell.setCellValue(safe(value));
+        if (style != null) cell.setCellStyle(style);
+    }
+
+    private static void setDateCell(Row row, int col, LocalDate date, CellStyle dateStyle, CellStyle fallbackStyle) {
+        Cell cell = row.createCell(col);
         if (date != null) {
-            Cell cell = row.createCell(col);
             cell.setCellValue(Date.valueOf(date));
             cell.setCellStyle(dateStyle);
         } else {
-            row.createCell(col).setCellValue("");
+            cell.setCellValue("");
+            if (fallbackStyle != null) cell.setCellStyle(fallbackStyle);
         }
     }
 
-    private static void setNumericOrEmpty(Row row, int col, BigDecimal value, CellStyle numericStyle) {
+    private static void setNumericOrEmpty(Row row, int col, BigDecimal value, CellStyle numericStyle, CellStyle fallbackStyle) {
+        Cell cell = row.createCell(col);
         if (value != null) {
-            Cell cell = row.createCell(col);
             cell.setCellValue(value.doubleValue());
             if (numericStyle != null) cell.setCellStyle(numericStyle);
         } else {
-            row.createCell(col).setCellValue("");
+            cell.setCellValue("");
+            if (fallbackStyle != null) cell.setCellStyle(fallbackStyle);
         }
     }
 
-    private static void setQuantityCell(Row row, int col, BigDecimal quantity, String quantityText, CellStyle numericStyle) {
+    private static void setQuantityCell(Row row, int col, BigDecimal quantity, String quantityText, CellStyle numericStyle, CellStyle textStyle) {
+        Cell cell = row.createCell(col);
         if (quantity != null) {
-            Cell cell = row.createCell(col);
             cell.setCellValue(quantity.doubleValue());
             if (numericStyle != null) cell.setCellStyle(numericStyle);
         } else if (quantityText != null && !quantityText.isBlank()) {
-            row.createCell(col).setCellValue(quantityText);
+            cell.setCellValue(quantityText);
+            if (textStyle != null) cell.setCellStyle(textStyle);
         } else {
-            row.createCell(col).setCellValue("");
+            cell.setCellValue("");
+            if (textStyle != null) cell.setCellStyle(textStyle);
         }
     }
 
