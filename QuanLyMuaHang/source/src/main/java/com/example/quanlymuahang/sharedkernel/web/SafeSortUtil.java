@@ -20,15 +20,30 @@ public final class SafeSortUtil {
         }
 
         List<Sort.Order> safeOrders = new ArrayList<>();
+        boolean hasPoNumber = false;
+        boolean hasId = false;
         for (Sort.Order order : pageable.getSort()) {
             String property = order.getProperty();
             if (allowedMappings.containsKey(property)) {
                 String targetProperty = allowedMappings.get(property);
                 safeOrders.add(new Sort.Order(order.getDirection(), targetProperty));
+                if ("poNumber".equals(targetProperty)) hasPoNumber = true;
+                if ("id".equals(targetProperty)) hasId = true;
             }
         }
 
-        Sort resolvedSort = safeOrders.isEmpty() ? defaultSort : Sort.by(safeOrders);
-        return PageRequest.of(pageable.getPageNumber(), pageable.getPageSize(), resolvedSort);
+        if (safeOrders.isEmpty()) {
+            return PageRequest.of(pageable.getPageNumber(), pageable.getPageSize(), defaultSort);
+        }
+
+        // Secondary tie-breakers for deterministic PO ordering
+        if (!hasPoNumber && allowedMappings.containsValue("poNumber")) {
+            safeOrders.add(new Sort.Order(Sort.Direction.ASC, "poNumber"));
+        }
+        if (!hasId && allowedMappings.containsValue("id")) {
+            safeOrders.add(new Sort.Order(Sort.Direction.ASC, "id"));
+        }
+
+        return PageRequest.of(pageable.getPageNumber(), pageable.getPageSize(), Sort.by(safeOrders));
     }
 }

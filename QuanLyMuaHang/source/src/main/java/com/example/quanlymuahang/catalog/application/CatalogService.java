@@ -9,7 +9,9 @@ import com.example.quanlymuahang.service.TextNormalizer;
 import com.example.quanlymuahang.sharedkernel.application.AuditRecorder;
 import com.example.quanlymuahang.sharedkernel.web.ApiException;
 import org.springframework.data.domain.Page;
+import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
+import org.springframework.data.domain.Sort;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -28,7 +30,8 @@ public class CatalogService {
     @Transactional(readOnly = true)
     public List<MaterialView> searchMaterials(String query) {
         String normalized = TextNormalizer.normalize(query);
-        return materials.findTop50ByActiveTrueAndNormalizedNameContainingOrderByNameAsc(normalized).stream().map(MaterialView::from).toList();
+        return materials.search(normalized, true, null, PageRequest.of(0, 50, Sort.by(Sort.Direction.ASC, "name")))
+                .map(MaterialView::from).getContent();
     }
 
     private static final java.util.Map<String, String> MATERIAL_SORT_MAPPING = java.util.Map.of(
@@ -91,7 +94,8 @@ public class CatalogService {
     @Transactional(readOnly = true)
     public List<SupplierView> searchSuppliers(String query) {
         String normalized = TextNormalizer.normalize(query);
-        return suppliers.findTop50ByActiveTrueAndNormalizedNameContainingOrderByNameAsc(normalized).stream().map(SupplierView::from).toList();
+        return suppliers.search(normalized, true, PageRequest.of(0, 50, Sort.by(Sort.Direction.ASC, "name")))
+                .map(SupplierView::from).getContent();
     }
 
     @Transactional(readOnly = true)

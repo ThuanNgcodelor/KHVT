@@ -1,4 +1,4 @@
-export type IconName = 'overview' | 'orders' | 'search' | 'import' | 'people' | 'users' | 'menu' | 'close' | 'plus' | 'arrow' | 'refresh' | 'collapse' | 'expand'
+export type IconName = 'overview' | 'orders' | 'search' | 'import' | 'people' | 'users' | 'menu' | 'close' | 'plus' | 'arrow' | 'refresh' | 'collapse' | 'expand' | 'download'
 const paths: Record<IconName, React.ReactNode> = {
   overview: <><rect x="3" y="3" width="7" height="7" rx="1" /><rect x="14" y="3" width="7" height="7" rx="1" /><rect x="3" y="14" width="7" height="7" rx="1" /><rect x="14" y="14" width="7" height="7" rx="1" /></>,
   orders: <><path d="M8 3h8v4H8zM8 5H5v16h14V5h-3M8 12h8M8 16h5" /></>,
@@ -13,6 +13,7 @@ const paths: Record<IconName, React.ReactNode> = {
   refresh: <><path d="M20 7a8 8 0 1 0 1 9M20 3v5h-5" /></>,
   collapse: <><path d="M14 5 7 12l7 7M20 5v14" /></>,
   expand: <><path d="m10 5 7 7-7 7M4 5v14" /></>,
+  download: <><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" /><polyline points="7 10 12 15 17 10" /><line x1="12" y1="15" x2="12" y2="3" /></>,
 }
 export function Icon({ name, size = 18 }: { name: IconName; size?: number }) {
   return <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">{paths[name]}</svg>

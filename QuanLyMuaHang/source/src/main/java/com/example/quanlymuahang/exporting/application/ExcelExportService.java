@@ -4,6 +4,14 @@ import com.example.quanlymuahang.domain.common.CurrencyCode;
 import com.example.quanlymuahang.domain.material.MaterialCategory;
 import com.example.quanlymuahang.pricing.application.PricingService;
 import com.example.quanlymuahang.procurement.application.PurchaseOrderService;
+import com.example.quanlymuahang.domain.history.HistoricalPurchase;
+import com.example.quanlymuahang.domain.purchaseorder.PurchaseOrder;
+import com.example.quanlymuahang.domain.purchaseorder.PurchaseOrderItem;
+import com.example.quanlymuahang.domain.supplier.Supplier;
+import com.example.quanlymuahang.repository.HistoricalPurchaseRepository;
+import com.example.quanlymuahang.repository.PurchaseOrderRepository;
+import com.example.quanlymuahang.repository.SupplierRepository;
+import org.apache.poi.ss.usermodel.Cell;
 import org.apache.poi.ss.usermodel.CellStyle;
 import org.apache.poi.ss.usermodel.Font;
 import org.apache.poi.ss.usermodel.Row;
@@ -11,23 +19,38 @@ import org.apache.poi.ss.usermodel.Sheet;
 import org.apache.poi.xssf.streaming.SXSSFWorkbook;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
+import org.springframework.data.domain.Sort;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.math.BigDecimal;
+import java.sql.Date;
 import java.text.DecimalFormat;
 import java.text.DecimalFormatSymbols;
+import java.time.LocalDate;
 import java.time.format.DateTimeFormatter;
 import java.util.Locale;
-import java.time.format.DateTimeFormatter;
 import java.util.List;
 
 @Service
 public class ExcelExportService {
     private final PricingService pricing;
     private final PurchaseOrderService purchaseOrders;
-    public ExcelExportService(PricingService pricing, PurchaseOrderService purchaseOrders) { this.pricing = pricing; this.purchaseOrders = purchaseOrders; }
+    private final PurchaseOrderRepository orders;
+    private final SupplierRepository suppliers;
+    private final HistoricalPurchaseRepository history;
+
+    public ExcelExportService(PricingService pricing, PurchaseOrderService purchaseOrders,
+                              PurchaseOrderRepository orders, SupplierRepository suppliers,
+                              HistoricalPurchaseRepository history) {
+        this.pricing = pricing;
+        this.purchaseOrders = purchaseOrders;
+        this.orders = orders;
+        this.suppliers = suppliers;
+        this.history = history;
+    }
 
     public ExportFile exportPriceHistory(String query, CurrencyCode currency) {
         return exportPriceHistory(query, currency, null);
@@ -93,6 +116,166 @@ public class ExcelExportService {
             workbook.write(output); workbook.dispose();
             return new ExportFile("don-hang-" + order.id() + "-r" + order.revision() + ".xlsx", output.toByteArray(), false);
         } catch (IOException exception) { throw new IllegalStateException("Không thể tạo file Excel", exception); }
+    }
+
+    @Transactional(readOnly = true)
+    public ExportFile exportMasterWorkbook() {
+        try (SXSSFWorkbook workbook = new SXSSFWorkbook(200); ByteArrayOutputStream output = new ByteArrayOutputStream()) {
+            workbook.setCompressTempFiles(true);
+
+            CellStyle header = headerStyle(workbook);
+            CellStyle dateStyle = workbook.createCellStyle();
+            dateStyle.setDataFormat(workbook.createDataFormat().getFormat("yyyy-mm-dd"));
+            CellStyle numericStyle = workbook.createCellStyle();
+            numericStyle.setDataFormat(workbook.createDataFormat().getFormat("#,##0.00"));
+
+            // Sheet 1: DON_HANG
+            Sheet donHangSheet = workbook.createSheet("DON_HANG");
+            addRow(donHangSheet, 0, header, "Ngay", "SoPO", "MaNCC", "NhaCungCap", "MaHang", "TenHang", "DVT",
+                    "SoLuong", "DonGia", "NguoiLap", "QuyCach", "GhiChu", "VAT", "DiaChi", "LoaiTien");
+
+            int donHangRowIdx = 1;
+            List<PurchaseOrder> poList = orders.findAll(Sort.by(Sort.Direction.ASC, "poNumber").and(Sort.by(Sort.Direction.ASC, "id")));
+            for (PurchaseOrder po : poList) {
+                String poNumber = po.getPoNumber();
+                LocalDate orderDate = po.getOrderDate();
+                String maNCC = (po.getSupplier() != null && po.getSupplier().getCode() != null) ? po.getSupplier().getCode() : "";
+                String nhaCungCap = (po.getSupplierNameSnapshot() != null) ? po.getSupplierNameSnapshot() : (po.getSupplier() != null ? po.getSupplier().getName() : "");
+                String nguoiLap = safe(po.getPreparedBy());
+                String ghiChu = safe(po.getNote());
+                BigDecimal vat = po.getVatPercent();
+                String diaChi = (po.getSupplierAddressSnapshot() != null) ? po.getSupplierAddressSnapshot() : (po.getSupplier() != null ? safe(po.getSupplier().getAddress()) : "");
+                String loaiTien = po.getCurrency() != null ? po.getCurrency().name() : "VND";
+
+                List<PurchaseOrderItem> items = po.getItems();
+                if (items.isEmpty()) {
+                    Row row = donHangSheet.createRow(donHangRowIdx++);
+                    setDateCell(row, 0, orderDate, dateStyle);
+                    cell(row, 1, poNumber);
+                    cell(row, 2, maNCC);
+                    cell(row, 3, nhaCungCap);
+                    cell(row, 4, "");
+                    cell(row, 5, "");
+                    cell(row, 6, "");
+                    cell(row, 7, "");
+                    cell(row, 8, "");
+                    cell(row, 9, nguoiLap);
+                    cell(row, 10, "");
+                    cell(row, 11, ghiChu);
+                    setNumericOrEmpty(row, 12, vat, numericStyle);
+                    cell(row, 13, diaChi);
+                    cell(row, 14, loaiTien);
+                } else {
+                    for (PurchaseOrderItem item : items) {
+                        Row row = donHangSheet.createRow(donHangRowIdx++);
+                        setDateCell(row, 0, orderDate, dateStyle);
+                        cell(row, 1, poNumber);
+                        cell(row, 2, maNCC);
+                        cell(row, 3, nhaCungCap);
+                        String maHang = item.getMaterialCodeSnapshot() != null ? item.getMaterialCodeSnapshot() : (item.getMaterial() != null ? safe(item.getMaterial().getCode()) : "");
+                        cell(row, 4, maHang);
+                        cell(row, 5, item.getMaterialName());
+                        cell(row, 6, item.getUnit());
+                        setQuantityCell(row, 7, item.getQuantity(), item.getQuantityText(), numericStyle);
+                        setNumericOrEmpty(row, 8, item.getUnitPrice(), numericStyle);
+                        cell(row, 9, nguoiLap);
+                        cell(row, 10, item.getSpecification());
+                        cell(row, 11, ghiChu);
+                        setNumericOrEmpty(row, 12, vat, numericStyle);
+                        cell(row, 13, diaChi);
+                        cell(row, 14, loaiTien);
+                    }
+                }
+            }
+            donHangSheet.createFreezePane(0, 1);
+
+            // Sheet 2: NCC
+            Sheet nccSheet = workbook.createSheet("NCC");
+            addRow(nccSheet, 0, header, "MaNCC", "TenNCC", "DiaChi");
+            int nccRowIdx = 1;
+            List<Supplier> supplierList = suppliers.findAll(Sort.by(Sort.Direction.ASC, "id"));
+            for (Supplier s : supplierList) {
+                Row row = nccSheet.createRow(nccRowIdx++);
+                cell(row, 0, s.getCode());
+                cell(row, 1, s.getName());
+                cell(row, 2, s.getAddress());
+            }
+            nccSheet.createFreezePane(0, 1);
+
+            // Sheet 3: LICH_SU
+            Sheet lichSuSheet = workbook.createSheet("LICH_SU");
+            addRow(lichSuSheet, 0, header, "Ngay", "MaNCC", "NhaCungCap", "MaHang", "TenHang", "DVT", "SoLuong", "DonGia");
+            int lichSuRowIdx = 1;
+            int page = 0;
+            while (true) {
+                Page<HistoricalPurchase> batch = history.findAll(PageRequest.of(page, 1000, Sort.by(Sort.Direction.ASC, "id")));
+                for (HistoricalPurchase hp : batch.getContent()) {
+                    Row row = lichSuSheet.createRow(lichSuRowIdx++);
+                    setDateCell(row, 0, hp.getPurchaseDate(), dateStyle);
+                    String maNCC = hp.getSupplierCodeSnapshot() != null ? hp.getSupplierCodeSnapshot() : (hp.getSupplier() != null ? safe(hp.getSupplier().getCode()) : "");
+                    cell(row, 1, maNCC);
+                    String ncc = hp.getSupplierSnapshot() != null ? hp.getSupplierSnapshot() : (hp.getSupplier() != null ? safe(hp.getSupplier().getName()) : "");
+                    cell(row, 2, ncc);
+                    String maHang = hp.getMaterialCodeSnapshot() != null ? hp.getMaterialCodeSnapshot() : (hp.getMaterial() != null ? safe(hp.getMaterial().getCode()) : "");
+                    cell(row, 3, maHang);
+                    cell(row, 4, hp.getMaterialNameSnapshot());
+                    cell(row, 5, hp.getUnit());
+                    setQuantityCell(row, 6, hp.getQuantity(), hp.getQuantityText(), numericStyle);
+                    setNumericOrEmpty(row, 7, hp.getUnitPrice(), numericStyle);
+                }
+                if (!batch.hasNext()) break;
+                page++;
+            }
+            lichSuSheet.createFreezePane(0, 1);
+
+            // Sheet 4: CONFIG
+            Sheet configSheet = workbook.createSheet("CONFIG");
+            Row configRow0 = configSheet.createRow(0);
+            configRow0.createCell(0).setCellValue("PO_SEQ");
+            configRow0.createCell(1).setCellValue((double) orders.count());
+
+            Row configRow1 = configSheet.createRow(1);
+            configRow1.createCell(0).setCellValue("ACCESS_CODE");
+            configRow1.createCell(1).setCellValue("KHVT@2026");
+
+            workbook.write(output);
+            if (!workbook.dispose()) throw new IllegalStateException("Không dọn được file tạm XLSX");
+            return new ExportFile("QUAN_LY_MUA_HANG_KHVT.xlsx", output.toByteArray(), false);
+        } catch (IOException exception) {
+            throw new IllegalStateException("Không thể tạo file Excel", exception);
+        }
+    }
+
+    private static void setDateCell(Row row, int col, LocalDate date, CellStyle dateStyle) {
+        if (date != null) {
+            Cell cell = row.createCell(col);
+            cell.setCellValue(Date.valueOf(date));
+            cell.setCellStyle(dateStyle);
+        } else {
+            row.createCell(col).setCellValue("");
+        }
+    }
+
+    private static void setNumericOrEmpty(Row row, int col, BigDecimal value, CellStyle numericStyle) {
+        if (value != null) {
+            Cell cell = row.createCell(col);
+            cell.setCellValue(value.doubleValue());
+            if (numericStyle != null) cell.setCellStyle(numericStyle);
+        } else {
+            row.createCell(col).setCellValue("");
+        }
+    }
+
+    private static void setQuantityCell(Row row, int col, BigDecimal quantity, String quantityText, CellStyle numericStyle) {
+        if (quantity != null) {
+            Cell cell = row.createCell(col);
+            cell.setCellValue(quantity.doubleValue());
+            if (numericStyle != null) cell.setCellStyle(numericStyle);
+        } else if (quantityText != null && !quantityText.isBlank()) {
+            row.createCell(col).setCellValue(quantityText);
+        } else {
+            row.createCell(col).setCellValue("");
+        }
     }
 
     private static CellStyle headerStyle(SXSSFWorkbook workbook) {

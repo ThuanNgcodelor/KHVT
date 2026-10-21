@@ -4,12 +4,14 @@ import { Link, useLocation, useNavigate, useParams } from 'react-router-dom'
 import { PageHeader } from '../../../components/PageHeader'
 import { PageState } from '../../../components/PageState'
 import { Dialog } from '../../../components/Dialog'
+import { Icon } from '../../../components/Icon'
 import { useAuth } from '../../auth/hooks/useAuth'
 import { hasPermission } from '../../auth/types'
 import { apiClient, ApiError, saveDownload } from '../../../services/apiClient'
 import { errorMessage } from '../../../services/errorMessage'
 import { queryParams } from '../../../services/queryParams'
 import { catalogApi } from '../../catalog/catalogApi'
+import { SupplierForm } from '../../catalog/components/SupplierForm'
 import type { Supplier } from '../../catalog/types'
 import { MaterialLookup } from '../components/MaterialLookup'
 import { useOrder, useRefreshProcurement } from '../hooks/useProcurement'
@@ -34,6 +36,7 @@ export function PurchaseOrderFormPage() {
   const [currency, setCurrency] = useState<Currency>(imported?.currency ?? 'VND'), [supplierId, setSupplierId] = useState(''), [supplierSearch, setSupplierSearch] = useState(''), [supplierQ, setSupplierQ] = useState('')
   const [orderDate, setOrderDate] = useState(() => new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Ho_Chi_Minh', year: 'numeric', month: '2-digit', day: '2-digit' }).format(new Date())), [vat, setVat] = useState(''), [note, setNote] = useState(''), [preparedBy, setPreparedBy] = useState(user?.displayName ?? ''), [changeReason, setChangeReason] = useState('')
   const [error, setError] = useState(''), [notice, setNotice] = useState(''), [busy, setBusy] = useState(false), [documentBusy, setDocumentBusy] = useState(false), [groups, setGroups] = useState<Group[] | null>(null)
+  const [showAddSupplier, setShowAddSupplier] = useState(false)
   const [supplierChoices, setSupplierChoices] = useState<Record<number, Supplier>>({})
   const [latestHistory, setLatestHistory] = useState<Record<string, { price: PriceRecord; supplierId: number | null }>>({})
   const suppliers = useQuery({ queryKey: ['catalog', 'lookup-suppliers', supplierQ], queryFn: ({ signal }) => catalogApi.suppliers(supplierQ, signal) })
@@ -167,7 +170,7 @@ export function PurchaseOrderFormPage() {
       <div className="form-field"><label htmlFor="po-currency">Loại tiền</label><select id="po-currency" value={currency} onChange={(event) => { setCurrency(event.target.value as Currency); setNotice('Đã đổi loại tiền. Đơn giá hiện tại được giữ; hãy đối chiếu lại trước khi lưu.') }}><option>VND</option><option>USD</option></select></div>
       <div className="form-field"><label htmlFor="po-vat">VAT (%)</label><select id="po-vat" value={vat} onChange={(event) => setVat(event.target.value)}><option value="">Chọn VAT đã xác minh</option>{['0', '5', '8', '10'].map((value) => <option key={value} value={value}>{value}%</option>)}</select></div>
       <div className="form-field"><label htmlFor="po-prepared">Người lập</label><input id="po-prepared" maxLength={255} value={preparedBy} onChange={(event) => setPreparedBy(event.target.value)} /></div>
-      <div className="form-field"><label htmlFor="po-supplier-q">Tìm nhà cung cấp</label><div className="header-actions"><input id="po-supplier-q" value={supplierSearch} onChange={(event) => setSupplierSearch(event.target.value)} /><button type="button" className="secondary-button" onClick={() => setSupplierQ(supplierSearch.trim())}>Tìm NCC</button></div></div>
+      <div className="form-field"><label htmlFor="po-supplier-q">Tìm nhà cung cấp</label><div className="header-actions"><input id="po-supplier-q" value={supplierSearch} onChange={(event) => setSupplierSearch(event.target.value)} placeholder="Mã hoặc tên NCC…" /><button type="button" className="secondary-button" onClick={() => setSupplierQ(supplierSearch.trim())}>Tìm NCC</button><button type="button" className="secondary-button" onClick={() => setShowAddSupplier(true)}><Icon name="plus" size={16} />Thêm nhanh NCC mới</button></div></div>
       <div className="form-field"><label htmlFor="po-supplier">NCC mặc định</label><select id="po-supplier" value={supplierId} onChange={(event) => setSupplierId(event.target.value)}><option value="">Chọn nhà cung cấp</option>{supplierOptions.map((supplier) => <option key={supplier.id} value={supplier.id}>{supplier.code ? `${supplier.code} — ` : ''}{supplier.name}</option>)}</select><p className="field-help">{currentSupplier.data?.address || 'Tìm theo mã/tên để lấy tối đa 50 NCC đang hoạt động.'}</p></div>
     </div>{suppliers.error && <p role="alert">Chưa tải được NCC. <button className="text-button" onClick={() => { void suppliers.refetch() }}>Thử lại</button></p>}
     <div className="form-field"><label htmlFor="po-note">Ghi chú</label><textarea id="po-note" maxLength={1000} value={note} onChange={(event) => setNote(event.target.value)} /></div>
@@ -191,5 +194,13 @@ export function PurchaseOrderFormPage() {
       {groups.map((group, index) => <div className="group-preview" key={group.supplierId}><strong>{group.supplierName}</strong><p>{group.command.items.length} dòng · {currency} · VAT {vat}%</p>{group.result ? <><Link to={`/purchase-orders/${group.result.id}`}>{group.result.poNumber} — Xem đơn</Link><p role="status">{group.exportStatus === 'SAVING' ? 'Đang tạo PO…' : group.exportStatus === 'ISSUING' ? 'Đang phát hành PDF…' : group.exportStatus === 'ISSUED' ? 'Đã phát hành và gửi tải PDF.' : group.exportStatus === 'DOWNLOAD_FAILED' ? `Đã phát hành; chưa tải được PDF. Mở PO để tải lại. ${group.exportError ?? ''}` : group.exportStatus === 'ISSUE_FAILED' ? `Chưa xác nhận được kết quả phát hành. Mở PO kiểm tra trước khi thử lại. ${group.exportError ?? ''}` : 'Đã tạo PO.'}</p></> : group.exportStatus === 'CREATE_FAILED' ? <p role="alert">Chưa xác định được kết quả tạo PO. Kiểm tra danh sách trước khi tiếp tục. {group.exportError}</p> : group.exportStatus === 'CREATE_REJECTED' ? <p role="alert">Máy chủ từ chối tạo PO; chưa phát hành nhóm nào. Quay lại sửa hoặc kiểm tra dữ liệu. {group.exportError}</p> : editing ? <button className="primary-button" disabled={busy} onClick={() => { void saveGroup(index) }}>Lưu phiên bản mới</button> : <span>{group.exportStatus === 'SAVING' ? 'Đang tạo PO…' : 'Chờ xác nhận'}</span>}</div>)}
       <div className="dialog-actions"><button className="secondary-button" disabled={busy} onClick={() => groups.some((group) => group.result || group.exportStatus === 'CREATE_FAILED') ? navigate('/purchase-orders') : setGroups(null)}>{groups.some((group) => group.result || group.exportStatus === 'CREATE_FAILED') ? 'Về danh sách đơn' : 'Quay lại chỉnh sửa'}</button>{!editing && !groups.some((group) => group.result || group.exportStatus === 'CREATE_FAILED' || group.exportStatus === 'CREATE_REJECTED') && <button className="primary-button" disabled={busy} onClick={() => { void exportAllGroups() }}>{busy ? 'Đang tạo PO và phát hành PDF…' : `Xác nhận, tạo ${groups.length} PO và xuất PDF`}</button>}</div>
     </Dialog>}
+    {showAddSupplier && <SupplierForm onClose={() => setShowAddSupplier(false)} onSaved={(name, newSupplier) => {
+      setShowAddSupplier(false)
+      if (newSupplier) {
+        setSupplierChoices((current) => ({ ...current, [newSupplier.id]: newSupplier }))
+        setSupplierId(String(newSupplier.id))
+        setNotice(`Đã thêm nhà cung cấp "${name}" và chọn làm NCC mặc định.`)
+      }
+    }} />}
   </>
 }

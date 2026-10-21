@@ -13,4 +13,5 @@ export const procurementApi = {
   issue: (id: number) => apiClient.post<PurchaseOrder>(`/purchase-orders/${id}/issue`),
   pdf: (id: number, revision?: number) => apiClient.download(revision === undefined ? `/purchase-orders/${id}/pdf` : `/purchase-orders/${id}/revisions/${revision}/pdf`),
   xlsx: (id: number) => apiClient.download(`/exports/purchase-orders/${id}.xlsx`),
+  masterWorkbook: () => apiClient.download('/exports/master-workbook.xlsx'),
 }

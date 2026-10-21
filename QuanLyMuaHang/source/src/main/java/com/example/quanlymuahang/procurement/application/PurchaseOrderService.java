@@ -91,8 +91,8 @@ public class PurchaseOrderService {
             "id", "id"
     );
     private static final org.springframework.data.domain.Sort DEFAULT_PO_SORT = org.springframework.data.domain.Sort.by(
-            org.springframework.data.domain.Sort.Direction.DESC, "orderDate"
-    ).and(org.springframework.data.domain.Sort.by(org.springframework.data.domain.Sort.Direction.DESC, "id"));
+            org.springframework.data.domain.Sort.Direction.ASC, "poNumber"
+    ).and(org.springframework.data.domain.Sort.by(org.springframework.data.domain.Sort.Direction.ASC, "id"));
 
     @Transactional(readOnly = true)
     public Page<OrderView> search(String query, PurchaseOrderStatus status, Pageable pageable) {

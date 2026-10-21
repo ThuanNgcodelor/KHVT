@@ -33,6 +33,10 @@ public class ExcelExportController {
     @PreAuthorize("hasAuthority('*') or hasAuthority('PO_READ')")
     public ResponseEntity<byte[]> purchaseOrder(@PathVariable long id) { return response(exports.exportPurchaseOrder(id)); }
 
+    @GetMapping("/master-workbook.xlsx")
+    @PreAuthorize("hasAuthority('*') or hasAuthority('PO_READ') or hasAuthority('IMPORT_LEGACY')")
+    public ResponseEntity<byte[]> masterWorkbook() { return response(exports.exportMasterWorkbook()); }
+
     private ResponseEntity<byte[]> response(ExcelExportService.ExportFile file) {
         HttpHeaders headers = new HttpHeaders();
         headers.setContentType(XLSX);

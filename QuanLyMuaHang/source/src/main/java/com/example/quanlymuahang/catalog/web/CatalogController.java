@@ -71,7 +71,7 @@ public class CatalogController {
     public CatalogService.SupplierView supplier(@PathVariable long id) { return service.getSupplier(id); }
 
     @PostMapping("/suppliers")
-    @PreAuthorize("hasAuthority('*') or hasAuthority('CATALOG_MANAGE')")
+    @PreAuthorize("hasAuthority('*') or hasAuthority('CATALOG_MANAGE') or hasAuthority('PO_CREATE')")
     public CatalogService.SupplierView createSupplier(@Valid @RequestBody SupplierRequest request, Authentication auth) { return service.createSupplier(request.command(), actor(auth)); }
 
     @PutMapping("/suppliers/{id}")

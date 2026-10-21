@@ -13,14 +13,14 @@ const schema = z.object({
   email: z.string().trim().max(320, 'Tối đa 320 ký tự.').refine((value) => !value || /^[^\s@]+@[^\s@]+$/.test(value), 'Email chưa đúng định dạng.'),
 })
 type Values = z.infer<typeof schema>
-export function SupplierForm({ supplier, onClose, onSaved }: { supplier?: Supplier; onClose: () => void; onSaved: (name: string) => void }) {
+export function SupplierForm({ supplier, onClose, onSaved }: { supplier?: Supplier; onClose: () => void; onSaved: (name: string, saved?: Supplier) => void }) {
   const save = useSaveSupplier(supplier?.id)
   const form = useForm<Values>({ resolver: zodResolver(schema), defaultValues: { code: supplier?.code ?? '', name: supplier?.name ?? '', address: supplier?.address ?? '', taxCode: supplier?.taxCode ?? '', phone: supplier?.phone ?? '', email: supplier?.email ?? '' } })
   const errors = form.formState.errors, busy = form.formState.isSubmitting
   async function submit(values: Values) {
     try {
       const saved = await save.mutateAsync({ code: values.code || null, name: values.name, address: values.address || null, taxCode: values.taxCode || null, phone: values.phone || null, email: values.email || null, active: supplier?.active ?? true })
-      onSaved(saved.name)
+      onSaved(saved.name, saved)
     } catch { /* Keep submitted values available while displaying the API error. */ }
   }
   return <Dialog title={supplier ? 'Sửa nhà cung cấp' : 'Thêm nhà cung cấp'} busy={busy} onClose={onClose}>
