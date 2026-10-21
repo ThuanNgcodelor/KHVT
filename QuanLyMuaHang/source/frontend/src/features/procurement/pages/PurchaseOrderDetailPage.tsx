@@ -1,22 +1,24 @@
 import { useState } from 'react'
-import { Link, useParams } from 'react-router-dom'
+import { Link, useNavigate, useParams } from 'react-router-dom'
 import { PageHeader } from '../../../components/PageHeader'
 import { PageState } from '../../../components/PageState'
 import { TableFeedback } from '../../../components/TableFeedback'
 import { ConfirmDialog } from '../../../components/ConfirmDialog'
+import { UnlockOrderDialog } from '../components/UnlockOrderDialog'
 import { useAuth } from '../../auth/hooks/useAuth'
 import { hasPermission } from '../../auth/types'
 import { saveDownload } from '../../../services/apiClient'
 import { errorMessage } from '../../../services/errorMessage'
-import { useOrder, useOrderRevisions, useIssueOrder, useCancelOrder } from '../hooks/useProcurement'
+import { useOrder, useOrderRevisions, useIssueOrder, useCancelOrder, useUnlockOrder } from '../hooks/useProcurement'
 import { procurementApi } from '../procurementApi'
 import { formatMoney, formatQuantity, formatOrderDate } from '../format'
 import { orderStatusLabels } from '../types'
 
 export function PurchaseOrderDetailPage() {
-  const id = Number(useParams().id), { user } = useAuth()
-  const orderQuery = useOrder(id), revisions = useOrderRevisions(id), issue = useIssueOrder(id), cancel = useCancelOrder(id)
+  const id = Number(useParams().id), { user } = useAuth(), navigate = useNavigate()
+  const orderQuery = useOrder(id), revisions = useOrderRevisions(id), issue = useIssueOrder(id), cancel = useCancelOrder(id), unlock = useUnlockOrder(id)
   const [action, setAction] = useState<'issue' | 'cancel' | null>(null), [reason, setReason] = useState(''), [busy, setBusy] = useState(false), [error, setError] = useState(''), [notice, setNotice] = useState('')
+  const [unlockOpen, setUnlockOpen] = useState(false), [unlockError, setUnlockError] = useState('')
   const order = orderQuery.data
   if (!Number.isSafeInteger(id) || id <= 0) return <PageState title="Số đơn không hợp lệ" />
   if (orderQuery.isPending) return <PageState title="Đang tải đơn mua…" />
@@ -34,11 +36,29 @@ export function PurchaseOrderDetailPage() {
       setAction(null)
     } catch (failure) { setError(errorMessage(failure)) }
   }
+  async function handleUnlockConfirm(unlockReason: string) {
+    setUnlockError('')
+    try {
+      await unlock.mutateAsync(unlockReason)
+      setUnlockOpen(false)
+      navigate(`/purchase-orders/${id}/edit`, { state: { unlockedReason: unlockReason } })
+    } catch (failure) {
+      setUnlockError(errorMessage(failure))
+    }
+  }
   const currentPdf = revisions.data?.some((revision) => revision.revision === order.revision && revision.pdfAvailable)
   return <>
     <PageHeader title={order.poNumber} description={`${orderStatusLabels[order.status]} · Phiên bản ${order.revision} · ${formatOrderDate(order.orderDate)}`} actions={<>
       <Link className="secondary-button" to="/purchase-orders">Danh sách</Link>
-      {user && hasPermission(user, 'PO_EDIT') && order.status !== 'CANCELLED' && <Link className="secondary-button" to={`/purchase-orders/${id}/edit`}>Sửa đơn</Link>}
+      {user && hasPermission(user, 'PO_EDIT') && order.status !== 'CANCELLED' && (
+        order.status === 'EXPORTED' ? (
+          <button className="secondary-button" onClick={() => { setUnlockError(''); setUnlockOpen(true) }}>
+            Mở khóa để sửa (Tạo Revision)
+          </button>
+        ) : (
+          <Link className="secondary-button" to={`/purchase-orders/${id}/edit`}>Sửa đơn</Link>
+        )
+      )}
       {writable && order.status !== 'CANCELLED' && <button className="primary-button" disabled={busy} onClick={() => { setAction('issue'); setError('') }}>{order.status === 'EXPORTED' ? 'Kiểm tra / phát hành lại' : 'Phát hành PDF'}</button>}
     </>} />
     {error && <p role="alert" className="form-error">{error}</p>}{notice && <p role="status" className="success-notice">{notice}</p>}
@@ -54,5 +74,14 @@ export function PurchaseOrderDetailPage() {
     </section>
     {user && hasPermission(user, 'PO_CANCEL') && order.status !== 'CANCELLED' && <section className="panel import-panel"><div className="form-field"><label htmlFor="cancel-reason">Lý do hủy</label><input id="cancel-reason" maxLength={500} value={reason} onChange={(event) => setReason(event.target.value)} /></div><button className="danger-button" onClick={() => { setAction('cancel'); setError('') }}>Hủy đơn mua</button></section>}
     {action && <ConfirmDialog title={action === 'issue' ? 'Phát hành đơn mua?' : 'Hủy đơn mua?'} message={action === 'issue' ? 'Phát hành sẽ tạo PDF, ghi lịch sử giá và đổi trạng thái đơn. Kiểm tra nhà cung cấp, loại tiền, VAT và số lượng trước khi tiếp tục.' : 'Đơn đã hủy không thể sửa hoặc phát hành mới. Tài liệu đã phát hành được giữ trong lịch sử.'} confirmLabel={action === 'issue' ? 'Phát hành đơn' : 'Hủy đơn'} danger={action === 'cancel'} busy={issue.isPending || cancel.isPending || busy} error={error} onClose={() => setAction(null)} onConfirm={() => { void confirmAction() }} />}
+    {unlockOpen && (
+      <UnlockOrderDialog
+        orderNumber={order.poNumber}
+        busy={unlock.isPending}
+        error={unlockError}
+        onClose={() => setUnlockOpen(false)}
+        onConfirm={(r) => { void handleUnlockConfirm(r) }}
+      />
+    )}
   </>
 }

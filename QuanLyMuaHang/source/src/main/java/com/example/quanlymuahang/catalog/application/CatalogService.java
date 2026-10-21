@@ -15,7 +15,9 @@ import org.springframework.data.domain.Sort;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.util.ArrayList;
 import java.util.List;
+import java.util.Map;
 
 @Service
 public class CatalogService {
@@ -132,7 +134,70 @@ public class CatalogService {
         return view;
     }
 
+    @Transactional
+    public BatchResult batchCreateMaterials(List<MaterialCommand> commands, long actorId) {
+        int created = 0, skipped = 0;
+        List<String> errors = new ArrayList<>();
+        for (int i = 0; i < commands.size(); i++) {
+            MaterialCommand cmd = commands.get(i);
+            if (cmd.name() == null || cmd.name().isBlank()) {
+                errors.add("Dòng " + (i + 1) + ": Tên vật tư không được để trống.");
+                continue;
+            }
+            String name = cmd.name().trim();
+            String code = clean(cmd.code());
+            if (code != null && materials.existsByCodeIgnoreCase(code)) {
+                skipped++;
+                continue;
+            }
+            String norm = TextNormalizer.normalize(name);
+            if (materials.findByNormalizedName(norm).isPresent()) {
+                skipped++;
+                continue;
+            }
+            MaterialCategory cat = cmd.category() == null ? MaterialCategory.MATERIAL : cmd.category();
+            Material entity = new Material(name, norm);
+            entity.update(code, name, norm, cat, clean(cmd.defaultUnit()), cmd.active());
+            materials.save(entity);
+            created++;
+        }
+        audit.record(actorId, "MATERIAL_BATCH_CREATED", "MATERIAL", 0L, Map.of("total", commands.size(), "created", created, "skipped", skipped));
+        return new BatchResult(commands.size(), created, skipped, errors);
+    }
+
+    @Transactional
+    public BatchResult batchCreateSuppliers(List<SupplierCommand> commands, long actorId) {
+        int created = 0, skipped = 0;
+        List<String> errors = new ArrayList<>();
+        for (int i = 0; i < commands.size(); i++) {
+            SupplierCommand cmd = commands.get(i);
+            if (cmd.name() == null || cmd.name().isBlank()) {
+                errors.add("Dòng " + (i + 1) + ": Tên NCC không được để trống.");
+                continue;
+            }
+            String name = cmd.name().trim();
+            String code = clean(cmd.code());
+            if (code != null && suppliers.existsByCodeIgnoreCase(code)) {
+                skipped++;
+                continue;
+            }
+            String norm = TextNormalizer.normalize(name);
+            if (suppliers.findByNormalizedName(norm).isPresent()) {
+                skipped++;
+                continue;
+            }
+            Supplier entity = new Supplier(name, norm);
+            entity.update(code, name, norm, clean(cmd.address()), clean(cmd.taxCode()), clean(cmd.phone()), clean(cmd.email()), cmd.active());
+            suppliers.save(entity);
+            created++;
+        }
+        audit.record(actorId, "SUPPLIER_BATCH_CREATED", "SUPPLIER", 0L, Map.of("total", commands.size(), "created", created, "skipped", skipped));
+        return new BatchResult(commands.size(), created, skipped, errors);
+    }
+
     private static String clean(String value) { return value == null || value.isBlank() ? null : value.trim(); }
+
+    public record BatchResult(int total, int created, int skipped, List<String> errors) {}
 
     public record MaterialCommand(String code, String name, MaterialCategory category, String defaultUnit, boolean active) {}
     public record SupplierCommand(String code, String name, String address, String taxCode, String phone, String email, boolean active) {}

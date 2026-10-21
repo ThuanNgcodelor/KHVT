@@ -1,7 +1,7 @@
 import { apiClient } from '../../services/apiClient'
 import { queryParams } from '../../services/queryParams'
 import type { PageResponse } from '../../types/api'
-import type { Material, MaterialCommand, MaterialFilter, Supplier, SupplierCommand, SupplierFilter } from './types'
+import type { BatchResult, Material, MaterialCommand, MaterialFilter, Supplier, SupplierCommand, SupplierFilter } from './types'
 
 export const catalogApi = {
   materials: (q: string, signal?: AbortSignal) => apiClient.get<Material[]>(`/catalog/materials${queryParams({ q })}`, { signal }),
@@ -14,4 +14,7 @@ export const catalogApi = {
   updateMaterial: (id: number, data: MaterialCommand) => apiClient.put<Material>(`/catalog/materials/${id}`, data),
   createSupplier: (data: SupplierCommand) => apiClient.post<Supplier>('/catalog/suppliers', data),
   updateSupplier: (id: number, data: SupplierCommand) => apiClient.put<Supplier>(`/catalog/suppliers/${id}`, data),
+  batchMaterials: (data: MaterialCommand[]) => apiClient.post<BatchResult>('/catalog/materials/batch', data),
+  batchSuppliers: (data: SupplierCommand[]) => apiClient.post<BatchResult>('/catalog/suppliers/batch', data),
 }
+

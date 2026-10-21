@@ -78,6 +78,18 @@ public class CatalogController {
     @PreAuthorize("hasAuthority('*') or hasAuthority('CATALOG_MANAGE')")
     public CatalogService.SupplierView updateSupplier(@PathVariable long id, @Valid @RequestBody SupplierRequest request, Authentication auth) { return service.updateSupplier(id, request.command(), actor(auth)); }
 
+    @PostMapping("/materials/batch")
+    @PreAuthorize("hasAuthority('*') or hasAuthority('CATALOG_MANAGE')")
+    public CatalogService.BatchResult batchMaterials(@Valid @RequestBody List<MaterialRequest> requests, Authentication auth) {
+        return service.batchCreateMaterials(requests.stream().map(MaterialRequest::command).toList(), actor(auth));
+    }
+
+    @PostMapping("/suppliers/batch")
+    @PreAuthorize("hasAuthority('*') or hasAuthority('CATALOG_MANAGE')")
+    public CatalogService.BatchResult batchSuppliers(@Valid @RequestBody List<SupplierRequest> requests, Authentication auth) {
+        return service.batchCreateSuppliers(requests.stream().map(SupplierRequest::command).toList(), actor(auth));
+    }
+
     private static long actor(Authentication authentication) { return ((AccountPrincipal) authentication.getPrincipal()).id(); }
 
     public record MaterialRequest(@Size(max = 80) String code, @NotBlank @Size(max = 500) String name, @NotNull MaterialCategory category,

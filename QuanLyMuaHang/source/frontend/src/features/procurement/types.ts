@@ -1,7 +1,7 @@
 export type Decimal = number | string
 export type Currency = 'VND' | 'USD'
 export type OrderStatus = 'DRAFT' | 'EXPORTED' | 'CANCELLED'
-export const orderStatusLabels: Record<OrderStatus, string> = { DRAFT: 'Bản nháp', EXPORTED: 'Đã phát hành', CANCELLED: 'Đã hủy' }
+export const orderStatusLabels: Record<OrderStatus, string> = { DRAFT: 'Bản nháp', EXPORTED: 'Đã phát hành (Đã khóa)', CANCELLED: 'Đã hủy' }
 export type OrderItem = {
   id: number | null; lineNo: number; materialId: number | null; materialCode: string | null
   materialName: string; specification: string | null; unit: string | null

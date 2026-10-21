@@ -11,6 +11,7 @@ export const procurementApi = {
   update: (id: number, data: OrderCommand) => apiClient.put<PurchaseOrder>(`/purchase-orders/${id}`, data),
   cancel: (id: number, reason: string) => apiClient.post<PurchaseOrder>(`/purchase-orders/${id}/cancel`, { reason }),
   issue: (id: number) => apiClient.post<PurchaseOrder>(`/purchase-orders/${id}/issue`),
+  unlock: (id: number, reason: string) => apiClient.post<PurchaseOrder>(`/purchase-orders/${id}/unlock`, { reason }),
   pdf: (id: number, revision?: number) => apiClient.download(revision === undefined ? `/purchase-orders/${id}/pdf` : `/purchase-orders/${id}/revisions/${revision}/pdf`),
   xlsx: (id: number) => apiClient.download(`/exports/purchase-orders/${id}.xlsx`),
   masterWorkbook: () => apiClient.download('/exports/master-workbook.xlsx'),

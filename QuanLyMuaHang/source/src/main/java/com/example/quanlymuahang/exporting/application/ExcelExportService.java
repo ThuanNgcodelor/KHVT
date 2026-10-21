@@ -121,7 +121,7 @@ public class ExcelExportService {
                 row.getCell(4).setCellStyle(numeric); row.getCell(5).setCellStyle(numeric);
             }
             sheet.setColumnWidth(0, 8 * 256); sheet.setColumnWidth(1, 38 * 256); sheet.setColumnWidth(2, 34 * 256);
-            sheet.setColumnWidth(3, 12 * 256); sheet.setColumnWidth(4, 16 * 256); sheet.setColumnWidth(5, 22 * 256);
+            sheet.setColumnWidth(3, 16 * 256); sheet.setColumnWidth(4, 16 * 256); sheet.setColumnWidth(5, 22 * 256);
             sheet.createFreezePane(0, 9); sheet.setAutoFilter(new org.apache.poi.ss.util.CellRangeAddress(8, Math.max(8, rowNumber - 1), 0, 5));
             workbook.write(output); workbook.dispose();
             return new ExportFile("don-hang-" + order.id() + "-r" + order.revision() + ".xlsx", output.toByteArray(), false);

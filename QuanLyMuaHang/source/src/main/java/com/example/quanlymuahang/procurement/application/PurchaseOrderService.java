@@ -126,6 +126,7 @@ public class PurchaseOrderService {
         validate(command);
         PurchaseOrder order = orderForMutation(id);
         if (order.getStatus() == PurchaseOrderStatus.CANCELLED) throw ApiException.conflict("PO_CANCELLED", "Đơn mua đã hủy không thể sửa");
+        if (order.getStatus() == PurchaseOrderStatus.EXPORTED) throw ApiException.conflict("PO_LOCKED", "Đơn mua đã phát hành gửi nhà cung cấp nên đã bị khóa. Vui lòng mở khóa đơn để tạo phiên bản sửa đổi mới trước khi chỉnh sửa.");
         Supplier supplier = suppliers.findById(command.supplierId()).orElseThrow(() -> ApiException.notFound("Không tìm thấy nhà cung cấp"));
         order.setOrderDate(command.orderDate() == null ? order.getOrderDate() : command.orderDate());
         order.setSupplier(supplier); order.setSupplierNameSnapshot(supplier.getName()); order.setSupplierAddressSnapshot(supplier.getAddress());
@@ -144,6 +145,26 @@ public class PurchaseOrderService {
         OrderView view = OrderView.from(order);
         audit.record(actorId, "PURCHASE_ORDER_REVISED", "PURCHASE_ORDER", order.getId(), view);
         return view;
+    }
+
+    @Transactional
+    public OrderView unlock(long id, String reason, long actorId) {
+        PurchaseOrder order = orderForMutation(id);
+        if (order.getStatus() == PurchaseOrderStatus.CANCELLED) {
+            throw ApiException.conflict("PO_CANCELLED", "Đơn mua đã hủy không thể mở khóa");
+        }
+        if (order.getStatus() != PurchaseOrderStatus.EXPORTED) {
+            return OrderView.from(order);
+        }
+        if (reason == null || reason.isBlank()) {
+            throw ApiException.badRequest("UNLOCK_REASON_REQUIRED", "Bắt buộc nhập lý do mở khóa để tạo phiên bản sửa đổi");
+        }
+        order.setStatus(PurchaseOrderStatus.DRAFT);
+        order.setUpdatedBy(actorId);
+        orders.saveAndFlush(order);
+        audit.record(actorId, "PURCHASE_ORDER_UNLOCKED", "PURCHASE_ORDER", order.getId(),
+                java.util.Map.of("reason", reason.trim(), "poNumber", order.getPoNumber(), "revision", order.getRevision()));
+        return OrderView.from(order);
     }
 
     @Transactional

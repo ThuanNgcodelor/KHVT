@@ -9,6 +9,7 @@ import { useAuth } from '../../auth/hooks/useAuth'
 import { hasPermission } from '../../auth/types'
 import { CatalogTabs } from '../components/CatalogTabs'
 import { MaterialForm } from '../components/MaterialForm'
+import { BatchImportCatalogDialog } from '../components/BatchImportCatalogDialog'
 import { useMaterials, useMaterialStatus } from '../hooks/useCatalog'
 import { materialCategoryLabels, type Material, type MaterialCategory } from '../types'
 import { SortTh } from '../../../components/SortTh'
@@ -21,6 +22,7 @@ export function MaterialsPage() {
   const [page, setPage] = useState(0)
   const [sort, setSort] = useState('name,asc')
   const [editing, setEditing] = useState<Material | 'new' | null>(null)
+  const [batchOpen, setBatchOpen] = useState(false)
   const [confirm, setConfirm] = useState<Material | null>(null), [notice, setNotice] = useState('')
   const materials = useMaterials({ q, active: active === '' ? undefined : active === 'true', category: category || undefined, page, size: 25, sort })
   const changeStatus = useMaterialStatus(), data = materials.data
@@ -39,7 +41,12 @@ export function MaterialsPage() {
   }
   return <>
     <PageHeader title="Vật tư" description="Danh mục vật tư, dịch vụ và đơn vị tính dùng khi lập đơn mua hàng."
-      actions={canManage && <button className="primary-button" onClick={() => { setNotice(''); setEditing('new') }}><Icon name="plus" />Thêm vật tư</button>} />
+      actions={canManage && (
+        <div style={{ display: 'flex', gap: '8px' }}>
+          <button className="secondary-button" onClick={() => { setNotice(''); setBatchOpen(true) }}><Icon name="download" />Thêm hàng loạt</button>
+          <button className="primary-button" onClick={() => { setNotice(''); setEditing('new') }}><Icon name="plus" />Thêm vật tư</button>
+        </div>
+      )} />
     <CatalogTabs />
     {notice && <p className="notice" role="status">{notice}</p>}
     <section className="panel" aria-label="Danh sách vật tư">
@@ -78,5 +85,6 @@ export function MaterialsPage() {
       message={confirm.active ? `Ngừng ${confirm.name}? Bản ghi vẫn được giữ nhưng không còn xuất hiện trong danh sách chọn vật tư đang hoạt động.` : `Kích hoạt ${confirm.name}? Vật tư sẽ xuất hiện lại trong danh sách chọn khi lập đơn mua hàng.`}
       confirmLabel={confirm.active ? 'Xác nhận ngừng' : 'Xác nhận kích hoạt'} danger={confirm.active} busy={changeStatus.isPending}
       error={changeStatus.error ? errorMessage(changeStatus.error) : undefined} onClose={() => setConfirm(null)} onConfirm={() => { void confirmStatus() }} />}
+    {batchOpen && <BatchImportCatalogDialog kind="materials" onClose={() => setBatchOpen(false)} onSuccess={(res) => { setBatchOpen(false); setNotice(`Đã thêm thành công ${res.created} vật tư.`); void materials.refetch() }} />}
   </>
 }

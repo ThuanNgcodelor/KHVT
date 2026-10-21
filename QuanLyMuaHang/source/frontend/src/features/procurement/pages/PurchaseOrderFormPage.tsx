@@ -29,13 +29,20 @@ const positive = (value: string, label: string) => { if (!/^\d+(?:\.\d+)?$/.test
 export function PurchaseOrderFormPage() {
   const id = Number(useParams().id), editing = Number.isSafeInteger(id) && id > 0
   const { user } = useAuth(), navigate = useNavigate(), location = useLocation(), refresh = useRefreshProcurement()
-  const routeImport = (location.state as { importDraft?: ImportedOrderDraft } | null)?.importDraft
+  const routeState = location.state as { importDraft?: ImportedOrderDraft; unlockedReason?: string } | null
+  const routeImport = routeState?.importDraft
+  const routeUnlockedReason = routeState?.unlockedReason
   const [imported, setImported] = useState(routeImport)
   const orderQuery = useOrder(id)
   const [rows, setRows] = useState<CartRow[]>(() => imported?.items.length ? imported.items.map(emptyRow) : [emptyRow()])
   const [currency, setCurrency] = useState<Currency>(imported?.currency ?? 'VND'), [supplierId, setSupplierId] = useState(''), [supplierSearch, setSupplierSearch] = useState(''), [supplierQ, setSupplierQ] = useState('')
-  const [orderDate, setOrderDate] = useState(() => new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Ho_Chi_Minh', year: 'numeric', month: '2-digit', day: '2-digit' }).format(new Date())), [vat, setVat] = useState(''), [note, setNote] = useState(''), [preparedBy, setPreparedBy] = useState(user?.displayName ?? ''), [changeReason, setChangeReason] = useState('')
+  const [orderDate, setOrderDate] = useState(() => new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Ho_Chi_Minh', year: 'numeric', month: '2-digit', day: '2-digit' }).format(new Date())), [vat, setVat] = useState(''), [note, setNote] = useState(''), [preparedBy, setPreparedBy] = useState(user?.displayName ?? ''), [changeReason, setChangeReason] = useState(routeUnlockedReason ?? '')
   const [error, setError] = useState(''), [notice, setNotice] = useState(''), [busy, setBusy] = useState(false), [documentBusy, setDocumentBusy] = useState(false), [groups, setGroups] = useState<Group[] | null>(null)
+  useEffect(() => {
+    if (routeUnlockedReason && !changeReason) {
+      setChangeReason(routeUnlockedReason)
+    }
+  }, [routeUnlockedReason])
   useEffect(() => {
     if (!editing && user && !preparedBy) {
       setPreparedBy(user.displayName?.trim() || user.email || '')
@@ -57,6 +64,37 @@ export function PurchaseOrderFormPage() {
       .catch((failure) => { if (!cancelled) setError(`Không tải được thông tin NCC đã chọn. Hãy tìm lại NCC trước khi lập đơn. ${errorMessage(failure)}`) })
     return () => { cancelled = true }
   }, [imported])
+  useEffect(() => {
+    if (routeImport && routeImport.sourceType === 'PRICE_HISTORY' && rows.length > 0) {
+      const initHist: Record<string, { price: PriceRecord; supplierId: number | null }> = {}
+      rows.forEach((r, idx) => {
+        const item = routeImport.items[idx]
+        if (item && item.unitPrice != null) {
+          initHist[r.key] = {
+            price: {
+              id: 0,
+              purchaseDate: new Date().toISOString().split('T')[0],
+              materialName: item.materialName,
+              materialCode: item.materialCode ?? null,
+              unit: item.unit ?? null,
+              quantity: item.quantity != null ? Number(item.quantity) : null,
+              quantityText: item.quantityText ?? null,
+              unitPrice: item.unitPrice != null ? Number(item.unitPrice) : null,
+              currency: (routeImport.currency as 'VND' | 'USD') || 'VND',
+              currencyBasis: null,
+              supplierName: item.supplierName ?? null,
+              supplierCode: item.supplierCode ?? null,
+              source: 'PRICE_HISTORY',
+              sourceSheet: null,
+              sourceRowNumber: null
+            },
+            supplierId: item.supplierId || null
+          }
+        }
+      })
+      setLatestHistory((cur) => ({ ...cur, ...initHist }))
+    }
+  }, [routeImport, rows.length])
   useEffect(() => { const order = orderQuery.data; if (!editing || !order) return; setRows(order.items.map(emptyRow)); setCurrency(order.currency); setSupplierId(order.supplierId ? String(order.supplierId) : ''); setOrderDate(order.orderDate ?? ''); setVat(order.vatPercent == null ? '' : String(order.vatPercent)); setNote(order.note ?? ''); setPreparedBy(order.preparedBy ?? '') }, [editing, orderQuery.data])
   function patch(key: string, values: Partial<CartRow>) { setRows((current) => current.map((row) => row.key === key ? { ...row, ...values } : row)) }
   function acceptImport(draft: ImportedOrderDraft) {
@@ -199,6 +237,15 @@ export function PurchaseOrderFormPage() {
   if (editing && orderQuery.isPending) return <PageState title="Đang tải đơn mua…" />
   if (editing && orderQuery.error) return <PageState title="Chưa tải được đơn mua" message={errorMessage(orderQuery.error)} onRetry={() => { void orderQuery.refetch() }} />
   if (editing && orderQuery.data?.status === 'CANCELLED') return <PageState title="Đơn đã hủy không thể sửa" />
+  if (editing && orderQuery.data?.status === 'EXPORTED') {
+    return (
+      <PageState
+        title={`Đơn mua ${orderQuery.data.poNumber} đã phát hành và đang bị khóa`}
+        message="Đơn mua đã gửi nhà cung cấp nên bị khóa sửa trực tiếp để đảm bảo tính toàn vẹn chứng từ. Hãy quay lại trang chi tiết đơn để chọn [Mở khóa để sửa (Tạo Revision)]."
+        onRetry={() => navigate(`/purchase-orders/${id}`)}
+      />
+    )
+  }
   return <>
     <PageHeader title={editing ? `Sửa ${orderQuery.data?.poNumber ?? 'đơn mua'}` : 'Mua hàng'} description="Nhập PCVT, tìm vật tư, xem giá/NCC đã mua và chuẩn bị đơn theo từng nhà cung cấp." actions={<Link className="secondary-button" to="/purchase-orders">Danh sách đơn</Link>} />
     {imported && <p className="import-note">Nhận {imported.items.length} dòng từ {imported.fileName || 'bản nháp'}. {imported.message} {imported.warnings?.length ? `${imported.warnings.length} dòng có cảnh báo cần đối chiếu.` : ''}</p>}
@@ -242,6 +289,12 @@ export function PurchaseOrderFormPage() {
               const rowSubtotal = hasValidQty && hasValidPrice ? qtyVal * priceVal : null
               const isQtyInvalid = row.selected && !row.textQty && (row.quantity.trim() === '' || isNaN(qtyVal) || qtyVal <= 0)
               const isPriceInvalid = row.selected && (row.unitPrice.trim() === '' || isNaN(priceVal) || priceVal <= 0)
+
+              const histPrice = latestHistory[row.key]?.price?.unitPrice != null ? Number(latestHistory[row.key].price.unitPrice) : null
+              const priceDiffPercent = (histPrice != null && histPrice > 0 && hasValidPrice && priceVal > 0)
+                ? Math.round(((priceVal - histPrice) / histPrice) * 100)
+                : null
+              const hasPriceWarning = priceDiffPercent != null && Math.abs(priceDiffPercent) >= 10
 
               return (
                 <tr key={row.key}>
@@ -290,6 +343,12 @@ export function PurchaseOrderFormPage() {
                     <label className="field-help" htmlFor={`po-price-${row.key}`}>Giá hiện tại gửi NCC</label>
                     <input id={`po-price-${row.key}`} aria-label={`Đơn giá dòng ${index + 1}`} inputMode="decimal" maxLength={24} placeholder="Nhập đơn giá…" className={isPriceInvalid ? 'input-invalid' : ''} value={row.unitPrice} onChange={(event) => patch(row.key, { unitPrice: event.target.value })} />
                     {isPriceInvalid && <span className="cell-invalid">Vui lòng nhập đơn giá &gt; 0</span>}
+                    {hasPriceWarning && (
+                      <span className="cell-warning" title={`Giá cũ: ${new Intl.NumberFormat('vi-VN').format(histPrice!)} ${latestHistory[row.key].price.currency}`}>
+                        <Icon name="alert" size={12} />
+                        <span>Chênh lệch {priceDiffPercent! > 0 ? `+${priceDiffPercent}%` : `${priceDiffPercent}%`} so với giá cũ ({new Intl.NumberFormat('vi-VN').format(histPrice!)})</span>
+                      </span>
+                    )}
                   </td>
                   <td className="numeric-cell subtotal-cell">
                     {rowSubtotal != null ? `${new Intl.NumberFormat('vi-VN', { maximumFractionDigits: currency === 'USD' ? 2 : 0 }).format(rowSubtotal)}` : '—'}

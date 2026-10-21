@@ -33,3 +33,7 @@ export function useCancelOrder(id: number) {
   const refresh = useRefreshProcurement()
   return useMutation({ mutationFn: (reason: string) => procurementApi.cancel(id, reason), onSuccess: refresh })
 }
+export function useUnlockOrder(id: number) {
+  const refresh = useRefreshProcurement()
+  return useMutation({ mutationFn: (reason: string) => procurementApi.unlock(id, reason), onSuccess: refresh })
+}

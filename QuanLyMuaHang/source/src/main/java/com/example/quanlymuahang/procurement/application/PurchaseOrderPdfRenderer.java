@@ -95,7 +95,7 @@ final class PurchaseOrderPdfRenderer {
         float sharedWidth = 249;
         float name = nameWidth + specificationWidth == 0 ? 184
                 : Math.max(72, Math.min(184, sharedWidth * nameWidth / (nameWidth + specificationWidth)));
-        return new float[]{32, name, sharedWidth - name, 40, 80, 99};
+        return new float[]{28, name, sharedWidth - name, 52, 76, 95};
     }
     private void ensure(float height, boolean table) throws IOException { if (y - height < 55) newPage(table); }
     private void row(List<String> cells, boolean header) throws IOException {
@@ -148,7 +148,7 @@ final class PurchaseOrderPdfRenderer {
     }
     private void poMetadata() throws IOException {
         String prefix = "Số PO: ", number = safe(order.poNumber());
-        String suffix = "    Ngày: " + (order.orderDate() == null ? "Chưa xác định" : order.orderDate().format(DateTimeFormatter.ofPattern("dd / MM / uuuu")));
+        String suffix = "    Ngày: " + (order.orderDate() == null ? "Chưa xác định" : order.orderDate().format(DateTimeFormatter.ofPattern("dd/MM/yyyy")));
         float total = measure(prefix, 9, false) + measure(number, 9, true) + measure(suffix, 9, false);
         float x = LEFT + (WIDTH - total) / 2;
         text(prefix, x, y, 9, Color.BLACK); x += measure(prefix, 9, false);

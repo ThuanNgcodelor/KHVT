@@ -85,6 +85,12 @@ public class PurchaseOrderController {
         return service.issue(id, actor(authentication));
     }
 
+    @PostMapping("/{id}/unlock")
+    @PreAuthorize("hasAuthority('*') or hasAuthority('PO_EDIT')")
+    public PurchaseOrderService.OrderView unlock(@PathVariable long id, @Valid @RequestBody UnlockRequest body, Authentication authentication) {
+        return service.unlock(id, body.reason(), actor(authentication));
+    }
+
     @GetMapping("/{id}/revisions")
     @PreAuthorize("hasAuthority('*') or hasAuthority('PO_READ')")
     public List<PurchaseOrderService.RevisionView> revisions(@PathVariable long id) { return service.revisions(id); }
@@ -103,6 +109,7 @@ public class PurchaseOrderController {
 
     private static long actor(Authentication authentication) { return ((AccountPrincipal) authentication.getPrincipal()).id(); }
     public record CancelRequest(@Size(max = 500) String reason) {}
+    public record UnlockRequest(@NotBlank @Size(max = 500) String reason) {}
     public record OrderRequest(@NotNull Long supplierId, LocalDate orderDate, @NotNull CurrencyCode currency,
                                @NotNull @PositiveOrZero BigDecimal vatPercent, @Size(max = 1000) String note,
                                @Size(max = 255) String preparedBy, @Size(max = 500) String changeReason,

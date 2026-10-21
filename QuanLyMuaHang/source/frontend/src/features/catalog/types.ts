@@ -6,3 +6,5 @@ export type MaterialCommand = Omit<Material, 'id'>
 export type SupplierCommand = Omit<Supplier, 'id'>
 export type MaterialFilter = { q?: string; active?: boolean; category?: MaterialCategory; page: number; size: number; sort?: string }
 export type SupplierFilter = { q?: string; active?: boolean; page: number; size: number; sort?: string }
+export type BatchResult = { total: number; created: number; skipped: number; errors: string[] }
+

@@ -9,6 +9,8 @@ import { useAuth } from '../../auth/hooks/useAuth'
 import { hasPermission } from '../../auth/types'
 import { CatalogTabs } from '../components/CatalogTabs'
 import { SupplierForm } from '../components/SupplierForm'
+import { BatchImportCatalogDialog } from '../components/BatchImportCatalogDialog'
+import { SupplierPurchaseHistoryDialog } from '../components/SupplierPurchaseHistoryDialog'
 import { useSuppliers, useSupplierStatus } from '../hooks/useCatalog'
 import type { Supplier } from '../types'
 import { SortTh } from '../../../components/SortTh'
@@ -19,6 +21,8 @@ export function SuppliersPage() {
   const [search, setSearch] = useState(''), [q, setQuery] = useState(''), [active, setActive] = useState('')
   const [page, setPage] = useState(0), [editing, setEditing] = useState<Supplier | 'new' | null>(null)
   const [sort, setSort] = useState('name,asc')
+  const [batchOpen, setBatchOpen] = useState(false)
+  const [historySupplier, setHistorySupplier] = useState<Supplier | null>(null)
   const [confirm, setConfirm] = useState<Supplier | null>(null), [notice, setNotice] = useState('')
   const suppliers = useSuppliers({ q, active: active === '' ? undefined : active === 'true', page, size: 25, sort })
   const changeStatus = useSupplierStatus(), data = suppliers.data
@@ -37,7 +41,12 @@ export function SuppliersPage() {
   }
   return <>
     <PageHeader title="Nhà cung cấp" description="Thông tin liên hệ và trạng thái của các nhà cung cấp trong danh mục mua hàng."
-      actions={canManage && <button className="primary-button" onClick={() => { setNotice(''); setEditing('new') }}><Icon name="plus" />Thêm nhà cung cấp</button>} />
+      actions={canManage && (
+        <div style={{ display: 'flex', gap: '8px' }}>
+          <button className="secondary-button" onClick={() => { setNotice(''); setBatchOpen(true) }}><Icon name="download" />Thêm hàng loạt</button>
+          <button className="primary-button" onClick={() => { setNotice(''); setEditing('new') }}><Icon name="plus" />Thêm nhà cung cấp</button>
+        </div>
+      )} />
     <CatalogTabs />
     {notice && <p className="notice" role="status">{notice}</p>}
     <section className="panel" aria-label="Danh sách nhà cung cấp">
@@ -64,8 +73,13 @@ export function SuppliersPage() {
           <td className="code-cell">{supplier.code ?? '—'}</td><td><strong className="cell-title">{supplier.name}</strong><span className="cell-subtitle">{supplier.address ?? 'Chưa có địa chỉ'}</span></td>
           <td>{supplier.email ?? '—'}<span className="cell-subtitle">{supplier.phone ?? '—'}</span></td><td>{supplier.taxCode ?? '—'}</td>
           <td><span className={`status-badge ${supplier.active ? 'active' : 'inactive'}`}>{supplier.active ? 'Đang sử dụng' : 'Đã ngừng'}</span></td>
-          <td>{canManage ? <div className="table-actions"><button className="text-button" aria-label={`Sửa ${supplier.name}`} onClick={() => { setNotice(''); setEditing(supplier) }}>Sửa</button>
-            <button className={`text-button ${supplier.active ? 'danger' : ''}`} aria-label={`${supplier.active ? 'Ngừng' : 'Kích hoạt'} ${supplier.name}`} onClick={() => { changeStatus.reset(); setNotice(''); setConfirm(supplier) }}>{supplier.active ? 'Ngừng' : 'Kích hoạt'}</button></div> : '—'}</td>
+          <td><div className="table-actions">
+            <button className="text-button" aria-label={`Xem lịch sử mua từ ${supplier.name}`} onClick={() => setHistorySupplier(supplier)}>Lịch sử mua</button>
+            {canManage && <>
+              <button className="text-button" aria-label={`Sửa ${supplier.name}`} onClick={() => { setNotice(''); setEditing(supplier) }}>Sửa</button>
+              <button className={`text-button ${supplier.active ? 'danger' : ''}`} aria-label={`${supplier.active ? 'Ngừng' : 'Kích hoạt'} ${supplier.name}`} onClick={() => { changeStatus.reset(); setNotice(''); setConfirm(supplier) }}>{supplier.active ? 'Ngừng' : 'Kích hoạt'}</button>
+            </>}
+          </div></td>
         </tr>)}</tbody>
       </table></div>}
       {!suppliers.error && data && <Pagination page={data.number} size={data.size} total={data.totalElements} pages={data.totalPages} busy={suppliers.isFetching} onChange={setPage} />}
@@ -75,5 +89,7 @@ export function SuppliersPage() {
       message={confirm.active ? `Ngừng ${confirm.name}? Bản ghi vẫn được giữ nhưng không còn xuất hiện trong danh sách chọn nhà cung cấp đang hoạt động.` : `Kích hoạt ${confirm.name}? Nhà cung cấp sẽ xuất hiện lại trong danh sách chọn khi lập đơn mua hàng.`}
       confirmLabel={confirm.active ? 'Xác nhận ngừng' : 'Xác nhận kích hoạt'} danger={confirm.active} busy={changeStatus.isPending}
       error={changeStatus.error ? errorMessage(changeStatus.error) : undefined} onClose={() => setConfirm(null)} onConfirm={() => { void confirmStatus() }} />}
+    {batchOpen && <BatchImportCatalogDialog kind="suppliers" onClose={() => setBatchOpen(false)} onSuccess={(res) => { setBatchOpen(false); setNotice(`Đã thêm thành công ${res.created} nhà cung cấp.`); void suppliers.refetch() }} />}
+    {historySupplier && <SupplierPurchaseHistoryDialog supplier={historySupplier} onClose={() => setHistorySupplier(null)} />}
   </>
 }
