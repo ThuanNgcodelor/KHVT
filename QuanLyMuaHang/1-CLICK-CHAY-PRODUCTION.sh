@@ -11,12 +11,7 @@ echo "  Domain: https://khvthub.com"
 echo "==================================================================="
 echo ""
 
-bash "$SCRIPT_DIR/CHAY_KHVT.sh" start -Profile prod -NoBuild "$@"
-if [[ $? -ne 0 ]]; then
-  echo ""
-  echo "Đang build lại và khởi động hệ thống..."
-  bash "$SCRIPT_DIR/CHAY_KHVT.sh" start -Profile prod "$@"
-fi
+bash "$SCRIPT_DIR/CHAY_KHVT.sh" start -Profile prod "$@"
 
 echo ""
 if [[ -t 0 ]]; then
