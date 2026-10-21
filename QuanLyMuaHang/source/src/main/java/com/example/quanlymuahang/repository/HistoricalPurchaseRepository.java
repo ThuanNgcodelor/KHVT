@@ -17,11 +17,27 @@ public interface HistoricalPurchaseRepository extends JpaRepository<HistoricalPu
         return searchFiltered(normalizedQuery, currency, null, pageable);
     }
 
-    @Query("select h from HistoricalPurchase h where (:q is null or :q = '' or h.materialNameNormalizedSnapshot like concat('%', :q, '%') " +
+    @Query("select h from HistoricalPurchase h left join h.supplier s where " +
+            "(:q is null or :q = '' or h.materialNameNormalizedSnapshot like concat('%', :q, '%') " +
             "or lower(h.materialNameSnapshot) like lower(concat('%', :q, '%')) or lower(h.materialCodeSnapshot) like concat('%', :q, '%')) " +
             "and (:currency is null or h.currency = :currency) and (:category is null or h.category = :category)")
     Page<HistoricalPurchase> searchFiltered(@Param("q") String normalizedQuery, @Param("currency") CurrencyCode currency,
                                             @Param("category") MaterialCategory category, Pageable pageable);
+
+    @Query("select h from HistoricalPurchase h left join h.supplier s where " +
+            "(:q is null or :q = '' or h.materialNameNormalizedSnapshot like concat('%', :q, '%') " +
+            "or lower(h.materialNameSnapshot) like lower(concat('%', :q, '%')) or lower(h.materialCodeSnapshot) like concat('%', :q, '%')) " +
+            "and (:supp is null or :supp = '' or h.supplierCodeSnapshot like concat('%', :rawSupp, '%') " +
+            "or lower(h.supplierSnapshot) like lower(concat('%', :rawSupp, '%')) " +
+            "or s.normalizedName like concat('%', :supp, '%') or lower(s.name) like lower(concat('%', :rawSupp, '%')) " +
+            "or lower(s.code) like lower(concat('%', :rawSupp, '%'))) " +
+            "and (:currency is null or h.currency = :currency) and (:category is null or h.category = :category)")
+    Page<HistoricalPurchase> searchCombined(@Param("q") String normalizedQuery,
+                                            @Param("supp") String normalizedSupplier,
+                                            @Param("rawSupp") String rawSupplier,
+                                            @Param("currency") CurrencyCode currency,
+                                            @Param("category") MaterialCategory category,
+                                            Pageable pageable);
 
     @Query("select h from HistoricalPurchase h left join h.supplier s where " +
             "(:q is null or :q = '' or h.supplierCodeSnapshot like concat('%', :raw, '%') " +

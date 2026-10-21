@@ -42,8 +42,16 @@ public class PricingService {
 
     @Transactional(readOnly = true)
     public Page<PriceView> search(String query, CurrencyCode currency, MaterialCategory category, Pageable pageable) {
+        return search(query, null, currency, category, pageable);
+    }
+
+    @Transactional(readOnly = true)
+    public Page<PriceView> search(String query, String supplierQuery, CurrencyCode currency, MaterialCategory category, Pageable pageable) {
         Pageable safe = com.example.quanlymuahang.sharedkernel.web.SafeSortUtil.sanitize(pageable, PRICE_SORT_MAPPING, DEFAULT_PRICE_SORT);
-        return history.searchFiltered(TextNormalizer.normalize(query), currency, category, safe).map(PriceView::from);
+        String normQ = TextNormalizer.normalize(query);
+        String rawSupp = supplierQuery == null ? "" : supplierQuery.trim();
+        String normSupp = TextNormalizer.normalize(rawSupp);
+        return history.searchCombined(normQ, normSupp, rawSupp, currency, category, safe).map(PriceView::from);
     }
 
     @Transactional(readOnly = true)

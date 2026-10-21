@@ -54,7 +54,10 @@ public class PurchaseOrderController {
     @PostMapping
     @PreAuthorize("hasAuthority('*') or hasAuthority('PO_CREATE')")
     public PurchaseOrderService.OrderView create(@Valid @RequestBody OrderRequest body, Authentication authentication) {
-        return service.create(body.command(), actor(authentication));
+        AccountPrincipal principal = (AccountPrincipal) authentication.getPrincipal();
+        String fallback = principal.displayName() != null && !principal.displayName().isBlank()
+                ? principal.displayName().trim() : principal.email();
+        return service.create(body.command(fallback), principal.id());
     }
 
     @PutMapping("/{id}")
@@ -105,7 +108,11 @@ public class PurchaseOrderController {
                                @Size(max = 255) String preparedBy, @Size(max = 500) String changeReason,
                                @NotEmpty @Size(max = 200) List<@Valid ItemRequest> items) {
         PurchaseOrderService.OrderCommand command() {
-            return new PurchaseOrderService.OrderCommand(supplierId, orderDate, currency, vatPercent, note, preparedBy, changeReason,
+            return command(null);
+        }
+        PurchaseOrderService.OrderCommand command(String fallbackPreparedBy) {
+            String preparer = (preparedBy != null && !preparedBy.isBlank()) ? preparedBy.trim() : fallbackPreparedBy;
+            return new PurchaseOrderService.OrderCommand(supplierId, orderDate, currency, vatPercent, note, preparer, changeReason,
                     items.stream().map(ItemRequest::command).toList());
         }
     }

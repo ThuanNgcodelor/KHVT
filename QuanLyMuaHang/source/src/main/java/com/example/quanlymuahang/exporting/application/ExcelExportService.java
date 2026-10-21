@@ -59,10 +59,14 @@ public class ExcelExportService {
     }
 
     public ExportFile exportPriceHistory(String query, CurrencyCode currency) {
-        return exportPriceHistory(query, currency, null);
+        return exportPriceHistory(query, null, currency, null);
     }
 
     public ExportFile exportPriceHistory(String query, CurrencyCode currency, MaterialCategory category) {
+        return exportPriceHistory(query, null, currency, category);
+    }
+
+    public ExportFile exportPriceHistory(String query, String supplier, CurrencyCode currency, MaterialCategory category) {
         try (SXSSFWorkbook workbook = new SXSSFWorkbook(200); ByteArrayOutputStream output = new ByteArrayOutputStream()) {
             workbook.setCompressTempFiles(true);
             Sheet sheet = workbook.createSheet("Lich su gia");
@@ -71,7 +75,7 @@ public class ExcelExportService {
             int rowNumber = 1;
             boolean truncated = false;
             for (int pageNumber = 0; pageNumber < 50; pageNumber++) {
-                Page<PricingService.PriceView> page = pricing.search(query, currency, category, PageRequest.of(pageNumber, 1000));
+                Page<PricingService.PriceView> page = pricing.search(query, supplier, currency, category, PageRequest.of(pageNumber, 1000));
                 for (PricingService.PriceView item : page.getContent()) {
                     if (rowNumber > 50_000) { truncated = true; break; }
                     Row row = sheet.createRow(rowNumber++);

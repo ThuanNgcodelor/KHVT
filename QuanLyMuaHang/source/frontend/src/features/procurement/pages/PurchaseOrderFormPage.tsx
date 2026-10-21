@@ -36,6 +36,11 @@ export function PurchaseOrderFormPage() {
   const [currency, setCurrency] = useState<Currency>(imported?.currency ?? 'VND'), [supplierId, setSupplierId] = useState(''), [supplierSearch, setSupplierSearch] = useState(''), [supplierQ, setSupplierQ] = useState('')
   const [orderDate, setOrderDate] = useState(() => new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Ho_Chi_Minh', year: 'numeric', month: '2-digit', day: '2-digit' }).format(new Date())), [vat, setVat] = useState(''), [note, setNote] = useState(''), [preparedBy, setPreparedBy] = useState(user?.displayName ?? ''), [changeReason, setChangeReason] = useState('')
   const [error, setError] = useState(''), [notice, setNotice] = useState(''), [busy, setBusy] = useState(false), [documentBusy, setDocumentBusy] = useState(false), [groups, setGroups] = useState<Group[] | null>(null)
+  useEffect(() => {
+    if (!editing && user && !preparedBy) {
+      setPreparedBy(user.displayName?.trim() || user.email || '')
+    }
+  }, [user, editing, preparedBy])
   const [showAddSupplier, setShowAddSupplier] = useState(false)
   const [supplierChoices, setSupplierChoices] = useState<Record<number, Supplier>>({})
   const [latestHistory, setLatestHistory] = useState<Record<string, { price: PriceRecord; supplierId: number | null }>>({})
@@ -143,19 +148,53 @@ export function PurchaseOrderFormPage() {
     } finally { setBusy(false) }
   }
   async function copyLatest() {
-    setBusy(true); setError(''); let applied = 0, unmatched = 0
+    setBusy(true); setError(''); setNotice('')
     try {
-      for (const row of rows.filter((item) => item.selected && item.materialName.trim())) {
-        try {
-          const latest = await apiClient.get<PriceRecord>(`/prices/latest${queryParams({ materialCode: clean(row.materialCode), materialName: row.materialName.trim(), currency })}`)
-          const candidates = latest.supplierCode ? await catalogApi.suppliers(latest.supplierCode) : []
-          const supplier = candidates.find((item) => item.code?.toLocaleLowerCase() === latest.supplierCode?.toLocaleLowerCase())
-          if (supplier) setSupplierChoices((current) => ({ ...current, [supplier.id]: supplier }))
-          setLatestHistory((current) => ({ ...current, [row.key]: { price: latest, supplierId: supplier?.id ?? null } })); applied++; if (!supplier) unmatched++
-        } catch (failure) { if (failure instanceof ApiError && [401,403].includes(failure.status)) { setError(failure.message); break } unmatched++ }
+      const targets = rows.filter((item) => item.selected && item.materialName.trim())
+      if (!targets.length) {
+        setNotice('Chưa có dòng nào được chọn để tìm giá gần nhất.')
+        return
       }
-      setNotice(`Đã tìm thấy lịch sử cho ${applied} dòng theo ${currency}. Giá cũ chỉ hiển thị tham khảo và chưa thay đổi giá/NCC đang nhập. ${unmatched ? `${unmatched} dòng chưa nối được mã NCC hiện tại.` : ''}`)
-    } finally { setBusy(false) }
+      const results = await Promise.all(
+        targets.map(async (row) => {
+          try {
+            const latest = await apiClient.get<PriceRecord>(`/prices/latest${queryParams({ materialCode: clean(row.materialCode), materialName: row.materialName.trim(), currency })}`)
+            let supplier: Supplier | undefined
+            if (latest.supplierCode) {
+              const candidates = await catalogApi.suppliers(latest.supplierCode)
+              supplier = candidates.find((item) => item.code?.toLocaleLowerCase() === latest.supplierCode?.toLocaleLowerCase())
+            }
+            return { rowKey: row.key, price: latest, supplier }
+          } catch {
+            return { rowKey: row.key, price: null, supplier: null }
+          }
+        })
+      )
+      let applied = 0, unmatched = 0
+      const newSupplierChoices: Record<number, Supplier> = {}
+      const newHistory: Record<string, { price: PriceRecord; supplierId: number | null }> = {}
+      for (const res of results) {
+        if (res.price) {
+          applied++
+          if (res.supplier) {
+            newSupplierChoices[res.supplier.id] = res.supplier
+            newHistory[res.rowKey] = { price: res.price, supplierId: res.supplier.id }
+          } else {
+            unmatched++
+            newHistory[res.rowKey] = { price: res.price, supplierId: null }
+          }
+        }
+      }
+      if (Object.keys(newSupplierChoices).length > 0) {
+        setSupplierChoices((current) => ({ ...current, ...newSupplierChoices }))
+      }
+      setLatestHistory((current) => ({ ...current, ...newHistory }))
+      setNotice(`Đã đối chiếu giá gần nhất cho ${applied}/${targets.length} dòng theo ${currency}. Giá cũ chỉ để tham khảo; bấm [Dùng giá này] hoặc [Dùng NCC này] để áp dụng vào dòng. ${unmatched ? `${unmatched} dòng chưa xác định mã NCC.` : ''}`)
+    } catch (failure) {
+      setError(errorMessage(failure))
+    } finally {
+      setBusy(false)
+    }
   }
   if (editing && orderQuery.isPending) return <PageState title="Đang tải đơn mua…" />
   if (editing && orderQuery.error) return <PageState title="Chưa tải được đơn mua" message={errorMessage(orderQuery.error)} onRetry={() => { void orderQuery.refetch() }} />
@@ -176,17 +215,147 @@ export function PurchaseOrderFormPage() {
     <div className="form-field"><label htmlFor="po-note">Ghi chú</label><textarea id="po-note" maxLength={1000} value={note} onChange={(event) => setNote(event.target.value)} /></div>
     {editing && <div className="form-field"><label htmlFor="po-change">Lý do sửa đơn</label><input id="po-change" maxLength={500} value={changeReason} onChange={(event) => setChangeReason(event.target.value)} /></div>}
     </section>
-    <section className="panel import-panel"><MaterialLookup onPick={(material) => setRows((current) => [...current.filter((row) => !!row.materialName.trim()), emptyRow({ materialId: material.id, materialCode: material.code, materialName: material.name, unit: material.defaultUnit, quantity: 1 })])} />
+    <section className="panel import-panel"><MaterialLookup onPick={(material) => setRows((current) => [...current.filter((row) => !!row.materialName.trim()), emptyRow({ materialId: material.id, materialCode: material.code, materialName: material.name, unit: material.defaultUnit })])} />
       <div className="header-actions"><button className="secondary-button" onClick={() => setRows((current) => [...current, emptyRow()])}>Thêm dòng thủ công</button>{user && hasPermission(user, 'PRICE_READ') && <button className="secondary-button" disabled={busy} onClick={() => { void copyLatest() }}>Lấy giá / NCC gần nhất</button>}{user && (hasPermission(user,'IMPORT_OPERATIONAL') || hasPermission(user,'IMPORT_LEGACY')) && <Link to="/imports">Nhận từ Excel / PDF / dữ liệu dán</Link>}</div>
     </section>
-    <section className="panel"><div className="panel-heading"><h2>Danh sách chuẩn bị mua</h2><span>{rows.filter((row) => row.selected).length} / {rows.length} dòng đã chọn</span></div><div className="table-wrap"><table className="po-cart"><thead><tr><th><input type="checkbox" aria-label="Chọn tất cả dòng hàng" checked={!!rows.length && rows.every((row) => row.selected)} onChange={(event) => setRows((current) => current.map((row) => ({ ...row, selected: event.target.checked })))} /></th><th>Vật tư / Mã</th><th>Quy cách / ĐVT</th><th>Số lượng</th><th>Đơn giá ({currency})</th>{!editing && <th>NCC riêng</th>}<th>Thao tác</th></tr></thead><tbody>{rows.map((row, index) => <tr key={row.key}><td><input aria-label={`Chọn dòng ${index + 1}`} type="checkbox" checked={row.selected} onChange={(event) => patch(row.key, { selected: event.target.checked })} /></td>
-      <td><input aria-label={`Tên vật tư dòng ${index + 1}`} maxLength={500} value={row.materialName} onChange={(event) => patch(row.key, { materialName: event.target.value, materialId: null })} /><input aria-label={`Mã vật tư dòng ${index + 1}`} maxLength={80} value={row.materialCode} onChange={(event) => patch(row.key, { materialCode: event.target.value, materialId: null })} /></td>
-      <td><input aria-label={`Quy cách dòng ${index + 1}`} maxLength={1000} value={row.specification} onChange={(event) => patch(row.key, { specification: event.target.value })} /><input aria-label={`Đơn vị dòng ${index + 1}`} maxLength={100} value={row.unit} onChange={(event) => patch(row.key, { unit: event.target.value })} /></td>
-      <td>{row.textQty && <span className="cell-subtitle">SL chữ từ nguồn: {row.quantityText}. Cần xác nhận số lượng dạng số trước khi lập PO.</span>}<input aria-label={`Số lượng dòng ${index + 1}`} inputMode="decimal" maxLength={24} value={row.quantity} onChange={(event) => patch(row.key, { quantity: event.target.value, textQty: false })} /></td>
-      <td>{latestHistory[row.key] && <span className="cell-subtitle">Giá cũ: {latestHistory[row.key].price.unitPrice ?? 'Chưa có'} {latestHistory[row.key].price.currency} · NCC: {latestHistory[row.key].price.supplierName ?? 'Chưa xác định'} · {latestHistory[row.key].price.purchaseDate ?? 'Chưa rõ ngày'}{latestHistory[row.key].supplierId && <button type="button" className="text-button" onClick={() => { const old = latestHistory[row.key]; patch(row.key, { unitPrice: String(old.price.unitPrice ?? ''), supplierId: old.supplierId ? String(old.supplierId) : row.supplierId }) }}>Dùng làm giá hiện tại</button>}</span>}<label className="field-help" htmlFor={`po-price-${row.key}`}>Giá hiện tại gửi NCC</label><input id={`po-price-${row.key}`} aria-label={`Đơn giá dòng ${index + 1}`} inputMode="decimal" maxLength={24} value={row.unitPrice} onChange={(event) => patch(row.key, { unitPrice: event.target.value })} /></td>
-      {!editing && <td><select aria-label={`NCC dòng ${index + 1}`} value={row.supplierId} onChange={(event) => patch(row.key, { supplierId: event.target.value })}><option value="">Dùng NCC mặc định</option>{supplierOptions.map((supplier) => <option key={supplier.id} value={supplier.id}>{supplier.name}</option>)}</select></td>}
-      <td><button className="text-button" aria-label={`Bỏ dòng ${index + 1}`} onClick={() => setRows((current) => current.filter((item) => item.key !== row.key))}>Bỏ dòng</button></td>
-    </tr>)}</tbody></table></div><p className="import-note">Đơn mới yêu cầu số lượng dạng số. Số lượng chữ từ chứng từ chỉ được hiển thị để đối chiếu và không tự chuyển thành số. Giá cũ/NCC cũ không thay giá hiện tại khi chưa bấm chọn dùng. Tổng tiền tra cứu do backend tính khi lưu.</p></section>
+    <section className="panel"><div className="panel-heading"><h2>Danh sách chuẩn bị mua</h2><span>{rows.filter((row) => row.selected).length} / {rows.length} dòng đã chọn</span></div>
+      <div className="table-wrap">
+        <table className="po-cart">
+          <thead>
+            <tr>
+              <th><input type="checkbox" aria-label="Chọn tất cả dòng hàng" checked={!!rows.length && rows.every((row) => row.selected)} onChange={(event) => setRows((current) => current.map((row) => ({ ...row, selected: event.target.checked })))} /></th>
+              <th>Vật tư / Mã</th>
+              <th>Quy cách / ĐVT</th>
+              <th>Số lượng</th>
+              <th>Đơn giá ({currency})</th>
+              <th className="numeric-cell">Thành tiền ({currency})</th>
+              {!editing && <th>NCC riêng</th>}
+              <th>Thao tác</th>
+            </tr>
+          </thead>
+          <tbody>
+            {rows.map((row, index) => {
+              const qtyVal = Number(row.quantity)
+              const priceVal = Number(row.unitPrice)
+              const hasValidQty = !row.textQty && !isNaN(qtyVal) && qtyVal > 0
+              const hasValidPrice = !isNaN(priceVal) && priceVal >= 0
+              const rowSubtotal = hasValidQty && hasValidPrice ? qtyVal * priceVal : null
+              const isQtyInvalid = row.selected && !row.textQty && (row.quantity.trim() === '' || isNaN(qtyVal) || qtyVal <= 0)
+              const isPriceInvalid = row.selected && (row.unitPrice.trim() === '' || isNaN(priceVal) || priceVal <= 0)
+
+              return (
+                <tr key={row.key}>
+                  <td><input aria-label={`Chọn dòng ${index + 1}`} type="checkbox" checked={row.selected} onChange={(event) => patch(row.key, { selected: event.target.checked })} /></td>
+                  <td>
+                    <input aria-label={`Tên vật tư dòng ${index + 1}`} maxLength={500} value={row.materialName} placeholder="Tên hàng hóa, vật tư…" onChange={(event) => patch(row.key, { materialName: event.target.value, materialId: null })} />
+                    <input aria-label={`Mã vật tư dòng ${index + 1}`} maxLength={80} value={row.materialCode} placeholder="Mã vật tư (nếu có)…" onChange={(event) => patch(row.key, { materialCode: event.target.value, materialId: null })} />
+                  </td>
+                  <td>
+                    <input aria-label={`Quy cách dòng ${index + 1}`} maxLength={1000} value={row.specification} placeholder="Quy cách, quy chuẩn…" onChange={(event) => patch(row.key, { specification: event.target.value })} />
+                    <input aria-label={`Đơn vị dòng ${index + 1}`} maxLength={100} value={row.unit} placeholder="Đơn vị tính…" onChange={(event) => patch(row.key, { unit: event.target.value })} />
+                  </td>
+                  <td>
+                    {row.textQty && <span className="cell-subtitle">SL chữ từ nguồn: {row.quantityText}. Cần xác nhận số lượng dạng số trước khi lập PO.</span>}
+                    <input aria-label={`Số lượng dòng ${index + 1}`} inputMode="decimal" maxLength={24} placeholder="Nhập SL…" className={isQtyInvalid ? 'input-invalid' : ''} value={row.quantity} onChange={(event) => patch(row.key, { quantity: event.target.value, textQty: false })} />
+                    {isQtyInvalid && <span className="cell-invalid">Vui lòng nhập SL &gt; 0</span>}
+                  </td>
+                  <td>
+                    {latestHistory[row.key] && (
+                      <div className="history-preview-badge">
+                        <div className="history-preview-text">
+                          <span>Giá cũ: <strong>{new Intl.NumberFormat('vi-VN', { maximumFractionDigits: latestHistory[row.key].price.currency === 'USD' ? 2 : 0 }).format(Number(latestHistory[row.key].price.unitPrice ?? 0))} {latestHistory[row.key].price.currency}</strong></span>
+                          <span> · NCC: <strong>{latestHistory[row.key].price.supplierName ?? 'Chưa xác định'}</strong></span>
+                          <span> · {latestHistory[row.key].price.purchaseDate ?? 'Chưa rõ ngày'}</span>
+                        </div>
+                        <div className="history-preview-actions">
+                          {latestHistory[row.key].price.unitPrice != null && (
+                            <button type="button" className="text-button history-btn" title="Chỉ áp dụng giá cũ vào ô đơn giá" onClick={() => {
+                              patch(row.key, { unitPrice: String(latestHistory[row.key].price.unitPrice ?? '') })
+                            }}>
+                              <Icon name="check" size={12} /> Dùng giá này
+                            </button>
+                          )}
+                          {latestHistory[row.key].supplierId && (
+                            <button type="button" className="text-button history-btn" title="Chỉ áp dụng NCC này cho dòng" onClick={() => {
+                              const suppId = String(latestHistory[row.key].supplierId)
+                              patch(row.key, { supplierId: suppId })
+                              if (!supplierId) setSupplierId(suppId)
+                            }}>
+                              <Icon name="check" size={12} /> Dùng NCC này
+                            </button>
+                          )}
+                        </div>
+                      </div>
+                    )}
+                    <label className="field-help" htmlFor={`po-price-${row.key}`}>Giá hiện tại gửi NCC</label>
+                    <input id={`po-price-${row.key}`} aria-label={`Đơn giá dòng ${index + 1}`} inputMode="decimal" maxLength={24} placeholder="Nhập đơn giá…" className={isPriceInvalid ? 'input-invalid' : ''} value={row.unitPrice} onChange={(event) => patch(row.key, { unitPrice: event.target.value })} />
+                    {isPriceInvalid && <span className="cell-invalid">Vui lòng nhập đơn giá &gt; 0</span>}
+                  </td>
+                  <td className="numeric-cell subtotal-cell">
+                    {rowSubtotal != null ? `${new Intl.NumberFormat('vi-VN', { maximumFractionDigits: currency === 'USD' ? 2 : 0 }).format(rowSubtotal)}` : '—'}
+                  </td>
+                  {!editing && <td>
+                    <select aria-label={`NCC dòng ${index + 1}`} value={row.supplierId} onChange={(event) => patch(row.key, { supplierId: event.target.value })}>
+                      <option value="">Dùng NCC mặc định</option>
+                      {supplierOptions.map((supplier) => <option key={supplier.id} value={supplier.id}>{supplier.name}</option>)}
+                    </select>
+                  </td>}
+                  <td><button className="text-button" aria-label={`Bỏ dòng ${index + 1}`} onClick={() => setRows((current) => current.filter((item) => item.key !== row.key))}>Bỏ dòng</button></td>
+                </tr>
+              )
+            })}
+          </tbody>
+        </table>
+      </div>
+
+      {(() => {
+        const selectedRows = rows.filter((row) => row.selected)
+        const totalLines = selectedRows.length
+        const totalQty = selectedRows.reduce((sum, r) => {
+          const q = Number(r.quantity)
+          return sum + (!r.textQty && !isNaN(q) && q > 0 ? q : 0)
+        }, 0)
+        const totalPreVat = selectedRows.reduce((sum, r) => {
+          const q = Number(r.quantity), p = Number(r.unitPrice)
+          return sum + (!r.textQty && !isNaN(q) && q > 0 && !isNaN(p) && p >= 0 ? q * p : 0)
+        }, 0)
+        const vatRate = vat && !isNaN(Number(vat)) ? Number(vat) : 0
+        const vatAmount = totalPreVat * (vatRate / 100)
+        const grandTotal = totalPreVat + vatAmount
+        const missingCount = selectedRows.filter((r) => !r.textQty && (!Number(r.quantity) || Number(r.quantity) <= 0 || !Number(r.unitPrice) || Number(r.unitPrice) <= 0)).length
+
+        return (
+          <div className="po-summary-box">
+            <div className="po-summary-metrics">
+              <div className="po-summary-row">
+                <span className="summary-label">Mặt hàng đã chọn:</span>
+                <span className="summary-val"><strong>{totalLines}</strong> dòng ({totalQty.toLocaleString('vi-VN')} đơn vị)</span>
+              </div>
+              <div className="po-summary-row">
+                <span className="summary-label">Tổng tiền hàng (chưa VAT):</span>
+                <span className="summary-val"><strong>{new Intl.NumberFormat('vi-VN', { maximumFractionDigits: currency === 'USD' ? 2 : 0 }).format(totalPreVat)}</strong> {currency}</span>
+              </div>
+              <div className="po-summary-row">
+                <span className="summary-label">Thuế GTGT ({vat ? `${vat}%` : 'chưa chọn'}):</span>
+                <span className="summary-val">{new Intl.NumberFormat('vi-VN', { maximumFractionDigits: currency === 'USD' ? 2 : 0 }).format(vatAmount)} {currency}</span>
+              </div>
+              <div className="po-summary-row summary-grand">
+                <span className="summary-label">Tổng thanh toán (sau VAT):</span>
+                <span className="summary-val">{new Intl.NumberFormat('vi-VN', { maximumFractionDigits: currency === 'USD' ? 2 : 0 }).format(grandTotal)} {currency}</span>
+              </div>
+            </div>
+            {missingCount > 0 && (
+              <div className="po-summary-warning">
+                <Icon name="alert" size={16} />
+                <span>Còn {missingCount} dòng được chọn chưa nhập đủ số lượng hoặc đơn giá hợp lệ (&gt; 0).</span>
+              </div>
+            )}
+          </div>
+        )
+      })()}
+
+      <p className="import-note">Đơn mới yêu cầu số lượng dạng số. Số lượng chữ từ chứng từ chỉ được hiển thị để đối chiếu và không tự chuyển thành số. Giá cũ/NCC cũ không thay giá hiện tại khi chưa bấm chọn dùng. Mẫu PDF gửi NCC giữ nguyên định dạng chỉ gồm Số lượng và Đơn giá chưa VAT.</p>
+    </section>
     <div className="header-actions"><button className="primary-button" disabled={busy || documentBusy} onClick={previewGroups}>{editing ? 'Kiểm tra phiên bản mới' : 'Kiểm tra và xuất PO'}</button></div>
     {groups && <Dialog title={editing ? 'Xác nhận sửa đơn' : `Kiểm tra ${groups.length} nhóm nhà cung cấp`} onClose={() => { if (!busy) { if (groups.some((group) => group.result)) navigate('/purchase-orders'); else setGroups(null) } }} busy={busy}>
       <p className="dialog-description">{editing ? 'Kiểm tra nội dung và lưu phiên bản mới. Phát hành phiên bản sau khi rà soát.' : 'Xác nhận một lần để tạo từng PO theo NCC và phát hành PDF. Mỗi PO được lưu riêng; nếu bước tạo PO lỗi thì hệ thống dừng trước khi phát hành, còn lỗi phát hành sẽ được báo theo từng NCC.'}</p>

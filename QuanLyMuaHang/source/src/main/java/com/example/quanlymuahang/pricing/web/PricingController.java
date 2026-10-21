@@ -21,10 +21,11 @@ public class PricingController {
 
     @GetMapping
     public Page<PricingService.PriceView> search(@RequestParam(defaultValue = "") String q,
+                                                  @RequestParam(defaultValue = "") String supplier,
                                                   @RequestParam(required = false) CurrencyCode currency,
                                                   @RequestParam(required = false) MaterialCategory category,
                                                   @PageableDefault(size = 25) Pageable pageable) {
-        return pricing.search(q, currency, category, pageable);
+        return pricing.search(q, supplier, currency, category, pageable);
     }
 
     @GetMapping("/supplier-history")

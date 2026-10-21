@@ -23,9 +23,11 @@ public class ExcelExportController {
 
     @GetMapping("/prices.xlsx")
     @PreAuthorize("hasAuthority('*') or hasAuthority('PRICE_READ')")
-    public ResponseEntity<byte[]> prices(@RequestParam(defaultValue = "") String q, @RequestParam(required = false) CurrencyCode currency,
+    public ResponseEntity<byte[]> prices(@RequestParam(defaultValue = "") String q,
+                                       @RequestParam(defaultValue = "") String supplier,
+                                       @RequestParam(required = false) CurrencyCode currency,
                                        @RequestParam(required = false) MaterialCategory category) {
-        ExcelExportService.ExportFile file = exports.exportPriceHistory(q, currency, category);
+        ExcelExportService.ExportFile file = exports.exportPriceHistory(q, supplier, currency, category);
         return response(file);
     }
 
