@@ -1,38 +1,69 @@
-# Lệnh chạy, tắt server và nhập Excel trên Windows
+# Lệnh chạy, tắt server và nhập Excel trên Windows & Linux
 
-Các lệnh dưới đây dùng PowerShell đang đứng ở **thư mục `KHVT`**, giống terminal hiện tại của bạn. File này nằm trong `KHVT/QuanLyMuaHang/Build.md`; launcher nằm trong `KHVT/QuanLyMuaHang/CHAY_KHVT.cmd`.
+Các lệnh dưới đây dùng PowerShell (trên Windows) hoặc Bash (trên Linux) đang đứng ở thư mục gốc dự án hoặc thư mục `QuanLyMuaHang`.
 
-Mở **Docker Desktop riêng** trước khi chạy ứng dụng. Máy cần JDK 21, Maven 3.9+ và Node.js 22+ để build. Giữ cấu hình/mật khẩu riêng trong `QuanLyMuaHang/source/.env`.
+- **Trên Windows**: Dùng các file `.cmd` (`1-CLICK-CHAY-DEV.cmd`, `1-CLICK-DUNG-HE-THONG.cmd`, `CHAY_KHVT.cmd`).
+- **Trên Linux**: Dùng các script shell `.sh` (`1-CLICK-CHAY-DEV.sh`, `1-CLICK-DUNG-HE-THONG.sh`, `CHAY_KHVT.sh`).
+
+Mở **Docker riêng** trước khi chạy ứng dụng (nếu chưa có MySQL/Redis cài cục bộ). Máy cần JDK 21, Maven 3.9+ và Node.js 22+ để build. Cấu hình/mật khẩu riêng được lưu trong `QuanLyMuaHang/source/.env`.
 
 ## 1. Chạy local để test giao diện và chức năng
 
-```powershell
-.\QuanLyMuaHang\CHAY_KHVT.cmd start -Profile dev
-```
+### Cách 1: Chạy 1-Click
+- **Windows**: Nhấp đúp hoặc chạy `1-CLICK-CHAY-DEV.cmd`.
+- **Linux**: Chạy file:
+  ```bash
+  ./QuanLyMuaHang/1-CLICK-CHAY-DEV.sh
+  ```
 
-Mở **http://localhost:8080**. Launcher bật MySQL/Redis, build frontend/backend và chạy một Java phục vụ cả giao diện lẫn API. Lệnh `start` mặc định bỏ qua bộ test tự động. Nếu ứng dụng do launcher quản lý đã healthy, gọi lại `start` sẽ dùng tiến trình đó; muốn build code mới, dùng `stop` rồi `start`.
+### Cách 2: Dùng lệnh launcher
+- **Windows (PowerShell)**:
+  ```powershell
+  .\QuanLyMuaHang\CHAY_KHVT.cmd start -Profile dev
+  ```
+- **Linux (Bash)**:
+  ```bash
+  ./QuanLyMuaHang/CHAY_KHVT.sh start -Profile dev
+  ```
+
+Mở **http://localhost:8080**. Launcher bật MySQL/Redis, build frontend/backend và chạy một tiến trình Java phục vụ cả giao diện lẫn API. Lệnh `start` mặc định bỏ qua bộ test tự động. Nếu ứng dụng do launcher quản lý đã healthy, gọi lại `start` sẽ dùng tiến trình đó; muốn build code mới, dùng `stop` rồi `start`.
 
 Đã có JAR đóng gói thì có thể chạy nhanh bằng:
 
-```powershell
-.\QuanLyMuaHang\CHAY_KHVT.cmd start -Profile dev -NoBuild
-```
+- **Windows**:
+  ```powershell
+  .\QuanLyMuaHang\CHAY_KHVT.cmd start -Profile dev -NoBuild
+  ```
+- **Linux**:
+  ```bash
+  ./QuanLyMuaHang/CHAY_KHVT.sh start -Profile dev -NoBuild
+  ```
 
 `-NoBuild` không cập nhật code mới. Nếu MySQL/Redis đã được bạn bật riêng, thêm `-ExternalDocker` để launcher chỉ kiểm tra hai dịch vụ, không gọi `compose up`.
 
 ## 2. Tắt riêng server, giữ Docker và database chạy
 
-```powershell
-.\QuanLyMuaHang\CHAY_KHVT.cmd stop
-```
+- **Windows**: Chạy `1-CLICK-DUNG-HE-THONG.cmd` hoặc:
+  ```powershell
+  .\QuanLyMuaHang\CHAY_KHVT.cmd stop
+  ```
+- **Linux**: Chạy `./1-CLICK-DUNG-HE-THONG.sh` hoặc:
+  ```bash
+  ./QuanLyMuaHang/CHAY_KHVT.sh stop
+  ```
 
-Lệnh này chỉ dừng Java của ứng dụng được **CHAY_KHVT.cmd** tạo và theo dõi. Docker Desktop, container MySQL/Redis và volume dữ liệu vẫn giữ nguyên.
+Lệnh này chỉ dừng Java của ứng dụng được **CHAY_KHVT** tạo và theo dõi. Docker, container MySQL/Redis và volume dữ liệu vẫn giữ nguyên.
 
 Kiểm tra server đang chạy hay đã dừng:
 
-```powershell
-.\QuanLyMuaHang\CHAY_KHVT.cmd status
-```
+- **Windows**:
+  ```powershell
+  .\QuanLyMuaHang\CHAY_KHVT.cmd status
+  ```
+- **Linux**:
+  ```bash
+  ./QuanLyMuaHang/CHAY_KHVT.sh status
+  ```
 
 Java chạy nền; đóng cửa sổ launcher không phải lệnh tắt server. Nếu backend chạy bằng **F5 trong VS Code**, bấm **Stop** ở phiên debug đó. Nếu chạy bằng `mvn spring-boot:run` trong terminal, dùng **Ctrl+C** tại terminal đó. Launcher không tự dừng backend của IDE hoặc launcher khác.
 

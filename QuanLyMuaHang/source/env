@@ -1,0 +1,55 @@
+# ==============================================================================
+# Cấu hình Môi trường & Domain Production (Cloudflare)
+# ==============================================================================
+SPRING_PROFILES_ACTIVE=prod
+SERVER_PORT=8080
+APP_FRONTEND_URL=https://khvthub.com
+SESSION_COOKIE_SECURE=true
+APP_TIMEZONE=Asia/Ho_Chi_Minh
+
+# ==============================================================================
+# Database MySQL (Laragon)
+# ==============================================================================
+# Cổng mặc định của Laragon MySQL là 3306
+SPRING_DATASOURCE_URL=jdbc:mysql://localhost:3306/quanlymuahang?useUnicode=true&characterEncoding=utf8
+SPRING_DATASOURCE_USERNAME=root
+# Nếu user root trong Laragon không đặt mật khẩu thì để trống:
+DB_PASSWORD=
+MYSQL_ROOT_PASSWORD= 
+
+# ==============================================================================
+# Redis (Laragon)
+# ==============================================================================
+# Cổng mặc định của Redis trong Laragon là 6379 (không cần mật khẩu)
+REDIS_HOST=localhost
+REDIS_PORT=6379
+REDIS_PASSWORD=
+
+# ==============================================================================
+# Tài khoản Quản trị viên khởi tạo lần đầu (Bootstrap Admin)
+# ==============================================================================
+# Mật khẩu bắt buộc tối thiểu 12 ký tự (chỉ khởi tạo lần đầu khi DB chưa có)
+ADMIN_BOOTSTRAP_EMAIL=admin@khvthub.com
+ADMIN_BOOTSTRAP_PASSWORD=matkhaudemo
+ADMIN_BOOTSTRAP_NAME=Quản trị viên
+
+# ==============================================================================
+# Đường dẫn Font xuất PDF & Thư mục lưu trữ File trên Windows
+# ==============================================================================
+APP_PDF_FONT_PATH=C:/Windows/Fonts/arial.ttf
+FILE_STORAGE_ROOT=C:/KHVTData/files
+
+# ==============================================================================
+# Cấu hình Gửi Email (Quên mật khẩu)
+# ==============================================================================
+MAIL_HOST=smtp.gmail.com
+MAIL_PORT=587
+# Điền email & mật khẩu ứng dụng (App Password) của Gmail nếu cần gửi mail thật
+MAIL_USERNAME=
+MAIL_PASSWORD=
+MAIL_SMTP_AUTH=true
+MAIL_SMTP_STARTTLS=true
+MAIL_FROM=noreply@khvthub.com
+MAIL_FROM_NAME=Quản lý mua hàng KHVT
+APP_RESET_PASSWORD_URL=https://khvthub.com/reset-password
+RESET_TOKEN_VALIDITY_MINUTES=15
