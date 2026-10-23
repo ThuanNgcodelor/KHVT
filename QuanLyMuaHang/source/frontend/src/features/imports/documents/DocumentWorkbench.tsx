@@ -61,7 +61,38 @@ export function DocumentWorkbench({ canReadPrices, canCreateOrders, onBusy, onCr
   return <div className="document-workbench">
     <section className="panel import-panel document-intake"><div className="document-step-title"><span aria-hidden="true">1</span><div><h2>PCVT và báo giá mới</h2><p>Chọn file Excel, CSV hoặc PDF có chữ. Sau đó chọn dòng cần xử lý.</p></div></div>
       <fieldset disabled={busy}><div className="form-grid"><div className="form-field"><label htmlFor="document-kind">Loại chứng từ</label><select id="document-kind" value={kind} onChange={(event) => { setKind(event.target.value as DocumentKind); setFile(null) }}><option value="REQUEST">PCVT / yêu cầu cần mua</option><option value="QUOTATION">Báo giá nhà cung cấp</option></select></div><div className="form-field"><label htmlFor="document-file">Tệp PCVT / báo giá</label><input key={kind} id="document-file" type="file" accept=".xlsx,.xls,.csv,.pdf" onChange={(event) => setFile(event.target.files?.[0] ?? null)} /></div></div></fieldset>
-      {kind === 'REQUEST' && <div className="form-field span-two"><label htmlFor="document-paste">Hoặc dán các dòng từ Excel</label><textarea id="document-paste" rows={3} maxLength={200000} value={pasteText} onChange={(event) => setPasteText(event.target.value)} placeholder="Tên vật tư&#9;Quy cách&#9;ĐVT&#9;Số lượng&#10;Thép V40x3&#9;6m/cây&#9;m&#9;120" /><p className="field-help">Dán cả tiêu đề cột nếu có. Các cột thường dùng: Tên vật tư, Quy cách, ĐVT, Số lượng, Số phiếu.</p></div>}      {file && <p className="field-help">Tệp đã chọn: {file.name}</p>}<div className="header-actions"><button className="primary-button" disabled={!file || busy} onClick={() => { void preview() }}>{busy ? 'Đang xử lý…' : 'Kiểm tra tệp chứng từ'}</button>{kind === 'REQUEST' && <button className="secondary-button" disabled={!pasteText.trim() || busy} onClick={() => { const pasted = new File([pasteText], 'du-lieu-dan.tsv', { type: 'text/tab-separated-values' }); void preview('', pasted) }}>Kiểm tra dữ liệu dán</button>}{active && <button className="secondary-button" disabled={busy} onClick={() => { state.open(null); setFile(null) }}>Đóng chứng từ đang xem</button>}</div><p className="field-help">Chọn đúng sheet và phiếu trong preview. PDF scan hỗ trợ thêm dòng thủ công; hệ thống không tự đọc OCR.</p>
+      <div className="form-field span-two">
+        <label htmlFor="document-paste">Hoặc dán các dòng từ Excel ({kind === 'REQUEST' ? 'PCVT / Yêu cầu' : 'Báo giá'})</label>
+        <textarea
+          id="document-paste"
+          rows={3}
+          maxLength={200000}
+          value={pasteText}
+          onChange={(event) => setPasteText(event.target.value)}
+          placeholder={kind === 'REQUEST' ? 'Tên vật tư\tQuy cách\tĐVT\tSố lượng\nThép V40x3\t6m/cây\tm\t120' : 'Tên vật tư\tQuy cách\tĐVT\tSố lượng\tĐơn giá\nThép V40x3\t6m/cây\tm\t120\t85000'}
+        />
+        <p className="field-help">
+          Dán cả tiêu đề cột nếu có. Các cột thường dùng: Tên vật tư, Quy cách, ĐVT, Số lượng{kind === 'QUOTATION' ? ', Đơn giá' : ', Số phiếu'}.
+        </p>
+      </div>
+      {file && <p className="field-help">Tệp đã chọn: {file.name}</p>}
+      <div className="header-actions">
+        <button className="primary-button" disabled={!file || busy} onClick={() => { void preview() }}>
+          {busy ? 'Đang xử lý…' : 'Kiểm tra tệp chứng từ'}
+        </button>
+        <button className="secondary-button" disabled={!pasteText.trim() || busy} onClick={() => {
+          const pasted = new File([pasteText], 'du-lieu-dan.tsv', { type: 'text/tab-separated-values' })
+          void preview('', pasted)
+        }}>
+          Kiểm tra dữ liệu dán
+        </button>
+        {active && (
+          <button className="secondary-button" disabled={busy} onClick={() => { state.open(null); setFile(null) }}>
+            Đóng chứng từ đang xem
+          </button>
+        )}
+      </div>
+      <p className="field-help">Chọn đúng sheet và phiếu trong preview. PDF scan hỗ trợ thêm dòng thủ công; hệ thống không tự đọc OCR.</p>
     </section>
     {state.error && <p className="form-error" role="alert">{state.error}</p>}{state.notice && <p className="success-notice" role="status">{state.notice}</p>}
     <details className="panel document-saved" open={state.list.isError}><summary><span><strong>Chứng từ đã lưu</strong><span className="cell-subtitle">{state.list.data?.length ? `${state.list.data.length} gần đây` : 'Mở khi cần tiếp tục bản cũ'}</span></span><span aria-hidden="true">⌄</span></summary>

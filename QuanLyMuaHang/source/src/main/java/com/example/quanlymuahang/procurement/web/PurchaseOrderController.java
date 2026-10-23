@@ -90,7 +90,10 @@ public class PurchaseOrderController {
         String note = body != null ? body.note() : null;
         String preparer = (body != null && body.preparedBy() != null && !body.preparedBy().isBlank()) ? body.preparedBy().trim() : fallback;
         boolean autoIssue = body != null && body.autoIssue();
-        return service.reorder(id, new PurchaseOrderService.ReorderCommand(date, poNumber, note, preparer, autoIssue), principal.id());
+        List<PurchaseOrderService.ItemCommand> items = body != null && body.items() != null
+                ? body.items().stream().map(ItemRequest::command).toList() : null;
+        BigDecimal vatPercent = body != null ? body.vatPercent() : null;
+        return service.reorder(id, new PurchaseOrderService.ReorderCommand(date, poNumber, note, preparer, autoIssue, vatPercent, items), principal.id());
     }
 
     @PostMapping("/{id}/issue")
@@ -123,7 +126,8 @@ public class PurchaseOrderController {
 
     private static long actor(Authentication authentication) { return ((AccountPrincipal) authentication.getPrincipal()).id(); }
     public record ReorderRequest(LocalDate orderDate, @Size(max = 50) String poNumber, @Size(max = 1000) String note,
-                                 @Size(max = 255) String preparedBy, boolean autoIssue) {}
+                                 @Size(max = 255) String preparedBy, boolean autoIssue, BigDecimal vatPercent,
+                                 @Size(max = 200) List<@Valid ItemRequest> items) {}
     public record CancelRequest(@Size(max = 500) String reason) {}
     public record UnlockRequest(@NotBlank @Size(max = 500) String reason) {}
     public record OrderRequest(@NotNull Long supplierId, LocalDate orderDate, @NotNull CurrencyCode currency,

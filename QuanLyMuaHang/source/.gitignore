@@ -7,3 +7,4 @@ frontend/playwright-report/
 frontend/.env
 .env
 *.log
+data/

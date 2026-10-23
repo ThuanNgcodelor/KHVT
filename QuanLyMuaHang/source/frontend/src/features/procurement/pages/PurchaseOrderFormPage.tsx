@@ -20,6 +20,7 @@ import { procurementApi } from '../procurementApi'
 import type { ImportedOrderDraft, ImportedOrderItem, OrderCommand, PurchaseOrder, Currency } from '../types'
 import type { PriceRecord } from '../../pricing/types'
 import { DocumentWorkbench } from '../../imports/documents/DocumentWorkbench'
+import { PasteExcelModal, type ParsedRow } from '../components/PasteExcelModal'
 
 type CartRow = { key: string; selected: boolean; materialId: number | null; materialCode: string; materialName: string; specification: string; unit: string; quantity: string; quantityText: string; textQty: boolean; unitPrice: string; supplierId: string }
 type Group = { supplierId: number; supplierName: string; command: OrderCommand; result?: PurchaseOrder; exportStatus?: 'SAVING' | 'CREATE_REJECTED' | 'CREATE_FAILED' | 'ISSUING' | 'ISSUED' | 'ISSUE_FAILED' | 'DOWNLOAD_FAILED'; exportError?: string }
@@ -55,6 +56,32 @@ export function PurchaseOrderFormPage() {
     }
   }, [user, editing, preparedBy])
   const [showAddSupplier, setShowAddSupplier] = useState(false)
+  const [showPasteExcel, setShowPasteExcel] = useState(false)
+
+  function handlePasteExcelImport(parsed: ParsedRow[], mode: 'replace' | 'append') {
+    const newCartRows: CartRow[] = parsed.map((p) => ({
+      key: crypto.randomUUID(),
+      selected: true,
+      materialId: null,
+      materialCode: p.materialCode || '',
+      materialName: p.materialName,
+      specification: p.specification || '',
+      unit: p.unit || '',
+      quantity: p.quantity,
+      quantityText: '',
+      textQty: false,
+      unitPrice: p.unitPrice,
+      supplierId: ''
+    }))
+
+    if (mode === 'replace') {
+      setRows(newCartRows.length ? newCartRows : [emptyRow()])
+      setNotice(`Đã thay thế bảng hàng bằng ${newCartRows.length} dòng từ Excel.`)
+    } else {
+      setRows((prev) => [...prev.filter((r) => r.materialName.trim()), ...newCartRows])
+      setNotice(`Đã thêm ${newCartRows.length} dòng từ Excel vào danh sách.`)
+    }
+  }
   const [supplierChoices, setSupplierChoices] = useState<Record<number, Supplier>>({})
   const [latestHistory, setLatestHistory] = useState<Record<string, { price: PriceRecord; supplierId: number | null }>>({})
   const suppliers = useQuery({ queryKey: ['catalog', 'lookup-suppliers', supplierQ], queryFn: ({ signal }) => catalogApi.suppliers(supplierQ, signal) })
@@ -328,51 +355,38 @@ export function PurchaseOrderFormPage() {
       <div className="form-field"><label htmlFor="po-vat">VAT (%)</label><select id="po-vat" value={vat} onChange={(event) => setVat(event.target.value)}><option value="">Chọn VAT đã xác minh</option>{['0', '5', '8', '10'].map((value) => <option key={value} value={value}>{value}%</option>)}</select></div>
       <div className="form-field">
         <label htmlFor="po-prepared">Người lập</label>
-        <div style={{ display: 'flex', gap: '8px' }}>
+        {employeesQuery.data?.content && employeesQuery.data.content.length > 0 ? (
+          <select
+            id="po-prepared"
+            value={preparedBy}
+            onChange={(event) => setPreparedBy(event.target.value)}
+          >
+            <option value="">-- Chọn người lập --</option>
+            {employeesQuery.data.content.map((emp) => (
+              <option key={emp.id} value={emp.fullName}>
+                {emp.fullName}{emp.employeeCode ? ` (${emp.employeeCode})` : ''}{emp.departmentName ? ` — ${emp.departmentName}` : ''}
+              </option>
+            ))}
+          </select>
+        ) : (
           <input
             id="po-prepared"
-            list="po-employee-list"
             maxLength={255}
             value={preparedBy}
             onChange={(event) => setPreparedBy(event.target.value)}
-            placeholder="Chọn hoặc nhập tên người lập…"
-            style={{ flex: 1 }}
+            placeholder="Nhập tên người lập…"
           />
-          {employeesQuery.data?.content && employeesQuery.data.content.length > 0 && (
-            <select
-              aria-label="Chọn người lập từ danh sách nhân viên"
-              value=""
-              onChange={(e) => {
-                if (e.target.value) setPreparedBy(e.target.value)
-              }}
-              style={{ width: 'auto', minWidth: '120px' }}
-            >
-              <option value="">Chọn từ DS…</option>
-              {employeesQuery.data.content.map((emp) => (
-                <option key={emp.id} value={emp.fullName}>
-                  {emp.fullName} {emp.employeeCode ? `(${emp.employeeCode})` : ''}
-                </option>
-              ))}
-            </select>
-          )}
-        </div>
-        <datalist id="po-employee-list">
-          {employeesQuery.data?.content?.map((emp) => (
-            <option key={emp.id} value={emp.fullName}>
-              {emp.employeeCode} — {emp.departmentName || ''}
-            </option>
-          ))}
-        </datalist>
+        )}
       </div>
       <div className="form-field" style={{ position: 'relative' }}>
-        <label htmlFor="po-supplier-q">Tìm nhà cung cấp</label>
+        <label htmlFor="po-supplier-q">Nhà cung cấp mặc định</label>
         <div className="header-actions">
           <input
             id="po-supplier-q"
             value={supplierSearch}
             onChange={(event) => {
               setSupplierSearch(event.target.value)
-              if (!event.target.value.trim()) setSupplierSearchResults(null)
+              if (!event.target.value.trim()) { setSupplierSearchResults(null); setSupplierId('') }
             }}
             onKeyDown={(event) => {
               if (event.key === 'Enter') {
@@ -380,11 +394,18 @@ export function PurchaseOrderFormPage() {
                 void handleSearchSupplier(supplierSearch)
               }
             }}
-            placeholder="Mã hoặc tên NCC… (Nhấn Enter để tìm)"
+            placeholder={supplierId && currentSupplier.data ? `${currentSupplier.data.code ? currentSupplier.data.code + ' — ' : ''}${currentSupplier.data.name}` : 'Tìm theo mã hoặc tên NCC… (Enter để tìm)'}
           />
           <button type="button" className="secondary-button" onClick={() => void handleSearchSupplier(supplierSearch)}>Tìm NCC</button>
           <button type="button" className="secondary-button" onClick={() => setShowAddSupplier(true)}><Icon name="plus" size={16} />Thêm nhanh NCC mới</button>
         </div>
+        {currentSupplier.data && supplierId && (
+          <p className="field-help" style={{ marginTop: '4px' }}>
+            ✓ Đã chọn: <strong>{currentSupplier.data.code ? `${currentSupplier.data.code} — ` : ''}{currentSupplier.data.name}</strong>
+            {currentSupplier.data.address && <span> · {currentSupplier.data.address}</span>}
+            <button type="button" className="text-button" style={{ marginLeft: '8px', fontSize: '12px' }} onClick={() => { setSupplierId(''); setSupplierSearch(''); setSupplierSearchResults(null) }}>✕ Bỏ chọn</button>
+          </p>
+        )}
         {supplierSearchResults && supplierSearchResults.length > 0 && (
           <div className="supplier-search-dropdown" style={{
             position: 'absolute',
@@ -412,6 +433,7 @@ export function PurchaseOrderFormPage() {
                 onClick={() => {
                   setSupplierChoices((current) => ({ ...current, [s.id]: s }))
                   setSupplierId(String(s.id))
+                  setSupplierSearch('')
                   setSupplierSearchResults(null)
                   setNotice(`Đã chọn NCC: ${s.code ? `${s.code} — ` : ''}${s.name}`)
                 }}
@@ -422,14 +444,6 @@ export function PurchaseOrderFormPage() {
             ))}
           </div>
         )}
-      </div>
-      <div className="form-field">
-        <label htmlFor="po-supplier">NCC mặc định</label>
-        <select id="po-supplier" value={supplierId} onChange={(event) => setSupplierId(event.target.value)}>
-          <option value="">Chọn nhà cung cấp</option>
-          {supplierOptions.map((supplier) => <option key={supplier.id} value={supplier.id}>{supplier.code ? `${supplier.code} — ` : ''}{supplier.name}</option>)}
-        </select>
-        <p className="field-help">{currentSupplier.data?.address || 'Tìm theo mã/tên để lấy tối đa 50 NCC đang hoạt động.'}</p>
         {supplierId && (
           <div style={{ display: 'flex', gap: '8px', marginTop: '6px', flexWrap: 'wrap' }}>
             <button
@@ -465,7 +479,12 @@ export function PurchaseOrderFormPage() {
     {editing && <div className="form-field"><label htmlFor="po-change">Lý do sửa đơn</label><input id="po-change" maxLength={500} value={changeReason} onChange={(event) => setChangeReason(event.target.value)} /></div>}
     </section>
     <section className="panel import-panel"><MaterialLookup onPick={(material) => setRows((current) => [...current.filter((row) => !!row.materialName.trim()), emptyRow({ materialId: material.id, materialCode: material.code, materialName: material.name, unit: material.defaultUnit })])} />
-      <div className="header-actions"><button className="secondary-button" onClick={() => setRows((current) => [...current, emptyRow()])}>Thêm dòng thủ công</button>{user && hasPermission(user, 'PRICE_READ') && <button className="secondary-button" disabled={busy} onClick={() => { void copyLatest() }}>Lấy giá / NCC gần nhất</button>}{user && (hasPermission(user,'IMPORT_OPERATIONAL') || hasPermission(user,'IMPORT_LEGACY')) && <Link to="/imports">Nhận từ Excel / PDF / dữ liệu dán</Link>}</div>
+      <div className="header-actions">
+        <button type="button" className="secondary-button" onClick={() => setRows((current) => [...current, emptyRow()])}>Thêm dòng thủ công</button>
+        <button type="button" className="secondary-button" onClick={() => setShowPasteExcel(true)}><Icon name="import" size={14} /> Dán từ Excel</button>
+        {user && hasPermission(user, 'PRICE_READ') && <button className="secondary-button" disabled={busy} onClick={() => { void copyLatest() }}>Lấy giá / NCC gần nhất</button>}
+        {user && (hasPermission(user,'IMPORT_OPERATIONAL') || hasPermission(user,'IMPORT_LEGACY')) && <Link to="/imports">Nhận từ Excel / PDF / dữ liệu dán</Link>}
+      </div>
     </section>
     <section className="panel"><div className="panel-heading"><h2>Danh sách chuẩn bị mua</h2><span>{rows.filter((row) => row.selected).length} / {rows.length} dòng đã chọn</span></div>
       <div className="table-wrap">
@@ -632,5 +651,6 @@ export function PurchaseOrderFormPage() {
         setNotice(`Đã thêm nhà cung cấp "${name}" và chọn làm NCC mặc định.`)
       }
     }} />}
+    {showPasteExcel && <PasteExcelModal onClose={() => setShowPasteExcel(false)} onImport={handlePasteExcelImport} />}
   </>
 }

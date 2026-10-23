@@ -145,25 +145,33 @@ public class PurchaseOrderService {
         newOrder.setSupplier(supplier);
         newOrder.setSupplierAddressSnapshot(source.getSupplierAddressSnapshot() != null ? source.getSupplierAddressSnapshot() : supplier.getAddress());
         newOrder.setCurrency(source.getCurrency());
-        newOrder.setVatPercent(source.getVatPercent());
+        BigDecimal effectiveVat = (command.vatPercent() != null && isSupportedVat(command.vatPercent()))
+                ? command.vatPercent()
+                : (source.getVatPercent() != null ? source.getVatPercent() : BigDecimal.ZERO);
+        newOrder.setVatPercent(effectiveVat);
         newOrder.setNote(clean(command.note()) != null ? clean(command.note()) : source.getNote());
         String preparer = clean(command.preparedBy());
         newOrder.setPreparedBy(preparer != null ? preparer : source.getPreparedBy());
         newOrder.setCreatedBy(actorId);
         newOrder.setUpdatedBy(actorId);
 
-        List<ItemCommand> itemCommands = new ArrayList<>();
-        for (PurchaseOrderItem item : source.getItems()) {
-            itemCommands.add(new ItemCommand(
-                    item.getMaterial() == null ? null : item.getMaterial().getId(),
-                    item.getMaterialCodeSnapshot(),
-                    item.getMaterialName(),
-                    item.getSpecification(),
-                    item.getUnit(),
-                    item.getQuantity(),
-                    item.getQuantityText(),
-                    item.getUnitPrice()
-            ));
+        List<ItemCommand> itemCommands;
+        if (command.items() != null && !command.items().isEmpty()) {
+            itemCommands = command.items();
+        } else {
+            itemCommands = new ArrayList<>();
+            for (PurchaseOrderItem item : source.getItems()) {
+                itemCommands.add(new ItemCommand(
+                        item.getMaterial() == null ? null : item.getMaterial().getId(),
+                        item.getMaterialCodeSnapshot(),
+                        item.getMaterialName(),
+                        item.getSpecification(),
+                        item.getUnit(),
+                        item.getQuantity(),
+                        item.getQuantityText(),
+                        item.getUnitPrice()
+                ));
+            }
         }
         newOrder.replaceItems(buildItems(itemCommands));
         orders.saveAndFlush(newOrder);
@@ -436,7 +444,7 @@ public class PurchaseOrderService {
 
     public record OrderCommand(Long supplierId, LocalDate orderDate, CurrencyCode currency, BigDecimal vatPercent,
                                String note, String preparedBy, String changeReason, List<ItemCommand> items) {}
-    public record ReorderCommand(LocalDate orderDate, String poNumber, String note, String preparedBy, boolean autoIssue) {}
+    public record ReorderCommand(LocalDate orderDate, String poNumber, String note, String preparedBy, boolean autoIssue, BigDecimal vatPercent, List<ItemCommand> items) {}
     public record ItemCommand(Long materialId, String materialCode, String materialName, String specification,
                               String unit, BigDecimal quantity, String quantityText, BigDecimal unitPrice) {}
     public record PdfFile(String fileName, byte[] content) {}
