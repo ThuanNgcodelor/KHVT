@@ -195,6 +195,25 @@ public class SourceDocumentParser {
                 for (int c = 0; c < rows.get(r).size(); c++) row.createCell(c).setCellValue(rows.get(r).get(c));
             }
             SheetData data = readSheet(sheet, kind);
+            if (data.lines.isEmpty() && !rows.isEmpty()) {
+                List<String> inferredHeader = inferHeader(rows);
+                if (!inferredHeader.isEmpty()) {
+                    try (Workbook retryWb = new org.apache.poi.xssf.usermodel.XSSFWorkbook()) {
+                        Sheet retrySheet = retryWb.createSheet("CSV");
+                        Row headerRow = retrySheet.createRow(0);
+                        for (int c = 0; c < inferredHeader.size(); c++) headerRow.createCell(c).setCellValue(inferredHeader.get(c));
+                        for (int r = 0; r < rows.size(); r++) {
+                            Row row = retrySheet.createRow(r + 1);
+                            for (int c = 0; c < rows.get(r).size(); c++) row.createCell(c).setCellValue(rows.get(r).get(c));
+                        }
+                        SheetData retryData = readSheet(retrySheet, kind);
+                        if (!retryData.lines.isEmpty()) {
+                            retryData.warnings.add("HEADER_AUTO_DETECTED_FROM_DATA");
+                            data = retryData;
+                        }
+                    }
+                }
+            }
             if (data.lines.isEmpty()) data.warnings.add("ITEM_HEADER_NOT_FOUND_OR_EMPTY");
             return document(kind, name, "CSV", List.of(new SheetInfo("CSV", data.lines.size(), data.lines.stream().map(DocumentLine::requestNumber).filter(Objects::nonNull).distinct().toList(), data.meta.date)), data.lines, data.meta, data.warnings);
         }
@@ -284,6 +303,48 @@ public class SourceDocumentParser {
                     lines.add(new DocumentLine("page:" + (p + 1) + ":" + serial, null, serial, p + 1, null, values.get("code"), itemName,
                             spec, values.get("unit"), quantity, quantityText, price, total, meta.vat, meta.priceBasis, meta.currency, values.get("note"), raw, distinct(issues)));
                     if (lines.size() > MAX_LINES) throw ApiException.badRequest("TOO_MANY_DOCUMENT_LINES", "PDF vượt quá 5.000 dòng; hệ thống không tự cắt bớt");
+                }
+            }
+            if (lines.isEmpty() && !extractor.chunks.isEmpty()) {
+                int serial = 1;
+                for (int p = 0; p < document.getNumberOfPages(); p++) {
+                    List<TextRow> textRows = rows(extractor.pages.getOrDefault(p + 1, List.of()));
+                    for (TextRow tr : textRows) {
+                        String lineText = tr.text();
+                        if (lineText.isBlank() || isFooter(lineText)) continue;
+                        String[] parts = lineText.split("\\s{2,}|\\t");
+                        if (parts.length >= 2) {
+                            String extractedName = parts[0].trim();
+                            if (extractedName.matches("\\d{1,4}[.)]?") && parts.length >= 3) {
+                                extractedName = parts[1].trim();
+                            }
+                            if (headerField(extractedName) != null) continue;
+                            if (extractedName.length() < 2) continue;
+                            String unit = null;
+                            BigDecimal qty = null;
+                            BigDecimal price = null;
+                            for (int i = 1; i < parts.length; i++) {
+                                String part = parts[i].trim();
+                                if (unit == null && packingUnit(part) != null) {
+                                    unit = part;
+                                } else if (number(part) != null) {
+                                    if (qty == null) qty = number(part);
+                                    else if (price == null) price = number(part);
+                                }
+                            }
+                            Map<String, String> raw = Map.of("page:" + (p + 1), lineText);
+                            List<String> issues = new ArrayList<>();
+                            issues.add("PDF_FALLBACK_TEXT_LINE");
+                            lines.add(new DocumentLine("page:" + (p + 1) + ":text:" + serial, null, serial, p + 1, null, null, extractedName,
+                                    null, unit, qty, null, price, null, meta.vat, meta.priceBasis, meta.currency, null, raw, distinct(issues)));
+                            serial++;
+                            if (lines.size() > MAX_LINES) break;
+                        }
+                    }
+                    if (lines.size() > MAX_LINES) break;
+                }
+                if (!lines.isEmpty()) {
+                    warnings.add("PDF_TEXT_LINE_EXTRACTED");
                 }
             }
             if (lines.isEmpty()) warnings.add("PDF_TABLE_NOT_RECOGNIZED");
@@ -436,6 +497,10 @@ public class SourceDocumentParser {
 
     private static List<List<String>> csvRows(String text) {
         String first = text.lines().filter(line -> !line.isBlank()).findFirst().orElse("");
+        if (!first.contains("\t") && !first.contains(";") && !first.contains(",") && first.matches(".*\\S\\s{2,}\\S.*")) {
+            text = text.replaceAll("[ \\t]*\\s{2,}[ \\t]*", "\t");
+            first = text.lines().filter(line -> !line.isBlank()).findFirst().orElse("");
+        }
         char delimiter = first.contains("\t") ? '\t' : first.chars().filter(c -> c == ';').count() > first.chars().filter(c -> c == ',').count() ? ';' : ',';
         List<List<String>> rows = new ArrayList<>(); List<String> row = new ArrayList<>(); StringBuilder cell = new StringBuilder(); boolean quote = false, closedQuote = false;
         for (int i = 0; i < text.length(); i++) {
@@ -466,6 +531,88 @@ public class SourceDocumentParser {
             row.add(cell.toString()); rows.add(List.copyOf(row));
         }
         return rows;
+    }
+
+    private static List<String> inferHeader(List<List<String>> rows) {
+        if (rows.isEmpty()) return List.of();
+        List<List<String>> sample = rows.stream().filter(r -> r.stream().anyMatch(c -> !c.isBlank())).limit(10).toList();
+        if (sample.isEmpty()) return List.of();
+        int maxCols = sample.stream().mapToInt(List::size).max().orElse(0);
+        if (maxCols < 1) return List.of();
+
+        String[] headers = new String[maxCols];
+        Set<String> knownUnits = Set.of("cai", "chiec", "bo", "m", "met", "kg", "gam", "lit", "hop", "binh", "cuon", "tam", "thanh", "ong", "goi", "lo", "bao", "cay", "vien", "doi", "ram", "thung", "set", "lot");
+
+        int unitCol = -1;
+        for (int c = 0; c < maxCols; c++) {
+            final int colIdx = c;
+            long unitMatches = sample.stream().filter(r -> colIdx < r.size() && knownUnits.contains(norm(r.get(colIdx)))).count();
+            if (unitMatches > 0 && unitMatches >= Math.max(1, sample.size() / 2)) {
+                unitCol = c;
+                break;
+            }
+        }
+
+        boolean hasNumericCol = false;
+        for (int c = 0; c < maxCols; c++) {
+            final int colIdx = c;
+            long numericCount = sample.stream().filter(r -> colIdx < r.size() && !r.get(colIdx).isBlank())
+                    .filter(r -> number(r.get(colIdx)) != null).count();
+            if (numericCount > 0 && numericCount >= Math.max(1, sample.size() / 2)) {
+                hasNumericCol = true;
+                break;
+            }
+        }
+        if (unitCol < 0 && !hasNumericCol) {
+            return List.of();
+        }
+
+        int sttCol = -1;
+        if (sample.stream().allMatch(r -> !r.isEmpty() && r.get(0).trim().matches("\\d{1,4}"))) {
+            sttCol = 0;
+        }
+
+        int nameCol = sttCol == 0 ? 1 : 0;
+        headers[nameCol] = "Tên vật tư";
+        if (sttCol == 0) headers[sttCol] = "STT";
+        if (unitCol > nameCol) {
+            headers[unitCol] = "ĐVT";
+            for (int c = nameCol + 1; c < unitCol; c++) {
+                headers[c] = "Quy cách";
+            }
+        }
+
+        int searchStart = unitCol >= 0 ? unitCol + 1 : nameCol + 1;
+        int numFound = 0;
+        for (int c = searchStart; c < maxCols; c++) {
+            final int colIdx = c;
+            boolean mostlyNumeric = sample.stream().filter(r -> colIdx < r.size() && !r.get(colIdx).isBlank())
+                    .allMatch(r -> number(r.get(colIdx)) != null);
+            if (mostlyNumeric) {
+                if (numFound == 0) {
+                    headers[c] = "Số lượng";
+                    numFound++;
+                } else if (numFound == 1) {
+                    headers[c] = "Đơn giá";
+                    numFound++;
+                } else if (numFound == 2) {
+                    headers[c] = "Thành tiền";
+                    numFound++;
+                } else {
+                    headers[c] = "Ghi chú";
+                }
+            } else {
+                if (headers[c] == null) {
+                    headers[c] = (numFound == 0 && unitCol < 0) ? "ĐVT" : "Ghi chú";
+                }
+            }
+        }
+
+        for (int c = 0; c < maxCols; c++) {
+            if (headers[c] == null) headers[c] = "Ghi chú";
+        }
+
+        return Arrays.asList(headers);
     }
 
     private static List<TextRow> rows(List<Glyph> glyphs) {

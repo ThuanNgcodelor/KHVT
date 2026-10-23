@@ -13,6 +13,8 @@ import { SortTh } from '../../../components/SortTh'
 import { procurementApi } from '../procurementApi'
 import { saveDownload } from '../../../services/apiClient'
 import { errorMessage } from '../../../services/errorMessage'
+import { ReorderDialog } from '../components/ReorderDialog'
+import type { PurchaseOrder } from '../types'
 
 export function PurchaseOrdersPage() {
   const { user } = useAuth()
@@ -23,6 +25,8 @@ export function PurchaseOrdersPage() {
   const [sort, setSort] = useState('poNumber,asc')
   const [exporting, setExporting] = useState(false)
   const [exportError, setExportError] = useState('')
+  const [reorderOrder, setReorderOrder] = useState<PurchaseOrder | null>(null)
+  const [reorderNotice, setReorderNotice] = useState('')
   const orders = useOrders({ q, status, page, size: 25, sort }, { refetchInterval: 25000 })
   const data = orders.data
 
@@ -53,6 +57,7 @@ export function PurchaseOrdersPage() {
         {user && hasPermission(user, 'PO_CREATE') && <Link className="primary-button" to="/purchase-orders/new"><Icon name="plus" />Lập đơn mua</Link>}
       </div>} />
     {exportError && <p className="form-error" role="alert">{exportError}</p>}
+    {reorderNotice && <p className="success-notice" role="status">{reorderNotice}</p>}
     <section className="panel" aria-label="Danh sách đơn mua">
       <form className="filter-bar" onSubmit={(event) => { event.preventDefault(); setQuery(search.trim()); setPage(0) }}>
         <div className="form-field search-field"><label htmlFor="po-search">Số PO hoặc nhà cung cấp</label><input id="po-search" type="search" value={search} onChange={(event) => setSearch(event.target.value)} placeholder="Nhập số PO hoặc tên NCC…" /></div>
@@ -77,10 +82,34 @@ export function PurchaseOrdersPage() {
           <td>{formatOrderDate(order.orderDate)}</td><td>{order.supplierName}</td>
           <td><span className={`status-badge ${order.status === 'EXPORTED' ? 'active' : 'inactive'}`}>{orderStatusLabels[order.status]}</span></td>
           <td className="numeric-cell">{formatMoney(order.grandTotal, order.currency)}<span className="cell-subtitle">{order.currency}</span>{order.quantityTextLineCount > 0 && <span className="cell-subtitle">{order.quantityTextLineCount} dòng SL chữ không cộng tiền</span>}</td>
-          <td><Link className="text-button" to={`/purchase-orders/${order.id}`} aria-label={`Xem ${order.poNumber}`}>Xem đơn</Link></td>
+          <td style={{ whiteSpace: 'nowrap' }}>
+            <Link className="text-button" to={`/purchase-orders/${order.id}`} aria-label={`Xem ${order.poNumber}`}>Xem</Link>
+            {user && hasPermission(user, 'PO_CREATE') && (
+              <button
+                type="button"
+                className="text-button"
+                style={{ marginLeft: '10px' }}
+                title="Mua lại y chang đơn cũ với ngày và số PO mới"
+                onClick={() => { setReorderNotice(''); setReorderOrder(order) }}
+              >
+                Mua lại
+              </button>
+            )}
+          </td>
         </tr>)}</tbody>
       </table></div>}
       {!orders.error && data && <Pagination page={data.number} size={data.size} total={data.totalElements} pages={data.totalPages} busy={orders.isFetching} onChange={setPage} />}
     </section>
+    {reorderOrder && (
+      <ReorderDialog
+        order={reorderOrder}
+        onClose={() => setReorderOrder(null)}
+        onSuccess={(newOrder) => {
+          setReorderOrder(null)
+          setReorderNotice(`Đã tạo đơn mua lại thành công: ${newOrder.poNumber}. Đang làm mới danh sách…`)
+          void orders.refetch()
+        }}
+      />
+    )}
   </>
 }

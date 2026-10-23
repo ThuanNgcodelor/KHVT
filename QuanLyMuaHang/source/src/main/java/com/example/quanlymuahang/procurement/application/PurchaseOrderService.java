@@ -122,6 +122,65 @@ public class PurchaseOrderService {
     }
 
     @Transactional
+    public OrderView reorder(long id, ReorderCommand command, long actorId) {
+        PurchaseOrder source = order(id);
+        Supplier supplier = source.getSupplier();
+        if (supplier == null && source.getSupplierNameSnapshot() != null) {
+            supplier = suppliers.findByNormalizedName(com.example.quanlymuahang.service.TextNormalizer.normalize(source.getSupplierNameSnapshot())).orElse(null);
+        }
+        if (supplier == null) {
+            throw ApiException.badRequest("SUPPLIER_NOT_FOUND", "Không tìm thấy nhà cung cấp của đơn gốc để mua lại");
+        }
+        if (!supplier.isActive()) {
+            throw ApiException.badRequest("SUPPLIER_INACTIVE", "Nhà cung cấp " + supplier.getName() + " hiện đang ngừng hoạt động, không thể mua lại");
+        }
+
+        LocalDate orderDate = command.orderDate() == null ? LocalDate.now(zoneId) : command.orderDate();
+        String poNumber = clean(command.poNumber()) == null ? nextPoNumber(orderDate) : command.poNumber().trim();
+        if (orders.existsByPoNumber(poNumber)) {
+            throw ApiException.conflict("PO_NUMBER_EXISTS", "Số PO " + poNumber + " đã tồn tại trong hệ thống");
+        }
+
+        PurchaseOrder newOrder = new PurchaseOrder(poNumber, orderDate, supplier.getName());
+        newOrder.setSupplier(supplier);
+        newOrder.setSupplierAddressSnapshot(source.getSupplierAddressSnapshot() != null ? source.getSupplierAddressSnapshot() : supplier.getAddress());
+        newOrder.setCurrency(source.getCurrency());
+        newOrder.setVatPercent(source.getVatPercent());
+        newOrder.setNote(clean(command.note()) != null ? clean(command.note()) : source.getNote());
+        String preparer = clean(command.preparedBy());
+        newOrder.setPreparedBy(preparer != null ? preparer : source.getPreparedBy());
+        newOrder.setCreatedBy(actorId);
+        newOrder.setUpdatedBy(actorId);
+
+        List<ItemCommand> itemCommands = new ArrayList<>();
+        for (PurchaseOrderItem item : source.getItems()) {
+            itemCommands.add(new ItemCommand(
+                    item.getMaterial() == null ? null : item.getMaterial().getId(),
+                    item.getMaterialCodeSnapshot(),
+                    item.getMaterialName(),
+                    item.getSpecification(),
+                    item.getUnit(),
+                    item.getQuantity(),
+                    item.getQuantityText(),
+                    item.getUnitPrice()
+            ));
+        }
+        newOrder.replaceItems(buildItems(itemCommands));
+        orders.saveAndFlush(newOrder);
+        saveRevision(newOrder, actorId, "Mua lại từ đơn " + source.getPoNumber());
+
+        if (command.autoIssue()) {
+            pdfForRevision(newOrder, newOrder.getRevision(), actorId);
+        }
+
+        OrderView view = OrderView.from(newOrder);
+        audit.record(actorId, "PURCHASE_ORDER_REORDERED", "PURCHASE_ORDER", newOrder.getId(),
+                java.util.Map.of("sourcePoId", source.getId(), "sourcePoNumber", source.getPoNumber(),
+                        "newPoNumber", newOrder.getPoNumber(), "autoIssued", command.autoIssue()));
+        return view;
+    }
+
+    @Transactional
     public OrderView update(long id, OrderCommand command, long actorId) {
         validate(command);
         PurchaseOrder order = orderForMutation(id);
@@ -377,6 +436,7 @@ public class PurchaseOrderService {
 
     public record OrderCommand(Long supplierId, LocalDate orderDate, CurrencyCode currency, BigDecimal vatPercent,
                                String note, String preparedBy, String changeReason, List<ItemCommand> items) {}
+    public record ReorderCommand(LocalDate orderDate, String poNumber, String note, String preparedBy, boolean autoIssue) {}
     public record ItemCommand(Long materialId, String materialCode, String materialName, String specification,
                               String unit, BigDecimal quantity, String quantityText, BigDecimal unitPrice) {}
     public record PdfFile(String fileName, byte[] content) {}

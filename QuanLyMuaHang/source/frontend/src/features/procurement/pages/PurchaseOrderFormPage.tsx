@@ -13,6 +13,7 @@ import { queryParams } from '../../../services/queryParams'
 import { catalogApi } from '../../catalog/catalogApi'
 import { SupplierForm } from '../../catalog/components/SupplierForm'
 import type { Supplier } from '../../catalog/types'
+import { personnelApi } from '../../personnel/personnelApi'
 import { MaterialLookup } from '../components/MaterialLookup'
 import { useOrder, useRefreshProcurement } from '../hooks/useProcurement'
 import { procurementApi } from '../procurementApi'
@@ -36,8 +37,13 @@ export function PurchaseOrderFormPage() {
   const orderQuery = useOrder(id)
   const [rows, setRows] = useState<CartRow[]>(() => imported?.items.length ? imported.items.map(emptyRow) : [emptyRow()])
   const [currency, setCurrency] = useState<Currency>(imported?.currency ?? 'VND'), [supplierId, setSupplierId] = useState(''), [supplierSearch, setSupplierSearch] = useState(''), [supplierQ, setSupplierQ] = useState('')
+  const [supplierSearchResults, setSupplierSearchResults] = useState<Supplier[] | null>(null)
   const [orderDate, setOrderDate] = useState(() => new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Ho_Chi_Minh', year: 'numeric', month: '2-digit', day: '2-digit' }).format(new Date())), [vat, setVat] = useState(''), [note, setNote] = useState(''), [preparedBy, setPreparedBy] = useState(user?.displayName ?? ''), [changeReason, setChangeReason] = useState(routeUnlockedReason ?? '')
   const [error, setError] = useState(''), [notice, setNotice] = useState(''), [busy, setBusy] = useState(false), [documentBusy, setDocumentBusy] = useState(false), [groups, setGroups] = useState<Group[] | null>(null)
+  const employeesQuery = useQuery({
+    queryKey: ['personnel', 'active-employees'],
+    queryFn: ({ signal }) => personnelApi.employees({ status: 'ACTIVE', page: 0, size: 200 }, signal)
+  })
   useEffect(() => {
     if (routeUnlockedReason && !changeReason) {
       setChangeReason(routeUnlockedReason)
@@ -55,6 +61,34 @@ export function PurchaseOrderFormPage() {
   const currentSupplier = useQuery({ queryKey: ['catalog', 'supplier', supplierId], queryFn: ({ signal }) => catalogApi.supplier(Number(supplierId), signal), enabled: !!supplierId })
   const supplierOptions = [...new Map([...Object.values(supplierChoices), ...(suppliers.data ?? []), ...(currentSupplier.data ? [currentSupplier.data] : [])].map((supplier) => [supplier.id, supplier])).values()]
   useEffect(() => { if (suppliers.data) setSupplierChoices((current) => ({ ...current, ...Object.fromEntries(suppliers.data.map((supplier) => [supplier.id, supplier])) })) }, [suppliers.data])
+
+  async function handleSearchSupplier(queryText: string) {
+    const q = queryText.trim()
+    if (!q) {
+      setSupplierSearchResults(null)
+      return
+    }
+    setSupplierQ(q)
+    try {
+      const list = await catalogApi.suppliers(q)
+      if (list.length > 0) {
+        setSupplierChoices((current) => ({ ...current, ...Object.fromEntries(list.map((s) => [s.id, s])) }))
+        if (list.length === 1) {
+          setSupplierId(String(list[0].id))
+          setNotice(`Đã tự động chọn NCC: ${list[0].code ? `${list[0].code} — ` : ''}${list[0].name}`)
+          setSupplierSearchResults(null)
+        } else {
+          setSupplierSearchResults(list)
+          setNotice(`Tìm thấy ${list.length} nhà cung cấp phù hợp. Bấm để chọn bên dưới.`)
+        }
+      } else {
+        setSupplierSearchResults([])
+        setError(`Không tìm thấy nhà cung cấp nào với từ khóa "${q}". Bấm [Thêm nhanh NCC mới] nếu muốn tạo mới.`)
+      }
+    } catch (err) {
+      setError(`Lỗi tìm NCC: ${errorMessage(err)}`)
+    }
+  }
   useEffect(() => {
     const ids = [...new Set((imported?.items ?? []).map((item) => item.supplierId).filter((value): value is number => typeof value === 'number' && value > 0))]
     if (!ids.length) return
@@ -99,9 +133,46 @@ export function PurchaseOrderFormPage() {
   function patch(key: string, values: Partial<CartRow>) { setRows((current) => current.map((row) => row.key === key ? { ...row, ...values } : row)) }
   function acceptImport(draft: ImportedOrderDraft) {
     setImported(draft)
-    setRows(draft.items.length ? draft.items.map(emptyRow) : [emptyRow()])
+    const firstSupplierId = draft.items.find((i) => i.supplierId)?.supplierId
+    if (draft.sourceType === 'QUOTATION' && firstSupplierId) {
+      setSupplierId(String(firstSupplierId))
+    }
+
+    const initHist: Record<string, { price: PriceRecord; supplierId: number | null }> = {}
+    const newRows = draft.items.length ? draft.items.map((item) => {
+      const row = emptyRow({ ...item, supplierId: draft.sourceType === 'QUOTATION' ? item.supplierId : undefined })
+      if (item.unitPrice != null || item.supplierName) {
+        initHist[row.key] = {
+          price: {
+            id: 0,
+            purchaseDate: new Date().toISOString().split('T')[0],
+            materialName: item.materialName,
+            materialCode: item.materialCode ?? null,
+            unit: item.unit ?? null,
+            quantity: item.quantity != null ? Number(item.quantity) : null,
+            quantityText: item.quantityText ?? null,
+            unitPrice: item.unitPrice != null ? Number(item.unitPrice) : null,
+            currency: (draft.currency as 'VND' | 'USD') || 'VND',
+            currencyBasis: null,
+            supplierName: item.supplierName ?? null,
+            supplierCode: item.supplierCode ?? null,
+            source: 'IMPORT',
+            sourceSheet: null,
+            sourceRowNumber: item.sourceRow ?? null
+          },
+          supplierId: item.supplierId || null
+        }
+      }
+      return row
+    }) : [emptyRow()]
+
+    if (Object.keys(initHist).length > 0) {
+      setLatestHistory((cur) => ({ ...cur, ...initHist }))
+    }
+
+    setRows(newRows)
     setCurrency(draft.currency ?? 'VND')
-    setGroups(null); setError(''); setNotice(`Đã chuyển ${draft.items.length} dòng vào bảng đơn mua. Giá và NCC cũ chỉ là gợi ý; hãy đối chiếu trước khi lưu.`)
+    setGroups(null); setError(''); setNotice(`Đã chuyển ${draft.items.length} dòng vào bảng đơn mua. Chọn NCC mặc định ở trên để áp dụng cho các dòng.`)
     requestAnimationFrame(() => document.getElementById('po-order-details')?.scrollIntoView({ behavior: 'smooth', block: 'start' }))
   }
   function previewGroups() {
@@ -255,9 +326,140 @@ export function PurchaseOrderFormPage() {
       <div className="form-field"><label htmlFor="po-date">Ngày mua</label><input id="po-date" type="date" value={orderDate} onChange={(event) => setOrderDate(event.target.value)} /></div>
       <div className="form-field"><label htmlFor="po-currency">Loại tiền</label><select id="po-currency" value={currency} onChange={(event) => { setCurrency(event.target.value as Currency); setNotice('Đã đổi loại tiền. Đơn giá hiện tại được giữ; hãy đối chiếu lại trước khi lưu.') }}><option>VND</option><option>USD</option></select></div>
       <div className="form-field"><label htmlFor="po-vat">VAT (%)</label><select id="po-vat" value={vat} onChange={(event) => setVat(event.target.value)}><option value="">Chọn VAT đã xác minh</option>{['0', '5', '8', '10'].map((value) => <option key={value} value={value}>{value}%</option>)}</select></div>
-      <div className="form-field"><label htmlFor="po-prepared">Người lập</label><input id="po-prepared" maxLength={255} value={preparedBy} onChange={(event) => setPreparedBy(event.target.value)} /></div>
-      <div className="form-field"><label htmlFor="po-supplier-q">Tìm nhà cung cấp</label><div className="header-actions"><input id="po-supplier-q" value={supplierSearch} onChange={(event) => setSupplierSearch(event.target.value)} placeholder="Mã hoặc tên NCC…" /><button type="button" className="secondary-button" onClick={() => setSupplierQ(supplierSearch.trim())}>Tìm NCC</button><button type="button" className="secondary-button" onClick={() => setShowAddSupplier(true)}><Icon name="plus" size={16} />Thêm nhanh NCC mới</button></div></div>
-      <div className="form-field"><label htmlFor="po-supplier">NCC mặc định</label><select id="po-supplier" value={supplierId} onChange={(event) => setSupplierId(event.target.value)}><option value="">Chọn nhà cung cấp</option>{supplierOptions.map((supplier) => <option key={supplier.id} value={supplier.id}>{supplier.code ? `${supplier.code} — ` : ''}{supplier.name}</option>)}</select><p className="field-help">{currentSupplier.data?.address || 'Tìm theo mã/tên để lấy tối đa 50 NCC đang hoạt động.'}</p></div>
+      <div className="form-field">
+        <label htmlFor="po-prepared">Người lập</label>
+        <div style={{ display: 'flex', gap: '8px' }}>
+          <input
+            id="po-prepared"
+            list="po-employee-list"
+            maxLength={255}
+            value={preparedBy}
+            onChange={(event) => setPreparedBy(event.target.value)}
+            placeholder="Chọn hoặc nhập tên người lập…"
+            style={{ flex: 1 }}
+          />
+          {employeesQuery.data?.content && employeesQuery.data.content.length > 0 && (
+            <select
+              aria-label="Chọn người lập từ danh sách nhân viên"
+              value=""
+              onChange={(e) => {
+                if (e.target.value) setPreparedBy(e.target.value)
+              }}
+              style={{ width: 'auto', minWidth: '120px' }}
+            >
+              <option value="">Chọn từ DS…</option>
+              {employeesQuery.data.content.map((emp) => (
+                <option key={emp.id} value={emp.fullName}>
+                  {emp.fullName} {emp.employeeCode ? `(${emp.employeeCode})` : ''}
+                </option>
+              ))}
+            </select>
+          )}
+        </div>
+        <datalist id="po-employee-list">
+          {employeesQuery.data?.content?.map((emp) => (
+            <option key={emp.id} value={emp.fullName}>
+              {emp.employeeCode} — {emp.departmentName || ''}
+            </option>
+          ))}
+        </datalist>
+      </div>
+      <div className="form-field" style={{ position: 'relative' }}>
+        <label htmlFor="po-supplier-q">Tìm nhà cung cấp</label>
+        <div className="header-actions">
+          <input
+            id="po-supplier-q"
+            value={supplierSearch}
+            onChange={(event) => {
+              setSupplierSearch(event.target.value)
+              if (!event.target.value.trim()) setSupplierSearchResults(null)
+            }}
+            onKeyDown={(event) => {
+              if (event.key === 'Enter') {
+                event.preventDefault()
+                void handleSearchSupplier(supplierSearch)
+              }
+            }}
+            placeholder="Mã hoặc tên NCC… (Nhấn Enter để tìm)"
+          />
+          <button type="button" className="secondary-button" onClick={() => void handleSearchSupplier(supplierSearch)}>Tìm NCC</button>
+          <button type="button" className="secondary-button" onClick={() => setShowAddSupplier(true)}><Icon name="plus" size={16} />Thêm nhanh NCC mới</button>
+        </div>
+        {supplierSearchResults && supplierSearchResults.length > 0 && (
+          <div className="supplier-search-dropdown" style={{
+            position: 'absolute',
+            top: '100%',
+            left: 0,
+            right: 0,
+            marginTop: '4px',
+            background: 'var(--surface-color, #ffffff)',
+            border: '1px solid var(--border-color, #cbd5e1)',
+            borderRadius: '6px',
+            boxShadow: '0 8px 24px rgba(0,0,0,0.15)',
+            maxHeight: '220px',
+            overflowY: 'auto',
+            zIndex: 100
+          }}>
+            <div style={{ padding: '6px 12px', fontSize: '12px', background: 'var(--surface-subtle, #f1f5f9)', color: 'var(--text-muted, #64748b)', display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderBottom: '1px solid var(--border-subtle, #e2e8f0)' }}>
+              <span>Tìm thấy {supplierSearchResults.length} NCC:</span>
+              <button type="button" className="text-button" style={{ fontSize: '11px', padding: 0 }} onClick={() => setSupplierSearchResults(null)}>Đóng [✕]</button>
+            </div>
+            {supplierSearchResults.map((s) => (
+              <div
+                key={s.id}
+                style={{ padding: '8px 12px', borderBottom: '1px solid var(--border-subtle, #e2e8f0)', cursor: 'pointer' }}
+                className="supplier-search-item"
+                onClick={() => {
+                  setSupplierChoices((current) => ({ ...current, [s.id]: s }))
+                  setSupplierId(String(s.id))
+                  setSupplierSearchResults(null)
+                  setNotice(`Đã chọn NCC: ${s.code ? `${s.code} — ` : ''}${s.name}`)
+                }}
+              >
+                <div><strong>{s.code ? `${s.code} — ` : ''}{s.name}</strong></div>
+                {s.address && <div style={{ fontSize: '12px', color: 'var(--text-muted, #64748b)' }}>{s.address}</div>}
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
+      <div className="form-field">
+        <label htmlFor="po-supplier">NCC mặc định</label>
+        <select id="po-supplier" value={supplierId} onChange={(event) => setSupplierId(event.target.value)}>
+          <option value="">Chọn nhà cung cấp</option>
+          {supplierOptions.map((supplier) => <option key={supplier.id} value={supplier.id}>{supplier.code ? `${supplier.code} — ` : ''}{supplier.name}</option>)}
+        </select>
+        <p className="field-help">{currentSupplier.data?.address || 'Tìm theo mã/tên để lấy tối đa 50 NCC đang hoạt động.'}</p>
+        {supplierId && (
+          <div style={{ display: 'flex', gap: '8px', marginTop: '6px', flexWrap: 'wrap' }}>
+            <button
+              type="button"
+              className="secondary-button"
+              style={{ fontSize: '12px', padding: '4px 8px' }}
+              title="Gán NCC này cho tất cả dòng hàng trong danh sách bên dưới"
+              onClick={() => {
+                setRows((current) => current.map((r) => ({ ...r, supplierId: supplierId })))
+                const supp = supplierOptions.find((s) => String(s.id) === supplierId)
+                setNotice(`Đã áp dụng NCC "${supp?.name ?? supplierId}" cho tất cả ${rows.length} dòng hàng.`)
+              }}
+            >
+              <Icon name="check" size={14} /> Áp dụng NCC này cho tất cả dòng
+            </button>
+            <button
+              type="button"
+              className="text-button"
+              style={{ fontSize: '12px' }}
+              title="Xóa NCC riêng của từng dòng để dùng theo NCC mặc định"
+              onClick={() => {
+                setRows((current) => current.map((r) => ({ ...r, supplierId: '' })))
+                setNotice('Đã đặt tất cả dòng về dùng NCC mặc định.')
+              }}
+            >
+              Dùng NCC mặc định cho tất cả dòng
+            </button>
+          </div>
+        )}
+      </div>
     </div>{suppliers.error && <p role="alert">Chưa tải được NCC. <button className="text-button" onClick={() => { void suppliers.refetch() }}>Thử lại</button></p>}
     <div className="form-field"><label htmlFor="po-note">Ghi chú</label><textarea id="po-note" maxLength={1000} value={note} onChange={(event) => setNote(event.target.value)} /></div>
     {editing && <div className="form-field"><label htmlFor="po-change">Lý do sửa đơn</label><input id="po-change" maxLength={500} value={changeReason} onChange={(event) => setChangeReason(event.target.value)} /></div>}

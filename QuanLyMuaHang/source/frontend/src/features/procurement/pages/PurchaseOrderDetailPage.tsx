@@ -13,12 +13,14 @@ import { useOrder, useOrderRevisions, useIssueOrder, useCancelOrder, useUnlockOr
 import { procurementApi } from '../procurementApi'
 import { formatMoney, formatQuantity, formatOrderDate } from '../format'
 import { orderStatusLabels } from '../types'
+import { ReorderDialog } from '../components/ReorderDialog'
 
 export function PurchaseOrderDetailPage() {
   const id = Number(useParams().id), { user } = useAuth(), navigate = useNavigate()
   const orderQuery = useOrder(id), revisions = useOrderRevisions(id), issue = useIssueOrder(id), cancel = useCancelOrder(id), unlock = useUnlockOrder(id)
   const [action, setAction] = useState<'issue' | 'cancel' | null>(null), [reason, setReason] = useState(''), [busy, setBusy] = useState(false), [error, setError] = useState(''), [notice, setNotice] = useState('')
   const [unlockOpen, setUnlockOpen] = useState(false), [unlockError, setUnlockError] = useState('')
+  const [reorderOpen, setReorderOpen] = useState(false)
   const order = orderQuery.data
   if (!Number.isSafeInteger(id) || id <= 0) return <PageState title="Số đơn không hợp lệ" />
   if (orderQuery.isPending) return <PageState title="Đang tải đơn mua…" />
@@ -59,6 +61,11 @@ export function PurchaseOrderDetailPage() {
           <Link className="secondary-button" to={`/purchase-orders/${id}/edit`}>Sửa đơn</Link>
         )
       )}
+      {user && hasPermission(user, 'PO_CREATE') && (
+        <button className="secondary-button" onClick={() => setReorderOpen(true)}>
+          Mua lại đơn này
+        </button>
+      )}
       {writable && order.status !== 'CANCELLED' && <button className="primary-button" disabled={busy} onClick={() => { setAction('issue'); setError('') }}>{order.status === 'EXPORTED' ? 'Kiểm tra / phát hành lại' : 'Phát hành PDF'}</button>}
     </>} />
     {error && <p role="alert" className="form-error">{error}</p>}{notice && <p role="status" className="success-notice">{notice}</p>}
@@ -81,6 +88,16 @@ export function PurchaseOrderDetailPage() {
         error={unlockError}
         onClose={() => setUnlockOpen(false)}
         onConfirm={(r) => { void handleUnlockConfirm(r) }}
+      />
+    )}
+    {reorderOpen && (
+      <ReorderDialog
+        order={order}
+        onClose={() => setReorderOpen(false)}
+        onSuccess={(newOrder) => {
+          setReorderOpen(false)
+          navigate(`/purchase-orders/${newOrder.id}`)
+        }}
       />
     )}
   </>

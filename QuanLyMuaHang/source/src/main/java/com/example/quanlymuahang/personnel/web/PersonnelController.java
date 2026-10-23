@@ -26,7 +26,7 @@ import java.util.List;
 
 @RestController
 @RequestMapping("/api/personnel")
-@PreAuthorize("hasAuthority('*') or hasAuthority('PERSONNEL_READ')")
+@PreAuthorize("hasAuthority('*') or hasAuthority('PERSONNEL_READ') or hasAuthority('PO_CREATE') or hasAuthority('PO_READ')")
 public class PersonnelController {
     private final PersonnelService service;
 

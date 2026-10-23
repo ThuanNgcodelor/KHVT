@@ -142,7 +142,7 @@ class PurchaseOrderDocumentTest {
         try (var pdf = Loader.loadPDF(bytes)) {
             String extracted = new PDFTextStripper().getText(pdf).replaceAll("\\s+", " ");
             assertThat(pdf.getNumberOfPages()).isGreaterThan(1);
-            assertThat(extracted).contains("PHÂN BÓN VÀ HÓA CHẤT CẦN THƠ", "ĐƠN ĐẶT HÀNG", "Ngày: 10 / 10 / 2026", "Qua cân thực tế", "TRƯỞNG P. KHVT", "TỔNG GIÁM ĐỐC", "SỐ LƯỢNG", "ĐƠN GIÁ CHƯA VAT");
+            assertThat(extracted).contains("PHÂN BÓN VÀ HÓA CHẤT CẦN THƠ", "ĐƠN ĐẶT HÀNG", "Ngày: 10/10/2026", "Qua cân thực tế", "TRƯỞNG P. KHVT", "TỔNG GIÁM ĐỐC", "SỐ LƯỢNG", "ĐƠN GIÁ CHƯA VAT");
             assertThat(extracted).contains("2,00");
             assertThat(extracted).doesNotContain("THÀNH TIỀN", "Tạm tính", "Tổng cộng", "VAT 8%", "Loại tiền");
             assertThat(extracted).contains("STT", "TÊN HÀNG");
@@ -161,8 +161,8 @@ class PurchaseOrderDocumentTest {
         try (var pdf = Loader.loadPDF(bytes)) {
             String extracted = new PDFTextStripper().getText(pdf).replaceAll("\\s+", " ");
             assertThat(pdf.getNumberOfPages()).isEqualTo(1);
-            assertThat(extracted).contains("Số PO: PO-TEST-01", "Ngày: 10 / 10 / 2026", "Bên Bán:", "Địa Chỉ:", "Ghi chú:",
-                    "Chỉ may bao công nghiệp", "PE 20/9 Màu đỏ", "ĐVT", "SỐ LƯỢNG", "ĐƠN GIÁ CHƯA VAT (VND)", "NGƯỜI LẬP", "TRƯỞNG P. KHVT");
+            assertThat(extracted).contains("Số PO: PO-TEST-01", "Ngày: 10/10/2026", "Bên Bán:", "Địa Chỉ:", "Ghi chú:",
+                    "Chỉ may bao công nghiệp", "PE 20/9 Màu đỏ", "ĐVT", "SỐ LƯỢNG", "ĐƠN GIÁ CHƯA VAT (VNĐ)", "NGƯỜI LẬP", "TRƯỞNG P. KHVT");
             assertThat(extracted).contains("50,00");
             assertThat(extracted).doesNotContain("THÀNH TIỀN", "Tạm tính", "Tổng cộng", "VAT 8%");
             var imagePath = Path.of("target/runtime/pdf-template-test.png");

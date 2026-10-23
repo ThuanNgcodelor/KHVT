@@ -79,6 +79,20 @@ public class PurchaseOrderController {
         return pdfResponse(file);
     }
 
+    @PostMapping("/{id}/reorder")
+    @PreAuthorize("hasAuthority('*') or hasAuthority('PO_CREATE')")
+    public PurchaseOrderService.OrderView reorder(@PathVariable long id, @RequestBody(required = false) ReorderRequest body, Authentication authentication) {
+        AccountPrincipal principal = (AccountPrincipal) authentication.getPrincipal();
+        String fallback = principal.displayName() != null && !principal.displayName().isBlank()
+                ? principal.displayName().trim() : principal.email();
+        LocalDate date = body != null && body.orderDate() != null ? body.orderDate() : null;
+        String poNumber = body != null ? body.poNumber() : null;
+        String note = body != null ? body.note() : null;
+        String preparer = (body != null && body.preparedBy() != null && !body.preparedBy().isBlank()) ? body.preparedBy().trim() : fallback;
+        boolean autoIssue = body != null && body.autoIssue();
+        return service.reorder(id, new PurchaseOrderService.ReorderCommand(date, poNumber, note, preparer, autoIssue), principal.id());
+    }
+
     @PostMapping("/{id}/issue")
     @PreAuthorize("hasAuthority('*') or hasAuthority('PO_CREATE') or hasAuthority('PO_EDIT')")
     public PurchaseOrderService.OrderView issue(@PathVariable long id, Authentication authentication) {
@@ -108,6 +122,8 @@ public class PurchaseOrderController {
     }
 
     private static long actor(Authentication authentication) { return ((AccountPrincipal) authentication.getPrincipal()).id(); }
+    public record ReorderRequest(LocalDate orderDate, @Size(max = 50) String poNumber, @Size(max = 1000) String note,
+                                 @Size(max = 255) String preparedBy, boolean autoIssue) {}
     public record CancelRequest(@Size(max = 500) String reason) {}
     public record UnlockRequest(@NotBlank @Size(max = 500) String reason) {}
     public record OrderRequest(@NotNull Long supplierId, LocalDate orderDate, @NotNull CurrencyCode currency,
