@@ -89,7 +89,14 @@ public class RememberMeService {
             return Optional.empty();
         }
 
-        if (!hash(rawToken).equals(entity.getTokenHash())) {
+        String rawHash = hash(rawToken);
+        boolean isCurrentMatch = rawHash.equals(entity.getTokenHash());
+        boolean isRecentPreviousMatch = entity.getPreviousTokenHash() != null
+                && rawHash.equals(entity.getPreviousTokenHash())
+                && entity.getLastRotatedAt() != null
+                && entity.getLastRotatedAt().isAfter(Instant.now().minus(Duration.ofSeconds(120)));
+
+        if (!isCurrentMatch && !isRecentPreviousMatch) {
             log.warn("Remember-me token hash mismatch for series {}. Invalidate all tokens for user {}.", series, entity.getUserId());
             tokens.deleteAllByUserId(entity.getUserId());
             clearCookie(response);
@@ -118,12 +125,16 @@ public class RememberMeService {
             return Optional.empty();
         }
 
-        // Token rotation: update with new token & refresh expiration
-        String newRawToken = UUID.randomUUID().toString().replace("-", "") + UUID.randomUUID().toString().replace("-", "");
-        entity.setTokenHash(hash(newRawToken));
-        entity.setExpiresAt(Instant.now().plus(TOKEN_VALIDITY_DAYS, ChronoUnit.DAYS));
-        tokens.save(entity);
-        setCookie(response, series, newRawToken);
+        // Token rotation: only rotate if matching current token AND not rotated within the last 60 seconds
+        if (isCurrentMatch && (entity.getLastRotatedAt() == null || entity.getLastRotatedAt().isBefore(Instant.now().minus(Duration.ofSeconds(60))))) {
+            String newRawToken = UUID.randomUUID().toString().replace("-", "") + UUID.randomUUID().toString().replace("-", "");
+            entity.setPreviousTokenHash(entity.getTokenHash());
+            entity.setTokenHash(hash(newRawToken));
+            entity.setLastRotatedAt(Instant.now());
+            entity.setExpiresAt(Instant.now().plus(TOKEN_VALIDITY_DAYS, ChronoUnit.DAYS));
+            tokens.save(entity);
+            setCookie(response, series, newRawToken);
+        }
 
         return Optional.of(new AccountPrincipal(account, linkedEmployeeActive));
     }

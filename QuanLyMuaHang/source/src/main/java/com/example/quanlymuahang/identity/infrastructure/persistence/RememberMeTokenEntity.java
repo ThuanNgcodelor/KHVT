@@ -26,6 +26,9 @@ public class RememberMeTokenEntity {
     @Column(name = "token_hash", nullable = false, length = 64)
     private String tokenHash;
 
+    @Column(name = "previous_token_hash", length = 64)
+    private String previousTokenHash;
+
     @Column(name = "user_agent", length = 255)
     private String userAgent;
 
@@ -34,6 +37,9 @@ public class RememberMeTokenEntity {
 
     @Column(name = "expires_at", nullable = false)
     private Instant expiresAt;
+
+    @Column(name = "last_rotated_at")
+    private Instant lastRotatedAt;
 
     @Column(name = "created_at", nullable = false, updatable = false)
     private Instant createdAt;
@@ -59,6 +65,10 @@ public class RememberMeTokenEntity {
     public String getSeries() { return series; }
     public String getTokenHash() { return tokenHash; }
     public void setTokenHash(String tokenHash) { this.tokenHash = tokenHash; }
+    public String getPreviousTokenHash() { return previousTokenHash; }
+    public void setPreviousTokenHash(String previousTokenHash) { this.previousTokenHash = previousTokenHash; }
+    public Instant getLastRotatedAt() { return lastRotatedAt; }
+    public void setLastRotatedAt(Instant lastRotatedAt) { this.lastRotatedAt = lastRotatedAt; }
     public String getUserAgent() { return userAgent; }
     public String getIpAddress() { return ipAddress; }
     public Instant getExpiresAt() { return expiresAt; }

@@ -28,7 +28,7 @@ spring:
       port: ${REDIS_PORT:6379}
   session:
     store-type: redis
-    timeout: 30m
+    timeout: ${SESSION_TIMEOUT:7d}
     redis:
       repository-type: indexed
       namespace: qmh:session:indexed
@@ -57,6 +57,7 @@ server:
         http-only: true
         secure: ${SESSION_COOKIE_SECURE:false}
         same-site: lax
+        max-age: ${SESSION_COOKIE_MAX_AGE:604800s}
 
 app:
   timezone: ${APP_TIMEZONE:Asia/Ho_Chi_Minh}

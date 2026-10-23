@@ -230,6 +230,11 @@ class AuthApiIntegrationTest {
 
         // Session was restored, and token was rotated
         assertThat(restoredResult.getResponse().getHeaders("Set-Cookie")).anyMatch(h -> h.contains("QMH_REMEMBER="));
+
+        // Concurrent in-flight request using the same old cookie within grace window succeeds without 401 theft error
+        mvc.perform(get("/api/auth/me").cookie(rememberCookie))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("email").value(EMAIL));
     }
 
     @Test
