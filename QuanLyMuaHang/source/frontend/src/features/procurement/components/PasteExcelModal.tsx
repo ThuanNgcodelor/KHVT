@@ -142,7 +142,13 @@ export function PasteExcelModal({
   }
 
   return (
-    <Dialog title="Dán dữ liệu trực tiếp từ Excel" onClose={onClose}>
+    <Dialog
+      title="Dán dữ liệu trực tiếp từ Excel"
+      size="wide"
+      disableBackdropClick
+      confirmClose={Boolean(text.trim())}
+      onClose={onClose}
+    >
       <p className="dialog-description">
         Sao chép các dòng trong Excel (bôi đen các ô rồi nhấn Ctrl+C) và dán vào ô bên dưới. Hệ thống sẽ tự động nhận diện các cột: Tên vật tư, Quy cách, ĐVT, Số lượng, Đơn giá.
       </p>

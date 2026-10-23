@@ -16,6 +16,7 @@ import { UsersPage } from './features/identity-admin/pages/UsersPage'
 import { ModulesPage } from './features/portal/pages/ModulesPage'
 import { MaterialsPage } from './features/catalog/pages/MaterialsPage'
 import { SuppliersPage } from './features/catalog/pages/SuppliersPage'
+import { SupplierHistoryPage } from './features/catalog/pages/SupplierHistoryPage'
 import { PriceSearchPage } from './features/pricing/pages/PriceSearchPage'
 import { ImportsPage } from './features/imports/pages/ImportsPage'
 import { PurchaseOrdersPage } from './features/procurement/pages/PurchaseOrdersPage'
@@ -68,7 +69,7 @@ export function App() {
       </Route>
       <Route element={<RequirePermissions permissions={['PO_CREATE']} />}><Route path="purchase-orders/new" element={<PurchaseOrderFormPage key="new" />} /></Route>
       <Route element={<RequirePermissions permissions={['PO_EDIT']} />}><Route path="purchase-orders/:id/edit" element={<PurchaseOrderFormPage key="edit" />} /></Route>
-      <Route element={<RequirePermissions permissions={['CATALOG_READ']} />}><Route path="catalog/materials" element={<MaterialsPage />} /><Route path="catalog/suppliers" element={<SuppliersPage />} /></Route>
+      <Route element={<RequirePermissions permissions={['CATALOG_READ']} />}><Route path="catalog/materials" element={<MaterialsPage />} /><Route path="catalog/suppliers" element={<SuppliersPage />} /><Route path="catalog/suppliers/:id/history" element={<SupplierHistoryPage />} /></Route>
       <Route element={<RequirePermissions permissions={['PRICE_READ']} />}><Route path="price-search" element={<PriceSearchPage />} /></Route>
       <Route element={<RequireAnyPermission permissions={['IMPORT_OPERATIONAL', 'IMPORT_LEGACY']} />}><Route path="imports" element={<ImportsPage />} /></Route>
       </Route>

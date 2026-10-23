@@ -1,4 +1,5 @@
 import { useState } from 'react'
+import { Link } from 'react-router-dom'
 import { PageHeader } from '../../../components/PageHeader'
 import { Icon } from '../../../components/Icon'
 import { Pagination } from '../../../components/Pagination'
@@ -10,7 +11,6 @@ import { hasPermission } from '../../auth/types'
 import { CatalogTabs } from '../components/CatalogTabs'
 import { SupplierForm } from '../components/SupplierForm'
 import { BatchImportCatalogDialog } from '../components/BatchImportCatalogDialog'
-import { SupplierPurchaseHistoryDialog } from '../components/SupplierPurchaseHistoryDialog'
 import { useSuppliers, useSupplierStatus } from '../hooks/useCatalog'
 import type { Supplier } from '../types'
 import { SortTh } from '../../../components/SortTh'
@@ -22,7 +22,6 @@ export function SuppliersPage() {
   const [page, setPage] = useState(0), [editing, setEditing] = useState<Supplier | 'new' | null>(null)
   const [sort, setSort] = useState('name,asc')
   const [batchOpen, setBatchOpen] = useState(false)
-  const [historySupplier, setHistorySupplier] = useState<Supplier | null>(null)
   const [confirm, setConfirm] = useState<Supplier | null>(null), [notice, setNotice] = useState('')
   const suppliers = useSuppliers({ q, active: active === '' ? undefined : active === 'true', page, size: 25, sort })
   const changeStatus = useSupplierStatus(), data = suppliers.data
@@ -70,11 +69,22 @@ export function SuppliersPage() {
           <th scope="col">Thao tác</th>
         </tr></thead>
         <tbody>{data.content.map((supplier) => <tr key={supplier.id}>
-          <td className="code-cell">{supplier.code ?? '—'}</td><td><strong className="cell-title">{supplier.name}</strong><span className="cell-subtitle">{supplier.address ?? 'Chưa có địa chỉ'}</span></td>
+          <td className="code-cell">{supplier.code ?? '—'}</td>
+          <td>
+            <Link
+              to={`/catalog/suppliers/${supplier.id}/history`}
+              className="cell-title"
+              style={{ textDecoration: 'none', color: 'var(--brand, #1f513f)' }}
+              title={`Xem chi tiết & lịch sử mua hàng của ${supplier.name}`}
+            >
+              {supplier.name}
+            </Link>
+            <span className="cell-subtitle">{supplier.address ?? 'Chưa có địa chỉ'}</span>
+          </td>
           <td>{supplier.email ?? '—'}<span className="cell-subtitle">{supplier.phone ?? '—'}</span></td><td>{supplier.taxCode ?? '—'}</td>
           <td><span className={`status-badge ${supplier.active ? 'active' : 'inactive'}`}>{supplier.active ? 'Đang sử dụng' : 'Đã ngừng'}</span></td>
           <td><div className="table-actions">
-            <button className="text-button" aria-label={`Xem lịch sử mua từ ${supplier.name}`} onClick={() => setHistorySupplier(supplier)}>Lịch sử mua</button>
+            <Link to={`/catalog/suppliers/${supplier.id}/history`} className="text-button" aria-label={`Xem lịch sử mua từ ${supplier.name}`}>Lịch sử mua</Link>
             {canManage && <>
               <button className="text-button" aria-label={`Sửa ${supplier.name}`} onClick={() => { setNotice(''); setEditing(supplier) }}>Sửa</button>
               <button className={`text-button ${supplier.active ? 'danger' : ''}`} aria-label={`${supplier.active ? 'Ngừng' : 'Kích hoạt'} ${supplier.name}`} onClick={() => { changeStatus.reset(); setNotice(''); setConfirm(supplier) }}>{supplier.active ? 'Ngừng' : 'Kích hoạt'}</button>
@@ -90,6 +100,5 @@ export function SuppliersPage() {
       confirmLabel={confirm.active ? 'Xác nhận ngừng' : 'Xác nhận kích hoạt'} danger={confirm.active} busy={changeStatus.isPending}
       error={changeStatus.error ? errorMessage(changeStatus.error) : undefined} onClose={() => setConfirm(null)} onConfirm={() => { void confirmStatus() }} />}
     {batchOpen && <BatchImportCatalogDialog kind="suppliers" onClose={() => setBatchOpen(false)} onSuccess={(res) => { setBatchOpen(false); setNotice(`Đã thêm thành công ${res.created} nhà cung cấp.`); void suppliers.refetch() }} />}
-    {historySupplier && <SupplierPurchaseHistoryDialog supplier={historySupplier} onClose={() => setHistorySupplier(null)} />}
   </>
 }

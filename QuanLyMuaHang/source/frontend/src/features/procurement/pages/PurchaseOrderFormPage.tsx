@@ -345,7 +345,13 @@ export function PurchaseOrderFormPage() {
     )
   }
   return <>
-    <PageHeader title={editing ? `Sửa ${orderQuery.data?.poNumber ?? 'đơn mua'}` : 'Mua hàng'} description="Nhập PCVT, tìm vật tư, xem giá/NCC đã mua và chuẩn bị đơn theo từng nhà cung cấp." actions={<Link className="secondary-button" to="/purchase-orders">Danh sách đơn</Link>} />
+    <PageHeader
+      title={editing ? `Sửa ${orderQuery.data?.poNumber ?? 'đơn mua'}` : 'Mua hàng'}
+      description="Nhập PCVT, tìm vật tư, xem giá/NCC đã mua và chuẩn bị đơn theo từng nhà cung cấp."
+      backTo="/purchase-orders"
+      backLabel="Danh sách đơn mua hàng"
+      actions={<Link className="secondary-button" to="/purchase-orders">Danh sách đơn</Link>}
+    />
     {imported && <p className="import-note">Nhận {imported.items.length} dòng từ {imported.fileName || 'bản nháp'}. {imported.message} {imported.warnings?.length ? `${imported.warnings.length} dòng có cảnh báo cần đối chiếu.` : ''}</p>}
     {error && <p className="form-error" role="alert">{error}</p>}{notice && <p className="success-notice" role="status">{notice}</p>}
     {!editing && user && hasPermission(user, 'IMPORT_OPERATIONAL') && <DocumentWorkbench embedded canReadPrices={hasPermission(user, 'PRICE_READ')} canCreateOrders onBusy={setDocumentBusy} onCreateOrder={acceptImport} />}

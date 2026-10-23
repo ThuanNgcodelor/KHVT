@@ -50,7 +50,12 @@ export function PurchaseOrderDetailPage() {
   }
   const currentPdf = revisions.data?.some((revision) => revision.revision === order.revision && revision.pdfAvailable)
   return <>
-    <PageHeader title={order.poNumber} description={`${orderStatusLabels[order.status]} · Phiên bản ${order.revision} · ${formatOrderDate(order.orderDate)}`} actions={<>
+    <PageHeader
+      title={order.poNumber}
+      description={`${orderStatusLabels[order.status]} · Phiên bản ${order.revision} · ${formatOrderDate(order.orderDate)}`}
+      backTo="/purchase-orders"
+      backLabel="Danh sách đơn mua hàng"
+      actions={<>
       <Link className="secondary-button" to="/purchase-orders">Danh sách</Link>
       {user && hasPermission(user, 'PO_EDIT') && order.status !== 'CANCELLED' && (
         order.status === 'EXPORTED' ? (
