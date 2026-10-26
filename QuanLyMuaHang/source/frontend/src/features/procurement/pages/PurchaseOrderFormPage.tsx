@@ -514,7 +514,11 @@ export function PurchaseOrderFormPage() {
               const hasValidQty = !row.textQty && !isNaN(qtyVal) && qtyVal > 0
               const hasValidPrice = !isNaN(priceVal) && priceVal >= 0
               const rowSubtotal = hasValidQty && hasValidPrice ? qtyVal * priceVal : null
-              const isQtyInvalid = row.selected && !row.textQty && (row.quantity.trim() === '' || isNaN(qtyVal) || qtyVal <= 0)
+              const isQtyInvalid = row.selected && (
+                row.textQty
+                  ? !row.quantityText.trim()
+                  : (row.quantity.trim() === '' || isNaN(qtyVal) || qtyVal <= 0)
+              )
               const isPriceInvalid = row.selected && (row.unitPrice.trim() === '' || isNaN(priceVal) || priceVal <= 0)
 
               const histPrice = latestHistory[row.key]?.price?.unitPrice != null ? Number(latestHistory[row.key].price.unitPrice) : null
@@ -535,9 +539,46 @@ export function PurchaseOrderFormPage() {
                     <input aria-label={`Đơn vị dòng ${index + 1}`} maxLength={100} value={row.unit} placeholder="Đơn vị tính…" onChange={(event) => patch(row.key, { unit: event.target.value })} />
                   </td>
                   <td>
-                    {row.textQty && <span className="cell-subtitle">SL chữ từ nguồn: {row.quantityText}. Cần xác nhận số lượng dạng số trước khi lập PO.</span>}
-                    <input aria-label={`Số lượng dòng ${index + 1}`} inputMode="decimal" maxLength={24} placeholder="Nhập SL…" className={isQtyInvalid ? 'input-invalid' : ''} value={row.quantity} onChange={(event) => patch(row.key, { quantity: event.target.value, textQty: false })} />
-                    {isQtyInvalid && <span className="cell-invalid">Vui lòng nhập SL &gt; 0</span>}
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '4px', marginBottom: '2px' }}>
+                      <button
+                        type="button"
+                        title={row.textQty ? 'Đang nhập chữ — bấm để chuyển sang nhập số' : 'Đang nhập số — bấm để chuyển sang nhập chữ tự do (VD: Qua cân thực tế)'}
+                        style={{
+                          fontSize: '10px',
+                          padding: '1px 5px',
+                          borderRadius: '3px',
+                          border: '1px solid var(--border-color, #cbd5e1)',
+                          background: row.textQty ? 'var(--primary-color, #3b82f6)' : 'var(--surface-subtle, #f1f5f9)',
+                          color: row.textQty ? '#fff' : 'var(--text-muted, #64748b)',
+                          cursor: 'pointer',
+                          whiteSpace: 'nowrap',
+                          lineHeight: '1.4',
+                          flexShrink: 0
+                        }}
+                        onClick={() => patch(row.key, { textQty: !row.textQty, quantity: row.textQty ? '' : row.quantity, quantityText: row.textQty ? row.quantityText : (row.quantityText || '') })}
+                      >
+                        {row.textQty ? 'Chữ' : 'Số'}
+                      </button>
+                    </div>
+                    {row.textQty ? (
+                      <>
+                        <input
+                          aria-label={`Số lượng (chữ) dòng ${index + 1}`}
+                          type="text"
+                          maxLength={200}
+                          placeholder="VD: Qua cân thực tế…"
+                          className={isQtyInvalid ? 'input-invalid' : ''}
+                          value={row.quantityText}
+                          onChange={(event) => patch(row.key, { quantityText: event.target.value })}
+                        />
+                        {isQtyInvalid && <span className="cell-invalid">Vui lòng nhập mô tả số lượng</span>}
+                      </>
+                    ) : (
+                      <>
+                        <input aria-label={`Số lượng dòng ${index + 1}`} inputMode="decimal" maxLength={24} placeholder="Nhập SL…" className={isQtyInvalid ? 'input-invalid' : ''} value={row.quantity} onChange={(event) => patch(row.key, { quantity: event.target.value })} />
+                        {isQtyInvalid && <span className="cell-invalid">Vui lòng nhập SL &gt; 0</span>}
+                      </>
+                    )}
                   </td>
                   <td>
                     {latestHistory[row.key] && (

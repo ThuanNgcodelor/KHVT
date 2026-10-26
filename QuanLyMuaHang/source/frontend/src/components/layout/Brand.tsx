@@ -1,6 +1,8 @@
+import cfcLogo from '../../assets/cfc-logo-primary.png'
+
 export function Brand() {
   return <div className="brand-block">
-    <div className="brand-mark" aria-hidden="true">KH</div>
-    <div><p className="brand-name">KHVT</p><p className="brand-caption">Hệ thống nội bộ</p></div>
+    <img className="brand-logo" src={cfcLogo} alt="CFC" />
+    <div><p className="brand-name">CFC</p><p className="brand-caption">Quản lý mua hàng KHVT</p></div>
   </div>
 }

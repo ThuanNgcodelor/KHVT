@@ -13,7 +13,7 @@ export function ModulesPage() {
   return <div className="portal-layout">
     <header className="portal-header"><Brand /><div className="portal-account"><span>{user?.displayName}</span><button className="secondary-button" type="button" disabled={logout.pending} onClick={() => { void logout.signout() }}>{logout.pending ? 'Đang đăng xuất…' : 'Đăng xuất'}</button></div></header>
     <main className="portal-content">
-      <p className="eyebrow">KHVT · Cổng ứng dụng</p><h1>Ứng dụng của bạn</h1>
+      <p className="eyebrow">CFC · Cổng ứng dụng</p><h1>Ứng dụng của bạn</h1>
       <p className="portal-description">Chọn ứng dụng để bắt đầu làm việc.</p>
       {logout.error && <p className="form-error" role="alert">{logout.error}</p>}
       <div className="module-grid">{modules.map((module) => <Link className="module-tile" key={module.code} to={module.entryPath}>
