@@ -23,8 +23,6 @@ Có thể hình dung hệ thống giống một cửa hàng:
 |---|---|---|
 | **Frontend** | Quầy giao dịch mà người dùng nhìn thấy và bấm vào | `source/frontend/` |
 | **Backend** | Nhân viên phía sau tiếp nhận yêu cầu, kiểm tra quyền và xử lý nghiệp vụ | `source/src/main/java/` |
-| **MySQL** | Kho hồ sơ chính, lưu tài khoản, vật tư, nhà cung cấp, PO và dữ liệu nghiệp vụ | Chạy bằng Docker hoặc dịch vụ cài trên máy |
-| **Redis** | Sổ ghi nhớ phiên đăng nhập để biết người dùng nào đang đăng nhập | Chạy bằng Docker hoặc dịch vụ cài trên máy |
 | **Flyway** | Người quản lý mẫu tủ hồ sơ, tự cập nhật cấu trúc database theo phiên bản | `source/src/main/resources/db/migration/` |
 | **File storage** | Kho file đã tải lên hoặc file do hệ thống tạo | Đường dẫn do `FILE_STORAGE_ROOT` trong `.env` quy định |
 
@@ -58,7 +56,6 @@ QuanLyMuaHang/
 └── source/                       Mã nguồn chính
     ├── .env                      Cấu hình riêng và bí mật của máy (không chia sẻ)
     ├── .env.example              Mẫu để tạo file .env
-    ├── docker-compose.yml        Cách chạy MySQL và Redis bằng Docker
     ├── pom.xml                   Danh sách thư viện và cách build backend
     ├── frontend/                 Toàn bộ frontend React/TypeScript
     ├── src/main/java/            Mã backend Java
@@ -139,7 +136,6 @@ Các nhóm biến quan trọng:
 |---|---|
 | `SPRING_DATASOURCE_URL` | Địa chỉ MySQL |
 | `SPRING_DATASOURCE_USERNAME`, `DB_PASSWORD` | Tài khoản ứng dụng dùng để vào MySQL |
-| `MYSQL_ROOT_PASSWORD` | Mật khẩu quản trị MySQL khi Docker tạo database lần đầu |
 | `REDIS_HOST`, `REDIS_PORT`, `REDIS_PASSWORD` | Cách kết nối Redis |
 | `SERVER_PORT` | Cổng của ứng dụng, mặc định thường là `8080` |
 | `APP_FRONTEND_URL` | Địa chỉ frontend được backend chấp nhận |
@@ -166,11 +162,29 @@ Máy cần có:
 - JDK 21 (Java).
 - Maven 3.9 trở lên.
 - Node.js và npm.
-- Docker Desktop nếu dùng MySQL/Redis bằng Docker.
+- Laragon có MySQL và Redis.
 
-Tạo `source/.env` từ file mẫu và điền cấu hình riêng như phần trên. Nếu dùng Docker, mở Docker Desktop và chờ Docker chạy xong.
+Tạo `source/.env` từ file mẫu và điền cấu hình riêng như phần trên. Với Laragon mặc định, MySQL thường ở cổng `3306` và Redis ở cổng `6379`; cấu hình thực tế trên máy phải khớp với `.env`.
 
-### 5.2. Khởi động
+### 5.2. Bật MySQL và Redis trong Laragon
+
+1. Mở **Laragon** trên Windows.
+2. Nhấn **Start All**.
+3. Kiểm tra MySQL đã ở trạng thái chạy.
+4. Kiểm tra Redis đã ở trạng thái chạy. Tùy phiên bản Laragon, Redis có thể xuất hiện ngay trên cửa sổ chính hoặc trong **Menu → Redis**. Nếu Redis chưa được cài trong Laragon thì cần thêm Redis trước khi chạy dự án.
+5. Giữ Laragon đang chạy trong lúc sử dụng hệ thống.
+
+Cấu hình `.env` cần trỏ đến dịch vụ Laragon, ví dụ về địa chỉ và cổng:
+
+```dotenv
+SPRING_DATASOURCE_URL=jdbc:mysql://localhost:3306/quanlymuahang?useUnicode=true&characterEncoding=utf8
+REDIS_HOST=localhost
+REDIS_PORT=6379
+```
+
+Tên tài khoản, mật khẩu MySQL và mật khẩu Redis phải điền theo cấu hình thực tế trên máy. Không sao chép nguyên mật khẩu ví dụ và không gửi nội dung `.env` cho người khác.
+
+### 5.3. Khởi động ứng dụng
 
 Mở PowerShell tại thư mục `QuanLyMuaHang`, chạy:
 
@@ -181,10 +195,12 @@ Mở PowerShell tại thư mục `QuanLyMuaHang`, chạy:
 Hoặc bấm đúp `CHAY_KHVT.cmd`. Launcher sẽ:
 
 1. Đọc `source/.env`.
-2. Kiểm tra MySQL và Redis; nếu chưa có dịch vụ local phù hợp thì bật hai dịch vụ bằng Docker.
+2. Kiểm tra MySQL và Redis của Laragon đang mở ở đúng cổng.
 3. Cài/build frontend.
 4. Build backend và gói frontend vào file JAR.
 5. Chạy một tiến trình Java phục vụ cả giao diện và API.
+
+Khi phát hiện đủ MySQL và Redis đang chạy cục bộ, launcher sẽ dùng trực tiếp hai dịch vụ của Laragon.
 
 Sau khi thấy khởi động thành công, mở:
 
@@ -192,14 +208,14 @@ Sau khi thấy khởi động thành công, mở:
 http://localhost:8080
 ```
 
-### 5.3. Xem trạng thái và dừng
+### 5.4. Xem trạng thái và dừng
 
 ```powershell
 .\CHAY_KHVT.cmd status
 .\CHAY_KHVT.cmd stop
 ```
 
-Lệnh `stop` chỉ dừng ứng dụng Java do launcher quản lý; MySQL, Redis và Docker Desktop vẫn tiếp tục chạy.
+Lệnh `stop` chỉ dừng ứng dụng Java do launcher quản lý; MySQL và Redis trong Laragon vẫn tiếp tục chạy. Khi không còn ứng dụng nào khác cần chúng, bạn có thể nhấn **Stop All** trong Laragon.
 
 Nếu chắc chắn JAR hiện có là bản cần dùng và không muốn build lại:
 
@@ -209,32 +225,13 @@ Nếu chắc chắn JAR hiện có là bản cần dùng và không muốn build
 
 `-NoBuild` không lấy thay đổi code mới. Khi vừa sửa code, hãy chạy lại không có tùy chọn này.
 
-## 6. Cách chạy dễ nhất trên Linux
-
-Máy cần JDK 21, Maven 3.9+, Node/npm, Docker Engine và Docker Compose. Từ thư mục `QuanLyMuaHang`:
-
-```bash
-chmod +x CHAY_KHVT.sh
-./CHAY_KHVT.sh start
-```
-
-Mở `http://localhost:8080` khi ứng dụng báo sẵn sàng.
-
-Các lệnh quản lý:
-
-```bash
-./CHAY_KHVT.sh status
-./CHAY_KHVT.sh stop
-./CHAY_KHVT.sh --help
-```
-
-## 7. Chạy khi đang phát triển hoặc sửa code
+## 6. Chạy khi đang phát triển hoặc sửa code
 
 Người chỉ sử dụng hệ thống không cần phần này.
 
 ### Chạy cả hệ thống ở chế độ phát triển trên Windows
 
-Mở Docker Desktop trước, sau đó chạy từ thư mục gốc:
+Mở Laragon và nhấn **Start All** trước, sau đó chạy từ thư mục gốc:
 
 ```powershell
 powershell -NoProfile -ExecutionPolicy Bypass -File .\tools\start-local.ps1
@@ -246,7 +243,7 @@ Trong chế độ này:
 - Backend thường ở `http://localhost:8080`.
 - Không chạy đồng thời launcher đóng gói, script dev và VS Code backend trên cùng cổng.
 
-### Chạy backend thủ công trên Linux/macOS shell
+### Chạy backend thủ công
 
 Từ `source/`, nạp biến môi trường và chạy:
 
@@ -257,12 +254,7 @@ set +a
 mvn spring-boot:run
 ```
 
-MySQL và Redis phải chạy trước. Nếu dùng Docker Compose:
-
-```bash
-docker compose up -d mysql redis
-docker compose ps
-```
+MySQL và Redis trong Laragon phải chạy trước và phải khớp với địa chỉ, cổng cùng thông tin đăng nhập trong `source/.env`.
 
 ### Chạy riêng frontend
 
@@ -275,7 +267,7 @@ npm run dev
 
 Frontend vẫn cần backend để dùng dữ liệu thật. Việc chỉ thấy trang web mở được chưa chứng minh database hoặc toàn bộ nghiệp vụ đang hoạt động.
 
-## 8. Cách sử dụng hệ thống
+## 7. Cách sử dụng hệ thống
 
 ### Đăng nhập
 
@@ -300,7 +292,7 @@ Frontend vẫn cần backend để dùng dữ liệu thật. Việc chỉ thấy
 
 Nếu một mục không xuất hiện hoặc báo “không có quyền”, đây có thể là hành vi đúng theo phân quyền. Hãy liên hệ quản trị viên thay vì sửa frontend để bỏ kiểm tra quyền; backend vẫn kiểm tra quyền độc lập.
 
-## 9. Dữ liệu được lưu ở đâu và cần sao lưu gì?
+## 8. Dữ liệu được lưu ở đâu và cần sao lưu gì?
 
 Ba nơi quan trọng:
 
@@ -308,17 +300,9 @@ Ba nơi quan trọng:
 2. **`FILE_STORAGE_ROOT`:** file nguồn, PDF, Excel hoặc artifact nghiệp vụ.
 3. **Redis:** chủ yếu lưu phiên đăng nhập; mất Redis thường khiến người dùng phải đăng nhập lại, nhưng Redis không thay thế backup MySQL.
 
-Copy thư mục mã nguồn hoặc file JAR **không có nghĩa là đã copy database**. Khi chuyển máy, phải sao lưu và khôi phục MySQL, đồng thời sao lưu thư mục `FILE_STORAGE_ROOT` phù hợp cùng thời điểm.
+Copy thư mục mã nguồn hoặc file JAR **không có nghĩa là đã copy database**. Khi chuyển máy, phải xuất và khôi phục database MySQL của Laragon, đồng thời sao lưu thư mục `FILE_STORAGE_ROOT` phù hợp cùng thời điểm. Không xóa thư mục dữ liệu MySQL của Laragon để chữa lỗi khởi động.
 
-Không dùng lệnh sau để chữa lỗi khởi động:
-
-```text
-docker compose down -v
-```
-
-Tùy chọn `-v` xóa volume và có thể làm mất database. Nếu có lỗi kết nối, hãy kiểm tra cấu hình và log trước.
-
-## 10. Kiểm thử dành cho người sửa code
+## 9. Kiểm thử dành cho người sửa code
 
 ### Backend
 
@@ -347,7 +331,7 @@ npm run test:e2e -- --workers=1
 
 Build thành công chỉ có nghĩa là mã đã đóng gói được. Nó chưa đồng nghĩa với việc toàn bộ nghiệp vụ, database thật, quyền người dùng và file thật đã được nghiệm thu.
 
-## 11. Lỗi thường gặp
+## 10. Lỗi thường gặp
 
 ### Không mở được `localhost:8080`
 
@@ -355,11 +339,12 @@ Build thành công chỉ có nghĩa là mã đã đóng gói được. Nó chưa
 - Kiểm tra cổng `8080` có bị chương trình khác chiếm không.
 - Xem log trong `source/target/runtime/`.
 
-### Docker hoặc MySQL/Redis chưa sẵn sàng
+### MySQL hoặc Redis trong Laragon chưa sẵn sàng
 
-- Mở Docker Desktop/daemon và chờ chạy xong.
-- Chạy `docker compose ps` trong `source/`.
-- Không xóa volume chỉ để thử chạy lại.
+- Mở Laragon và nhấn **Start All**.
+- Kiểm tra MySQL đang nghe ở cổng ghi trong `SPRING_DATASOURCE_URL`, thường là `3306`.
+- Kiểm tra Redis đang nghe ở `REDIS_PORT`, thường là `6379`.
+- Nếu launcher báo chưa phát hiện đủ dịch vụ, hãy kiểm tra cả MySQL và Redis trong Laragon có đang chạy đúng cổng ghi trong `.env` hay không.
 
 ### Lỗi MySQL “Access denied” hoặc mã 1045
 
@@ -379,7 +364,7 @@ Kiểm tra ứng dụng, vai trò và quyền của tài khoản. Đây thườn
 
 Kiểm tra `APP_PDF_FONT_PATH` trong `.env` có trỏ tới file font Unicode `.ttf` thực sự tồn tại trên máy.
 
-## 12. Thuật ngữ nhanh
+## 11. Thuật ngữ nhanh
 
 | Thuật ngữ | Giải thích ngắn |
 |---|---|
@@ -391,18 +376,10 @@ Kiểm tra `APP_PDF_FONT_PATH` trong `.env` có trỏ tới file font Unicode `.
 | Migration | File thay đổi cấu trúc database theo từng phiên bản |
 | Session | Phiên đăng nhập của người dùng |
 | CSRF | Cơ chế bảo vệ thao tác ghi khỏi yêu cầu giả mạo |
-| Docker | Công cụ chạy MySQL/Redis trong môi trường đóng gói |
+| Laragon | Bộ công cụ trên Windows dùng để chạy MySQL, Redis và các dịch vụ phát triển cục bộ |
 | Cổng (port) | “Số cửa” để truy cập dịch vụ, ví dụ `8080` |
 | Log | Nhật ký kỹ thuật giúp tìm nguyên nhân lỗi |
 
-## 13. Nên đọc tài liệu nào tiếp theo?
-
-- Muốn chạy/tắt/test nhanh: [`Build.md`](Build.md).
-- Muốn hiểu backend và API: [`source/README.md`](source/README.md).
-- Muốn hiểu frontend: [`source/frontend/README.md`](source/frontend/README.md).
-- Muốn vận hành Windows hoặc chuẩn bị domain HTTPS: [`docs/CHAY_WINDOWS_VA_CLOUDFLARE.md`](docs/CHAY_WINDOWS_VA_CLOUDFLARE.md).
-- Muốn hiểu yêu cầu dự kiến của từng tính năng: xem thư mục `plan/`, nhưng cần đối chiếu lại với code và kết quả kiểm thử thực tế.
-
 ---
 
-**Tóm tắt một câu:** hãy tạo đúng `source/.env`, mở Docker nếu dùng Docker, chạy `CHAY_KHVT.cmd start` trên Windows hoặc `./CHAY_KHVT.sh start` trên Linux, rồi mở `http://localhost:8080`.
+**Tóm tắt một câu:** hãy tạo đúng `source/.env`, mở Laragon và nhấn **Start All**, chạy `CHAY_KHVT.cmd start`, rồi mở `http://localhost:8080`.
